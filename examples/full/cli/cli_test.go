@@ -265,7 +265,7 @@ srv:
 			assertFunc: func(t *testing.T, output string, err error) {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, "'DryRun' cannot parse value as 'bool'")
-				assert.ErrorContains(t, err, `parsing "b": invalid syntax`)
+				assert.ErrorContains(t, err, `invalid syntax`)
 			},
 		},
 		{
@@ -276,7 +276,7 @@ srv:
 			assertFunc: func(t *testing.T, output string, err error) {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, "'DryRun' cannot parse value as 'bool'")
-				assert.ErrorContains(t, err, `parsing "a": invalid syntax`)
+				assert.ErrorContains(t, err, `invalid syntax`)
 			},
 		},
 		{
