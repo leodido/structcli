@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -49,7 +50,7 @@ func (suite *structcliSuite) TestBindEnv_FirstCall() {
 		"cgroup": {"S4SONIC_DNS_CGROUP"},
 	})
 
-	internalenv.BindEnv(cmd)
+	require.NoError(suite.T(), internalenv.BindEnv(cmd))
 
 	// Get the scope and check bound envs
 	scope := internalscope.Get(cmd)
@@ -66,14 +67,14 @@ func (suite *structcliSuite) TestBindEnv_SecondCallSameCommand() {
 	})
 
 	// First call
-	internalenv.BindEnv(cmd)
+	require.NoError(suite.T(), internalenv.BindEnv(cmd))
 
 	// Add a new flag to simulate second call (like dnsOpts.Attach after commonOpts.Attach)
 	cmd.Flags().String("new-flag", "", "new test flag")
 	_ = cmd.Flags().SetAnnotation("new-flag", internalenv.FlagAnnotation, []string{"S4SONIC_DNS_NEW_FLAG"})
 
 	// Second call should not bind existing flags again, but should bind new flag
-	internalenv.BindEnv(cmd)
+	require.NoError(suite.T(), internalenv.BindEnv(cmd))
 
 	// Check bound envs
 	scope := internalscope.Get(cmd)
@@ -96,8 +97,8 @@ func (suite *structcliSuite) TestBindEnv_DifferentCommands() {
 	})
 
 	// Bind for both commands
-	internalenv.BindEnv(dnsCmd)
-	internalenv.BindEnv(ttyCmd)
+	require.NoError(suite.T(), internalenv.BindEnv(dnsCmd))
+	require.NoError(suite.T(), internalenv.BindEnv(ttyCmd))
 
 	// Both commands should have their flags bound independently
 	dnsScope := internalscope.Get(dnsCmd)
@@ -120,7 +121,7 @@ func (suite *structcliSuite) TestBindEnv_FlagsWithoutEnvAnnotations() {
 		"no-env": {},                     // No env annotation
 	})
 
-	internalenv.BindEnv(cmd)
+	require.NoError(suite.T(), internalenv.BindEnv(cmd))
 
 	// Only flags with env annotations should be tracked
 	scope := internalscope.Get(cmd)
@@ -133,8 +134,8 @@ func (suite *structcliSuite) TestBindEnv_FlagsWithoutEnvAnnotations() {
 func (suite *structcliSuite) TestBindEnv_EmptyCommand() {
 	cmd := &cobra.Command{Use: "empty"}
 
-	// Should not panic with empty command
-	internalenv.BindEnv(cmd)
+	// Should not panic or error with empty command
+	require.NoError(suite.T(), internalenv.BindEnv(cmd))
 
 	// Should have scope but no bound envs
 	scope := internalscope.Get(cmd)

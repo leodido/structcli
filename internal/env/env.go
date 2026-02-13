@@ -1,6 +1,7 @@
 package internalenv
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -58,18 +59,26 @@ func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) 
 	return ret, defineEnv
 }
 
-func BindEnv(c *cobra.Command) {
+func BindEnv(c *cobra.Command) error {
 	s := internalscope.Get(c)
+	var bindErr error
 
 	c.Flags().VisitAll(func(f *pflag.Flag) {
+		if bindErr != nil {
+			return
+		}
 		if envs, defineEnv := f.Annotations[FlagAnnotation]; defineEnv {
 			// Only bind if we haven't already bound this env var for this command
 			if !s.IsEnvBound(f.Name) {
 				s.SetBound(f.Name)
 				input := []string{f.Name}
 				input = append(input, envs...)
-				s.Viper().BindEnv(input...)
+				if err := s.Viper().BindEnv(input...); err != nil {
+					bindErr = fmt.Errorf("couldn't bind env for flag %s: %w", f.Name, err)
+				}
 			}
 		}
 	})
+
+	return bindErr
 }
