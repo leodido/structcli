@@ -55,7 +55,9 @@ func SetupDebug(rootC *cobra.Command, debugOpts debug.Options) error {
 
 	// Ensure environment binding happens
 	cobra.OnInitialize(func() {
-		internalenv.BindEnv(rootC)
+		if err := internalenv.BindEnv(rootC); err != nil {
+			fmt.Fprintf(os.Stderr, "structcli: debug env binding error: %v\n", err)
+		}
 	})
 
 	// Wrap all commands run hooks

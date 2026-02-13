@@ -77,7 +77,9 @@ func Define(c *cobra.Command, o Options, defineOpts ...DefineOption) error {
 	// Bind flag values to struct field values
 	v.BindPFlags(c.Flags())
 	// Bind environment
-	internalenv.BindEnv(c)
+	if err := internalenv.BindEnv(c); err != nil {
+		return fmt.Errorf("couldn't bind environment variables: %w", err)
+	}
 	// Generate the usage message
 	SetupUsage(c)
 
