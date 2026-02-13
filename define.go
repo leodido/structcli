@@ -308,7 +308,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				ref := (*[]int)(unsafe.Pointer(field.UnsafeAddr()))
 				c.Flags().IntSliceVarP(ref, name, short, val, descr)
 			}
-			internalhooks.InferDecodeHooks(c, name, f.Type.String()) // FIXME: handle error?
+			if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
+				return fmt.Errorf("internal error: missing decode hook for built-in slice type %s", f.Type.String())
+			}
 
 		default:
 			continue
@@ -335,12 +337,16 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		}
 
 		if len(envs) > 0 {
-			_ = c.Flags().SetAnnotation(name, internalenv.FlagAnnotation, envs)
+			if err := c.Flags().SetAnnotation(name, internalenv.FlagAnnotation, envs); err != nil {
+				return fmt.Errorf("couldn't set env annotation for flag %s: %w", name, err)
+			}
 		}
 
 		// Set the group annotation on the current flag
 		if group != "" {
-			_ = c.Flags().SetAnnotation(name, internalusage.FlagGroupAnnotation, []string{group})
+			if err := c.Flags().SetAnnotation(name, internalusage.FlagGroupAnnotation, []string{group}); err != nil {
+				return fmt.Errorf("couldn't set group annotation for flag %s: %w", name, err)
+			}
 		}
 	}
 
