@@ -281,7 +281,7 @@ This configuration system supports:
 
 Supports validation, transformation, and custom flag type definitions through simple interfaces.
 
-Just make your struct implement `ValidatableOptions` and `TransformableOptions` interfaces.
+Your struct must implement `Options` (via `Attach`) and can optionally implement `ValidatableOptions` and `TransformableOptions`.
 
 ```go
 type UserConfig struct {
