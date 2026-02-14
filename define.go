@@ -146,6 +146,40 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		mandatory := internaltag.IsMandatory(f) || mandatory
 
 		kind := f.Type.Kind()
+		applyFieldMetadata := func() error {
+			// Marking the flag
+			if mandatory {
+				c.MarkFlagRequired(name)
+			}
+
+			// Set the defaults
+			if defval != "" {
+				GetViper(c).SetDefault(name, defval)
+				GetViper(c).SetDefault(path, defval)
+				// This is needed for the usage help messages
+				c.Flags().Lookup(name).DefValue = defval
+				globalDefaultsCache.Store(name, defval)
+			}
+
+			if alias != "" && path != alias {
+				globalAliasCache.Store(alias, path)
+			}
+
+			if len(envs) > 0 {
+				if err := c.Flags().SetAnnotation(name, internalenv.FlagAnnotation, envs); err != nil {
+					return fmt.Errorf("couldn't set env annotation for flag %s: %w", name, err)
+				}
+			}
+
+			// Set the group annotation on the current flag
+			if group != "" {
+				if err := c.Flags().SetAnnotation(name, internalusage.FlagGroupAnnotation, []string{group}); err != nil {
+					return fmt.Errorf("couldn't set group annotation for flag %s: %w", name, err)
+				}
+			}
+
+			return nil
+		}
 
 		// Flags with `flagcustom:"true"` tag (validation already done)
 		custom, _ := strconv.ParseBool(f.Tag.Get("flagcustom"))
@@ -176,14 +210,22 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 						return fmt.Errorf("couldn't register decode hook %s: %w", decodeHookName, err)
 					}
 
-					goto definition_done
+					if err := applyFieldMetadata(); err != nil {
+						return err
+					}
+
+					continue
 				}
 				// The users set `flagcustom:"true"` but they didn't define a custom define hook
 				// We fallback to look up the hooks registries to avoid erroring out
 				if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
 					internalhooks.InferDecodeHooks(c, name, f.Type.String())
 
-					goto definition_done
+					if err := applyFieldMetadata(); err != nil {
+						return err
+					}
+
+					continue
 				}
 
 				// This should never happen since validation would have caught missing hooks
@@ -197,7 +239,11 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 			}
 
-			goto definition_done
+			if err := applyFieldMetadata(); err != nil {
+				return err
+			}
+
+			continue
 		}
 
 		// Skip custom types that aren't in registry
@@ -206,7 +252,11 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		}
 
 		if c.Flags().Lookup(name) != nil {
-			goto definition_done
+			if err := applyFieldMetadata(); err != nil {
+				return err
+			}
+
+			continue
 		}
 
 		// TODO: complete type switch with missing types for:
@@ -273,7 +323,11 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			if f.Tag.Get("flagtype") == "count" {
 				c.Flags().CountVarP(ref, name, short, descr)
 
-				goto definition_done
+				if err := applyFieldMetadata(); err != nil {
+					return err
+				}
+
+				continue
 			}
 			c.Flags().IntVarP(ref, name, short, val, descr)
 
@@ -316,37 +370,8 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			continue
 		}
 
-	definition_done:
-
-		// Marking the flag
-		if mandatory {
-			c.MarkFlagRequired(name)
-		}
-
-		// Set the defaults
-		if defval != "" {
-			GetViper(c).SetDefault(name, defval)
-			GetViper(c).SetDefault(path, defval)
-			// This is needed for the usage help messages
-			c.Flags().Lookup(name).DefValue = defval
-			globalDefaultsCache.Store(name, defval)
-		}
-
-		if alias != "" && path != alias {
-			globalAliasCache.Store(alias, path)
-		}
-
-		if len(envs) > 0 {
-			if err := c.Flags().SetAnnotation(name, internalenv.FlagAnnotation, envs); err != nil {
-				return fmt.Errorf("couldn't set env annotation for flag %s: %w", name, err)
-			}
-		}
-
-		// Set the group annotation on the current flag
-		if group != "" {
-			if err := c.Flags().SetAnnotation(name, internalusage.FlagGroupAnnotation, []string{group}); err != nil {
-				return fmt.Errorf("couldn't set group annotation for flag %s: %w", name, err)
-			}
+		if err := applyFieldMetadata(); err != nil {
+			return err
 		}
 	}
 
