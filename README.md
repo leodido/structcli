@@ -133,7 +133,7 @@ Your CLI now supports:
 
 - 📝 Command-line flags (`--level info`, `-p 8080`)
 - 🌍 Environment variables (`MYAPP_PORT=8080`)
-- 💦 Options precedence (flags > env vars > config file)
+- 💦 Options precedence (flags > env vars > config file > defaults)
 - ✅ Automatic validation and type conversion
 - 📚 Beautiful help output with proper grouping
 
@@ -196,6 +196,9 @@ Every struct field with the `flagenv:"true"` tag gets an environment variable (t
 
 The prefix of the environment variable name is the CLI name plus the command name to which those options are attached to.
 
+Environment variables are command-scoped for command-local options.
+For example, if `Port` is attached to the `srv` command, `FULL_SRV_PORT` is used (not `FULL_PORT`).
+
 ### ⚙️ Configuration File Support
 
 Easily set up configuration file discovery (flag, environment variable, and fallback paths) with a single line of code.
@@ -255,6 +258,13 @@ srv:
   # `db-url` (from `flag:"db-url"` tag) maps to ServerOptions.Database.URL.
   db-url: "postgres://user:pass@db/prod"
 
+  # Nested keys are also supported.
+  database:
+    # Struct field key style
+    url: "postgres://user:pass@db/prod"
+    # Alias key style (from `flag:"db-url"`)
+    db-url: "postgres://user:pass@db/prod"
+
 # Config for the `usr` command group.
 usr:
   # This nested section matches the `usr add` command (`full usr add`).
@@ -274,8 +284,8 @@ This configuration system supports:
 
 - **Hierarchical Structure**: Nest keys to match your command path (e.g., `usr: { add: { ... } }`).
 - **Strict Precedence**: Only settings from the global scope and the exact command path section are merged. There is no automatic fallback to parent command sections.
-- **Flexible Keys**: Use either the struct field name (`lowercase(DryRun)`) or the flag tag (`flag:"log-level"`) as keys.
-- **Flattened Keys**: Set options in nested structs easily using a single, flattened key (e.g., `db-url`).
+- **Flexible Keys**: You can use struct field names and aliases (`flag:"..."`) in both flattened and nested forms.
+- **Supported Forms for Nested Fields**: `db-url`, `database.url`, `database: { url: ... }`, and `database: { db-url: ... }`.
 
 ### ✅ Built-in Validation & Transformation
 
