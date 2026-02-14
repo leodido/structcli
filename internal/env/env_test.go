@@ -1,6 +1,7 @@
 package internalenv_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/leodido/structcli"
@@ -212,4 +213,37 @@ func (suite *structcliSuite) TestGetOrSetAppName_Consistency() {
 			assert.Equal(t, tt.expectedPrefix, structcli.EnvPrefix())
 		})
 	}
+}
+
+func (suite *structcliSuite) TestEnvPrefix_ConcurrentSetAndGet() {
+	allowed := map[string]bool{
+		"":            true,
+		"APP":         true,
+		"MY_APP":      true,
+		"ANOTHER_APP": true,
+	}
+
+	inputs := []string{"", "app", "my-app", "another.app"}
+	const goroutines = 12
+	const iterations = 200
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				structcli.SetEnvPrefix(inputs[(i+j)%len(inputs)])
+				got := structcli.EnvPrefix()
+				assert.True(suite.T(), allowed[got], "unexpected prefix %q", got)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	structcli.SetEnvPrefix("final-prefix")
+	assert.Equal(suite.T(), "FINAL_PREFIX", structcli.EnvPrefix())
 }

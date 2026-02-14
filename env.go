@@ -60,15 +60,15 @@ func GetOrSetAppName(name, cName string) string {
 // The prefix is automatically appended with an underscore when generating environment variable names.
 func SetEnvPrefix(str string) {
 	if str == "" {
-		internalenv.Prefix = ""
+		internalenv.SetPrefix("")
 
 		return
 	}
 
-	internalenv.Prefix = fmt.Sprintf("%s%s", strings.TrimSuffix(internalenv.NormEnv(str), internalenv.EnvSep), internalenv.EnvSep)
+	internalenv.SetPrefix(fmt.Sprintf("%s%s", strings.TrimSuffix(internalenv.NormEnv(str), internalenv.EnvSep), internalenv.EnvSep))
 }
 
 // EnvPrefix returns the current global environment variable prefix without the trailing underscore.
 func EnvPrefix() string {
-	return strings.TrimSuffix(internalenv.Prefix, internalenv.EnvSep)
+	return strings.TrimSuffix(internalenv.GetPrefix(), internalenv.EnvSep)
 }

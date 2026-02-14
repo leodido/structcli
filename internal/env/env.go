@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	internalscope "github.com/leodido/structcli/internal/scope"
 	"github.com/spf13/cobra"
@@ -12,7 +13,7 @@ import (
 )
 
 var (
-	Prefix = ""
+	prefix atomic.Value
 	EnvSep = "_"
 	envRep = strings.NewReplacer("-", EnvSep, ".", EnvSep)
 )
@@ -25,8 +26,25 @@ func NormEnv(str string) string {
 	return envRep.Replace(strings.ToUpper(str))
 }
 
+func init() {
+	prefix.Store("")
+}
+
+func SetPrefix(v string) {
+	prefix.Store(v)
+}
+
+func GetPrefix() string {
+	if current, ok := prefix.Load().(string); ok {
+		return current
+	}
+
+	return ""
+}
+
 func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) ([]string, bool) {
 	ret := []string{}
+	currentPrefix := GetPrefix()
 
 	env := f.Tag.Get("flagenv")
 	defineEnv, _ := strconv.ParseBool(env)
@@ -40,7 +58,7 @@ func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) 
 			// But avoid double prefixing if the given prefix matches the global prefix (usually the CLI/app name)
 			if envPrefix != "" {
 				// Extract app name from prefix (remove trailing underscore and lowercase)
-				appName := strings.ToLower(strings.TrimSuffix(Prefix, "_"))
+				appName := strings.ToLower(strings.TrimSuffix(currentPrefix, "_"))
 				if envPrefix != appName {
 					envPath = envPrefix + "." + path
 					if alias != "" {
@@ -49,9 +67,9 @@ func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) 
 				}
 			}
 
-			ret = append(ret, Prefix+NormEnv(envPath))
+			ret = append(ret, currentPrefix+NormEnv(envPath))
 			if alias != "" && path != alias {
-				ret = append(ret, Prefix+NormEnv(envAlias))
+				ret = append(ret, currentPrefix+NormEnv(envAlias))
 			}
 		}
 	}
