@@ -2581,6 +2581,103 @@ func (o *wrongDefineReturn2Options) DefineCustomField(name, short, descr string,
 func (o *wrongDefineReturn2Options) DecodeCustomField(i any) (any, error) { return i, nil }
 func (o *wrongDefineReturn2Options) Attach(c *cobra.Command) error        { return structcli.Define(c, o) }
 
+type remappingDatabaseOptions struct {
+	URL string `flag:"db-url" default:"postgres://default" flagdescr:"database URL"`
+}
+
+type remappingSharedOptions struct {
+	Database remappingDatabaseOptions
+}
+
+func (o *remappingSharedOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
+type remappingAlphaServiceOptions struct {
+	URL string `flag:"alpha-url" default:"https://alpha-default" flagdescr:"alpha URL"`
+}
+
+type remappingAlphaOptions struct {
+	Service remappingAlphaServiceOptions
+}
+
+func (o *remappingAlphaOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
+type remappingBetaServiceOptions struct {
+	Endpoint string `flag:"beta-url" default:"https://beta-default" flagdescr:"beta URL"`
+}
+
+type remappingBetaOptions struct {
+	Connection remappingBetaServiceOptions
+}
+
+func (o *remappingBetaOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
+func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
+	setup := func() {
+		viper.Reset()
+		structcli.Reset()
+	}
+
+	t.Run("root_defined_alias_remaps_when_unmarshal_runs_on_leaf_command", func(t *testing.T) {
+		setup()
+
+		rootCmd := &cobra.Command{Use: "app"}
+		leafCmd := &cobra.Command{Use: "run"}
+		rootCmd.AddCommand(leafCmd)
+
+		opts := &remappingSharedOptions{}
+		require.NoError(t, opts.Attach(rootCmd))
+
+		viper.Set("db-url", "postgres://top-level")
+		viper.Set("run", map[string]any{
+			"db-url": "postgres://leaf-level",
+		})
+
+		require.NoError(t, structcli.Unmarshal(leafCmd, opts))
+		assert.Equal(t, "postgres://leaf-level", opts.Database.URL)
+	})
+
+	t.Run("root_defined_default_is_not_applied_when_unmarshal_runs_on_leaf_command", func(t *testing.T) {
+		setup()
+
+		rootCmd := &cobra.Command{Use: "app"}
+		leafCmd := &cobra.Command{Use: "run"}
+		rootCmd.AddCommand(leafCmd)
+
+		opts := &remappingSharedOptions{}
+		require.NoError(t, opts.Attach(rootCmd))
+
+		require.NoError(t, structcli.Unmarshal(leafCmd, opts))
+		assert.Equal(t, "", opts.Database.URL)
+	})
+
+	t.Run("separate_command_trees_keep_remapping_independent_for_distinct_aliases", func(t *testing.T) {
+		setup()
+
+		rootAlpha := &cobra.Command{Use: "alpha"}
+		leafAlpha := &cobra.Command{Use: "run"}
+		rootAlpha.AddCommand(leafAlpha)
+
+		rootBeta := &cobra.Command{Use: "beta"}
+		leafBeta := &cobra.Command{Use: "run"}
+		rootBeta.AddCommand(leafBeta)
+
+		alphaOpts := &remappingAlphaOptions{}
+		betaOpts := &remappingBetaOptions{}
+
+		require.NoError(t, alphaOpts.Attach(rootAlpha))
+		require.NoError(t, betaOpts.Attach(rootBeta))
+
+		viper.Set("alpha-url", "https://alpha-configured")
+		viper.Set("beta-url", "https://beta-configured")
+
+		require.NoError(t, structcli.Unmarshal(leafAlpha, alphaOpts))
+		require.NoError(t, structcli.Unmarshal(leafBeta, betaOpts))
+
+		assert.Equal(t, "https://alpha-configured", alphaOpts.Service.URL)
+		assert.Equal(t, "https://beta-configured", betaOpts.Connection.Endpoint)
+	})
+}
+
 func TestFlagCustom_Integration(t *testing.T) {
 	setupTest := func() {
 		viper.Reset()
