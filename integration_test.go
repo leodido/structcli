@@ -2611,6 +2611,42 @@ type remappingBetaOptions struct {
 
 func (o *remappingBetaOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
 
+type remappingLeakAlphaServiceOptions struct {
+	URL string `flag:"alpha-url" flagdescr:"alpha URL"`
+}
+
+type remappingLeakAlphaOptions struct {
+	Service remappingLeakAlphaServiceOptions
+}
+
+func (o *remappingLeakAlphaOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
+type remappingLeakBetaServiceOptions struct {
+	URL string `flag:"beta-url" flagdescr:"beta URL"`
+}
+
+type remappingLeakBetaOptions struct {
+	Service remappingLeakBetaServiceOptions
+}
+
+func (o *remappingLeakBetaOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
+type remappingNestedAliasDatabaseOptions struct {
+	URL string `flag:"db-url" flagdescr:"database URL"`
+}
+
+type remappingNestedAliasOptions struct {
+	Database remappingNestedAliasDatabaseOptions
+}
+
+func (o *remappingNestedAliasOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
+type commandScopedEnvOptions struct {
+	Port int `flag:"port" flagenv:"true" flagdescr:"server port"`
+}
+
+func (o *commandScopedEnvOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
 func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 	setup := func() {
 		viper.Reset()
@@ -2675,6 +2711,88 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 
 		assert.Equal(t, "https://alpha-configured", alphaOpts.Service.URL)
 		assert.Equal(t, "https://beta-configured", betaOpts.Connection.Endpoint)
+	})
+
+	t.Run("leakage_overlapping_nested_path_across_command_trees", func(t *testing.T) {
+		setup()
+
+		rootAlpha := &cobra.Command{Use: "alpha"}
+		leafAlpha := &cobra.Command{Use: "run"}
+		rootAlpha.AddCommand(leafAlpha)
+
+		rootBeta := &cobra.Command{Use: "beta"}
+		leafBeta := &cobra.Command{Use: "run"}
+		rootBeta.AddCommand(leafBeta)
+
+		alphaOpts := &remappingLeakAlphaOptions{}
+		betaOpts := &remappingLeakBetaOptions{}
+
+		require.NoError(t, alphaOpts.Attach(rootAlpha))
+		require.NoError(t, betaOpts.Attach(rootBeta))
+
+		// Characterization: this key is unrelated to alpha options, but still affects alpha due to global remapping cache.
+		viper.Set("beta-url", "https://beta-configured")
+
+		require.NoError(t, structcli.Unmarshal(leafAlpha, alphaOpts))
+		assert.Equal(t, "https://beta-configured", alphaOpts.Service.URL)
+	})
+
+	t.Run("nested_alias_key_in_nested_map_is_not_remapped", func(t *testing.T) {
+		setup()
+
+		rootCmd := &cobra.Command{Use: "full"}
+		cmd := &cobra.Command{Use: "srv"}
+		rootCmd.AddCommand(cmd)
+		opts := &remappingNestedAliasOptions{}
+		require.NoError(t, opts.Attach(cmd))
+
+		viper.Set("srv", map[string]any{
+			"database": map[string]any{
+				"db-url": "postgres://nested-alias",
+			},
+		})
+
+		require.NoError(t, structcli.Unmarshal(cmd, opts))
+		assert.Equal(t, "", opts.Database.URL)
+	})
+
+	t.Run("nested_field_name_key_in_nested_map_is_decoded", func(t *testing.T) {
+		setup()
+
+		rootCmd := &cobra.Command{Use: "full"}
+		cmd := &cobra.Command{Use: "srv"}
+		rootCmd.AddCommand(cmd)
+		opts := &remappingNestedAliasOptions{}
+		require.NoError(t, opts.Attach(cmd))
+
+		viper.Set("srv", map[string]any{
+			"database": map[string]any{
+				"url": "postgres://nested-field",
+			},
+		})
+
+		require.NoError(t, structcli.Unmarshal(cmd, opts))
+		assert.Equal(t, "postgres://nested-field", opts.Database.URL)
+	})
+
+	t.Run("subcommand_env_binding_is_command_scoped", func(t *testing.T) {
+		setup()
+
+		rootCmd := &cobra.Command{Use: "full"}
+		srvCmd := &cobra.Command{Use: "srv"}
+		rootCmd.AddCommand(srvCmd)
+
+		require.NoError(t, structcli.SetupConfig(rootCmd, config.Options{AppName: "full"}))
+
+		opts := &commandScopedEnvOptions{}
+		require.NoError(t, opts.Attach(srvCmd))
+
+		t.Setenv("FULL_PORT", "7777")
+		t.Setenv("FULL_SRV_PORT", "9090")
+		viper.Set("srv", map[string]any{"port": 8443})
+
+		require.NoError(t, structcli.Unmarshal(srvCmd, opts))
+		assert.Equal(t, 9090, opts.Port)
 	})
 }
 
