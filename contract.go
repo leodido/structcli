@@ -17,6 +17,7 @@ type Options interface {
 //
 // The Validate method is called automatically during Unmarshal().
 type ValidatableOptions interface {
+	Options
 	Validate(context.Context) []error
 }
 
@@ -24,6 +25,7 @@ type ValidatableOptions interface {
 //
 // The Transform method is called automatically during Unmarshal() before validation.
 type TransformableOptions interface {
+	Options
 	Transform(context.Context) error
 }
 
