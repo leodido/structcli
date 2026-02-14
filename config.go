@@ -20,6 +20,10 @@ var defaultSearchPaths = []config.SearchPathType{
 // SetupConfig creates the --config global flag and sets up viper search paths.
 //
 // Works only for the root command.
+//
+// Call this before attaching/defining options when you rely on app-prefixed
+// environment variables (eg. FULL_*), because SetupConfig is what initializes
+// the global env prefix used while defining env annotations.
 func SetupConfig(rootC *cobra.Command, cfgOpts config.Options) error {
 	if rootC.Parent() != nil {
 		return fmt.Errorf("SetupConfig must be called on the root command")
