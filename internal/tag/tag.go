@@ -16,7 +16,7 @@ var standardTypes = func() map[reflect.Kind]reflect.Type {
 	types := make(map[reflect.Kind]reflect.Type)
 	for _, v := range []any{
 		"", int(0), bool(false), int8(0), int16(0), int32(0), int64(0),
-		uint(0), uint8(0), uint16(0), uint32(0), uint64(0),
+		uint(0), uint8(0), uint16(0), uint32(0), uint64(0), float32(0), float64(0),
 	} {
 		t := reflect.TypeOf(v)
 		types[t.Kind()] = t

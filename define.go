@@ -297,6 +297,16 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			ref := (*int64)(unsafe.Pointer(field.UnsafeAddr()))
 			c.Flags().Int64VarP(ref, name, short, val, descr)
 
+		case reflect.Float32:
+			val := field.Interface().(float32)
+			ref := (*float32)(unsafe.Pointer(field.UnsafeAddr()))
+			c.Flags().Float32VarP(ref, name, short, val, descr)
+
+		case reflect.Float64:
+			val := field.Interface().(float64)
+			ref := (*float64)(unsafe.Pointer(field.UnsafeAddr()))
+			c.Flags().Float64VarP(ref, name, short, val, descr)
+
 		case reflect.Slice:
 			switch f.Type.Elem().Kind() {
 			case reflect.String:
