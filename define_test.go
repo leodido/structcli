@@ -194,6 +194,39 @@ func (suite *structcliSuite) TestDefine_IntTypesSupport() {
 	assert.Equal(suite.T(), int64(9876543210), opts.Int64Field, "int64 struct field should be updated")
 }
 
+type floatTestOptions struct {
+	Float32Field float32 `flag:"float32-field" flagdescr:"test float32 field"`
+	Float64Field float64 `flag:"float64-field" flagdescr:"test float64 field"`
+}
+
+func (o floatTestOptions) Attach(c *cobra.Command) error       { return nil }
+func (o floatTestOptions) Transform(ctx context.Context) error { return nil }
+func (o floatTestOptions) Validate() []error                   { return nil }
+
+func (suite *structcliSuite) TestDefine_FloatTypesSupport() {
+	opts := &floatTestOptions{
+		Float32Field: 3.5,
+		Float64Field: 7.25,
+	}
+	cmd := &cobra.Command{}
+
+	Define(cmd, opts)
+
+	flagFloat32 := cmd.Flags().Lookup("float32-field")
+	assert.NotNil(suite.T(), flagFloat32, "float32 flag should be created")
+
+	err := cmd.Flags().Set("float32-field", "4.75")
+	assert.NoError(suite.T(), err, "should be able to set float32 flag")
+	assert.InDelta(suite.T(), 4.75, opts.Float32Field, 0.000001, "float32 struct field should be updated")
+
+	flagFloat64 := cmd.Flags().Lookup("float64-field")
+	assert.NotNil(suite.T(), flagFloat64, "float64 flag should be created")
+
+	err = cmd.Flags().Set("float64-field", "8.125")
+	assert.NoError(suite.T(), err, "should be able to set float64 flag")
+	assert.InDelta(suite.T(), 8.125, opts.Float64Field, 0.000001, "float64 struct field should be updated")
+}
+
 type countTestOptions struct {
 	Verbose int `flag:"verbose" flagshort:"v" type:"count" flagdescr:"verbosity level"`
 }
