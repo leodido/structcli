@@ -39,6 +39,15 @@ func (suite *structcliSuite) SetupTest() {
 	SetEnvPrefix("")
 }
 
+func (suite *structcliSuite) TestReset_ClearsEnvPrefix() {
+	SetEnvPrefix("my-app")
+	require.Equal(suite.T(), "MY_APP", EnvPrefix())
+
+	Reset()
+
+	require.Equal(suite.T(), "", EnvPrefix())
+}
+
 type configFlags struct {
 	LogLevel string `default:"info" flag:"log-level" flagdescr:"set the logging level" flaggroup:"Config"`
 	Timeout  int    `flagdescr:"set the timeout, in seconds" flagset:"Config"`
