@@ -230,6 +230,97 @@ func (suite *structcliSuite) TestDefine_CountFlagSupport() {
 	assert.Equal(suite.T(), 3, opts.Verbose, "count flag should increment to 3")
 }
 
+type gotoCustomHookOptions struct {
+	Mode string `flagcustom:"true" flag:"mode" default:"dev" flagenv:"true" flaggroup:"Config" flagrequired:"true" flagdescr:"custom mode"`
+}
+
+func (o *gotoCustomHookOptions) DefineMode(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	fieldPtr := fieldValue.Addr().Interface().(*string)
+	*fieldPtr = "dev"
+
+	return values.NewString(fieldPtr), descr + " (dev,staging,prod)"
+}
+
+func (o *gotoCustomHookOptions) DecodeMode(input any) (any, error) {
+	return input, nil
+}
+
+func (o gotoCustomHookOptions) Attach(c *cobra.Command) error       { return nil }
+func (o gotoCustomHookOptions) Transform(ctx context.Context) error { return nil }
+func (o gotoCustomHookOptions) Validate() []error                   { return nil }
+
+func (suite *structcliSuite) TestDefine_CustomHook_GotoDefinitionDonePath() {
+	SetEnvPrefix("app")
+
+	opts := &gotoCustomHookOptions{}
+	cmd := &cobra.Command{Use: "root"}
+
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	flag := cmd.Flags().Lookup("mode")
+	require.NotNil(suite.T(), flag)
+
+	assert.Equal(suite.T(), "dev", flag.DefValue, "default value should be applied to custom hook flag")
+	assert.Equal(suite.T(), []string{"true"}, flag.Annotations[cobra.BashCompOneRequiredFlag], "custom hook flag should be marked as required")
+	assert.Equal(suite.T(), []string{"Config"}, flag.Annotations[internalusage.FlagGroupAnnotation], "custom hook flag should receive group annotation")
+	assert.Contains(suite.T(), flag.Annotations[internalenv.FlagAnnotation], "APP_ROOT_MODE", "custom hook flag should receive env annotation")
+}
+
+type preDefinedFlagOptions struct {
+	Port int `flag:"port" default:"8080" flagenv:"true" flaggroup:"Config" flagrequired:"true"`
+}
+
+func (o preDefinedFlagOptions) Attach(c *cobra.Command) error       { return nil }
+func (o preDefinedFlagOptions) Transform(ctx context.Context) error { return nil }
+func (o preDefinedFlagOptions) Validate() []error                   { return nil }
+
+func (suite *structcliSuite) TestDefine_PreDefinedFlag_GotoDefinitionDonePath() {
+	SetEnvPrefix("test")
+
+	opts := &preDefinedFlagOptions{}
+	cmd := &cobra.Command{Use: "srv"}
+	cmd.Flags().Int("port", 0, "already defined")
+
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	flag := cmd.Flags().Lookup("port")
+	require.NotNil(suite.T(), flag)
+
+	assert.Equal(suite.T(), "8080", flag.DefValue, "default value should be applied to the existing flag")
+	assert.Equal(suite.T(), []string{"true"}, flag.Annotations[cobra.BashCompOneRequiredFlag], "existing flag should be marked as required")
+	assert.Equal(suite.T(), []string{"Config"}, flag.Annotations[internalusage.FlagGroupAnnotation], "existing flag should receive group annotation")
+	assert.Contains(suite.T(), flag.Annotations[internalenv.FlagAnnotation], "TEST_SRV_PORT", "existing flag should receive env annotation")
+}
+
+type gotoBuiltInHookOptions struct {
+	LogLevel zapcore.Level `flag:"log-level" default:"info" flagenv:"true" flaggroup:"Config" flagrequired:"true"`
+}
+
+func (o gotoBuiltInHookOptions) Attach(c *cobra.Command) error       { return nil }
+func (o gotoBuiltInHookOptions) Transform(ctx context.Context) error { return nil }
+func (o gotoBuiltInHookOptions) Validate() []error                   { return nil }
+
+func (suite *structcliSuite) TestDefine_BuiltInHook_GotoDefinitionDonePath() {
+	SetEnvPrefix("app")
+
+	opts := &gotoBuiltInHookOptions{}
+	cmd := &cobra.Command{Use: "root"}
+
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	flag := cmd.Flags().Lookup("log-level")
+	require.NotNil(suite.T(), flag)
+
+	assert.Equal(suite.T(), "info", flag.DefValue, "default value should be applied to built-in hook flag")
+	assert.Equal(suite.T(), []string{"true"}, flag.Annotations[cobra.BashCompOneRequiredFlag], "built-in hook flag should be marked as required")
+	assert.Equal(suite.T(), []string{"Config"}, flag.Annotations[internalusage.FlagGroupAnnotation], "built-in hook flag should receive group annotation")
+	assert.Contains(suite.T(), flag.Annotations[internalenv.FlagAnnotation], "APP_ROOT_LOG_LEVEL", "built-in hook flag should receive env alias annotation")
+	assert.Contains(suite.T(), flag.Annotations[internalenv.FlagAnnotation], "APP_ROOT_LOGLEVEL", "built-in hook flag should receive env path annotation")
+}
+
 type sliceTestOptions struct {
 	StringSliceField []string `flag:"strings" flagshort:"s" flagdescr:"string slice field"`
 	IntSliceField    []int    `flag:"ints" flagshort:"i" flagdescr:"int slice field"`
