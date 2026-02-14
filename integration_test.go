@@ -2737,7 +2737,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		assert.Equal(t, "", alphaOpts.Service.URL)
 	})
 
-	t.Run("nested_alias_key_in_nested_map_is_not_remapped", func(t *testing.T) {
+	t.Run("nested_alias_key_in_nested_map_is_remapped", func(t *testing.T) {
 		setup()
 
 		rootCmd := &cobra.Command{Use: "full"}
@@ -2753,7 +2753,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		})
 
 		require.NoError(t, structcli.Unmarshal(cmd, opts))
-		assert.Equal(t, "", opts.Database.URL)
+		assert.Equal(t, "postgres://nested-alias", opts.Database.URL)
 	})
 
 	t.Run("nested_field_name_key_in_nested_map_is_decoded", func(t *testing.T) {

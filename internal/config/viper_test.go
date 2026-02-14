@@ -1,8 +1,10 @@
 package internalconfig
 
 import (
+	"reflect"
 	"testing"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -280,4 +282,53 @@ func (suite *structcliSuite) TestMergeC_NestedSubcommandFallbackFromParent() {
 		"toplevel": true,
 	}
 	assert.Equal(suite.T(), expected, result, "should fall back to the parent command's settings if specific one is not found")
+}
+
+type testDatabaseConfig struct {
+	URL string `flag:"db-url"`
+}
+
+type testServiceConfig struct {
+	Database testDatabaseConfig
+}
+
+func (suite *structcliSuite) TestKeyRemappingHook_FlattenedAliasKey() {
+	aliasToPathMap := map[string]string{
+		"db-url": "database.url",
+	}
+	hook := KeyRemappingHook(aliasToPathMap, map[string]string{})
+
+	input := map[string]any{
+		"db-url": "postgres://flat",
+	}
+	converted, err := mapstructure.DecodeHookExec(
+		hook,
+		reflect.ValueOf(input),
+		reflect.New(reflect.TypeOf(testServiceConfig{})).Elem(),
+	)
+	assert.NoError(suite.T(), err)
+
+	out := converted.(map[string]any)
+	database, ok := out["database"].(map[string]any)
+	assert.True(suite.T(), ok)
+	assert.Equal(suite.T(), "postgres://flat", database["url"])
+	_, flatKeyStillPresent := out["db-url"]
+	assert.False(suite.T(), flatKeyStillPresent)
+}
+
+func (suite *structcliSuite) TestKeyRemappingHook_NestedAliasKey() {
+	hook := KeyRemappingHook(map[string]string{"db-url": "database.url"}, map[string]string{})
+
+	input := map[string]any{
+		"db-url": "postgres://nested",
+	}
+	converted, err := mapstructure.DecodeHookExec(
+		hook,
+		reflect.ValueOf(input),
+		reflect.New(reflect.TypeOf(testDatabaseConfig{})).Elem(),
+	)
+	assert.NoError(suite.T(), err)
+
+	out := converted.(map[string]any)
+	assert.Equal(suite.T(), "postgres://nested", out["url"])
 }

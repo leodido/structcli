@@ -102,9 +102,9 @@ func SyncMandatoryFlags(c *cobra.Command, T reflect.Type, vip *viper.Viper, stru
 //
 // It correctly handles flattened keys that point to nested struct fields.
 func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]string) mapstructure.DecodeHookFunc {
-	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
-		// Only when decoding a map into a struct...
-		if f.Kind() != reflect.Map || t.Kind() != reflect.Struct {
+	return func(_ reflect.Type, t reflect.Type, data any) (any, error) {
+		// Only when decoding into a struct...
+		if t.Kind() != reflect.Struct {
 			return data, nil
 		}
 
@@ -119,12 +119,16 @@ func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]s
 			if strings.Contains(path, ".") {
 				// Check if the flattened alias key exists at this level
 				if aliasValue, ok := configMap[alias]; ok && aliasValue != "" {
+					pathParts := strings.Split(path, ".")
+					// Only apply flattened remapping at the struct level that actually owns
+					// the first path segment to avoid re-remapping nested maps incorrectly.
+					if !structHasField(t, pathParts[0]) {
+						continue
+					}
 					// Do not override the user-provided value with the default value
 					if aliasDefaultValue, ok := defaultsMap[alias]; ok && aliasValue == aliasDefaultValue {
 						continue
 					}
-					pathParts := strings.Split(path, ".")
-
 					// Start at the top of the map
 					currentMap := configMap
 
@@ -180,4 +184,14 @@ func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]s
 
 		return configMap, nil
 	}
+}
+
+func structHasField(t reflect.Type, fieldKey string) bool {
+	for i := range t.NumField() {
+		if strings.EqualFold(t.Field(i).Name, fieldKey) {
+			return true
+		}
+	}
+
+	return false
 }
