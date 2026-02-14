@@ -316,14 +316,15 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 		return nil
 	}
 
+	// Initialize config before defining options so env annotations include the app prefix.
+	if err := structcli.SetupConfig(rootC, config.Options{AppName: "full"}); err != nil {
+		return nil, err
+	}
+
 	commonOpts.Attach(rootC)
 	rootC.AddCommand(makeSrvC())
 	rootC.AddCommand(makeUsrC())
 
-	// This single line enables the configuration file support
-	if err := structcli.SetupConfig(rootC, config.Options{AppName: "full"}); err != nil {
-		return nil, err
-	}
 	// This single line enables the debugging global flag
 	if err := structcli.SetupDebug(rootC, debug.Options{Exit: exitOnDebug}); err != nil {
 		return nil, err
