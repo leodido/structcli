@@ -14,6 +14,40 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	flagPathAnnotation    = "___leodido_structcli_flagpath"
+	flagDefaultAnnotation = "___leodido_structcli_flagdefault"
+)
+
+func remappingMetadataFromCommand(c *cobra.Command) (map[string]string, map[string]string) {
+	aliasToPathMap := make(map[string]string)
+	defaultsMap := make(map[string]string)
+	seen := make(map[string]struct{})
+
+	for comm := c; comm != nil; comm = comm.Parent() {
+		comm.LocalFlags().VisitAll(func(f *pflag.Flag) {
+			// Prefer nearest command definition when duplicated along ancestry.
+			if _, ok := seen[f.Name]; ok {
+				return
+			}
+			seen[f.Name] = struct{}{}
+
+			if pathMetadata, ok := f.Annotations[flagPathAnnotation]; ok && len(pathMetadata) > 0 {
+				path := pathMetadata[0]
+				if path != "" && path != f.Name {
+					aliasToPathMap[f.Name] = path
+				}
+			}
+
+			if defaultMetadata, ok := f.Annotations[flagDefaultAnnotation]; ok && len(defaultMetadata) > 0 {
+				defaultsMap[f.Name] = defaultMetadata[0]
+			}
+		})
+	}
+
+	return aliasToPathMap, defaultsMap
+}
+
 // GetViper returns the viper instance associated with the given command.
 //
 // Each command has its own isolated viper instance for configuration management.
@@ -35,28 +69,14 @@ func Unmarshal(c *cobra.Command, opts Options, hooks ...mapstructure.DecodeHookF
 	configToMerge := internalconfig.Merge(viper.AllSettings(), c)
 	vip.MergeConfigMap(configToMerge)
 
-	// Create the full alias-to-path map from its global cache
-	aliasToPathMap := make(map[string]string)
-	globalAliasCache.Range(func(k, v any) bool {
-		aliasToPathMap[k.(string)] = v.(string)
-
-		return true
-	})
-
-	// Create the defaults map from its global cache
-	defaultsMap := make(map[string]string)
-	globalDefaultsCache.Range(func(k, v any) bool {
-		defaultsMap[k.(string)] = v.(string)
-
-		return true
-	})
+	aliasToPathMap, defaultsMap := remappingMetadataFromCommand(c)
 
 	// Re-apply explicit struct tag defaults to the command-scoped viper.
 	// Defaults are initially set during Define on that command's scope; when Unmarshal
 	// is executed on a leaf command, we must set them again on the leaf scope.
-	for alias, defval := range defaultsMap {
-		vip.SetDefault(alias, defval)
-		if path, ok := aliasToPathMap[alias]; ok {
+	for name, defval := range defaultsMap {
+		vip.SetDefault(name, defval)
+		if path, ok := aliasToPathMap[name]; ok {
 			vip.SetDefault(path, defval)
 		}
 	}

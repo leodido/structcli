@@ -2713,7 +2713,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		assert.Equal(t, "https://beta-configured", betaOpts.Connection.Endpoint)
 	})
 
-	t.Run("leakage_overlapping_nested_path_across_command_trees", func(t *testing.T) {
+	t.Run("no_leakage_overlapping_nested_path_across_command_trees", func(t *testing.T) {
 		setup()
 
 		rootAlpha := &cobra.Command{Use: "alpha"}
@@ -2730,11 +2730,11 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		require.NoError(t, alphaOpts.Attach(rootAlpha))
 		require.NoError(t, betaOpts.Attach(rootBeta))
 
-		// Characterization: this key is unrelated to alpha options, but still affects alpha due to global remapping cache.
+		// This key is unrelated to alpha options and should not affect alpha command tree.
 		viper.Set("beta-url", "https://beta-configured")
 
 		require.NoError(t, structcli.Unmarshal(leafAlpha, alphaOpts))
-		assert.Equal(t, "https://beta-configured", alphaOpts.Service.URL)
+		assert.Equal(t, "", alphaOpts.Service.URL)
 	})
 
 	t.Run("nested_alias_key_in_nested_map_is_not_remapped", func(t *testing.T) {

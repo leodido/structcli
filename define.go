@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"unsafe"
 
 	internalenv "github.com/leodido/structcli/internal/env"
@@ -27,12 +26,6 @@ type defineContext struct {
 	exclusions map[string]string
 	comm       *cobra.Command
 }
-
-// globalAliasCache stores the mapping of a struct field's path to its `flag` tag alias.
-var globalAliasCache = &sync.Map{}
-
-// globalDefaultsCache stores the mapping of a default to its `flag` tag alias.
-var globalDefaultsCache = &sync.Map{}
 
 // WithExclusions sets flags to exclude from definition based on flag names or paths.
 //
@@ -147,6 +140,12 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 		kind := f.Type.Kind()
 		applyFieldMetadata := func() error {
+			// Persist path metadata on each defined flag so Unmarshal can rebuild
+			// remapping state from the current command context (without package globals).
+			if err := c.Flags().SetAnnotation(name, flagPathAnnotation, []string{path}); err != nil {
+				return fmt.Errorf("couldn't set path annotation for flag %s: %w", name, err)
+			}
+
 			// Marking the flag
 			if mandatory {
 				c.MarkFlagRequired(name)
@@ -158,11 +157,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				GetViper(c).SetDefault(path, defval)
 				// This is needed for the usage help messages
 				c.Flags().Lookup(name).DefValue = defval
-				globalDefaultsCache.Store(name, defval)
-			}
-
-			if alias != "" && path != alias {
-				globalAliasCache.Store(alias, path)
+				if err := c.Flags().SetAnnotation(name, flagDefaultAnnotation, []string{defval}); err != nil {
+					return fmt.Errorf("couldn't set default annotation for flag %s: %w", name, err)
+				}
 			}
 
 			if len(envs) > 0 {
@@ -389,7 +386,5 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 }
 
 func Reset() {
-	globalAliasCache = &sync.Map{}
-	globalDefaultsCache = &sync.Map{}
 	SetEnvPrefix("")
 }
