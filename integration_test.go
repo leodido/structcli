@@ -2672,7 +2672,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		assert.Equal(t, "postgres://leaf-level", opts.Database.URL)
 	})
 
-	t.Run("root_defined_default_is_not_applied_when_unmarshal_runs_on_leaf_command", func(t *testing.T) {
+	t.Run("root_defined_default_is_applied_when_unmarshal_runs_on_leaf_command", func(t *testing.T) {
 		setup()
 
 		rootCmd := &cobra.Command{Use: "app"}
@@ -2683,7 +2683,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		require.NoError(t, opts.Attach(rootCmd))
 
 		require.NoError(t, structcli.Unmarshal(leafCmd, opts))
-		assert.Equal(t, "", opts.Database.URL)
+		assert.Equal(t, "postgres://default", opts.Database.URL)
 	})
 
 	t.Run("separate_command_trees_keep_remapping_independent_for_distinct_aliases", func(t *testing.T) {

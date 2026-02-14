@@ -51,6 +51,16 @@ func Unmarshal(c *cobra.Command, opts Options, hooks ...mapstructure.DecodeHookF
 		return true
 	})
 
+	// Re-apply explicit struct tag defaults to the command-scoped viper.
+	// Defaults are initially set during Define on that command's scope; when Unmarshal
+	// is executed on a leaf command, we must set them again on the leaf scope.
+	for alias, defval := range defaultsMap {
+		vip.SetDefault(alias, defval)
+		if path, ok := aliasToPathMap[alias]; ok {
+			vip.SetDefault(path, defval)
+		}
+	}
+
 	// Use `KeyRemappingHook` for smart config keys
 	hooks = append([]mapstructure.DecodeHookFunc{internalconfig.KeyRemappingHook(aliasToPathMap, defaultsMap)}, hooks...)
 
