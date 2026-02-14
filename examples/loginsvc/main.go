@@ -206,6 +206,11 @@ func NewRootCmd() (*cobra.Command, error) {
 
 	rootCmd := &cobra.Command{Use: "loginsvc"}
 
+	// Initialize config before defining options so env annotations include the app prefix.
+	if err := structcli.SetupConfig(rootCmd, config.Options{}); err != nil {
+		return nil, err
+	}
+
 	// Attach the shared options to the root command as well.
 	commonOpts.Attach(rootCmd)
 
@@ -232,10 +237,6 @@ func NewRootCmd() (*cobra.Command, error) {
 	}
 
 	rootCmd.AddCommand(makeUserCmd())
-
-	if err := structcli.SetupConfig(rootCmd, config.Options{}); err != nil {
-		return nil, err
-	}
 	return rootCmd, nil
 }
 
