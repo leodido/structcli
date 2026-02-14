@@ -204,6 +204,8 @@ Easily set up configuration file discovery (flag, environment variable, and fall
 structcli.SetupConfig(rootCmd, config.Options{AppName: "full"})
 ```
 
+Call `SetupConfig` before attaching/defining options when you rely on app-prefixed environment variables, so the env prefix is initialized before env annotations are generated.
+
 The line above:
 
 - creates `--config` global flag
