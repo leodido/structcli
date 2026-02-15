@@ -18,6 +18,7 @@ type structcliContextKey struct{}
 // Scope holds per-command state for structcli
 type Scope struct {
 	v                 *spf13viper.Viper
+	configV           *spf13viper.Viper
 	boundEnvs         map[string]bool
 	customDecodeHooks map[string]mapstructure.DecodeHookFunc
 	definedFlags      map[string]string
@@ -39,6 +40,7 @@ func Get(c *cobra.Command) *Scope {
 	// Create new scope (ensures isolation even with context inheritance)
 	s := &Scope{
 		v:                 spf13viper.New(),
+		configV:           spf13viper.New(),
 		boundEnvs:         make(map[string]bool),
 		customDecodeHooks: make(map[string]mapstructure.DecodeHookFunc),
 		definedFlags:      make(map[string]string),
@@ -57,6 +59,21 @@ func (s *Scope) Viper() *spf13viper.Viper {
 	defer s.mu.RUnlock()
 
 	return s.v
+}
+
+// ConfigViper returns the dedicated viper instance used for config-file loading.
+func (s *Scope) ConfigViper() *spf13viper.Viper {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.configV
+}
+
+// ResetConfigViper clears config-file state for the scope while preserving other scope data.
+func (s *Scope) ResetConfigViper() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.configV = spf13viper.New()
 }
 
 // IsEnvBound checks if an environment variable is already bound for this command

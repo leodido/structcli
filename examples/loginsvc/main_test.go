@@ -118,7 +118,7 @@ func TestLoginSvcApplication(t *testing.T) {
 	}
 
 	// Helper function to set up the test environment
-	setupTest := func(t *testing.T, content, path string) func() {
+	setupTest := func(t *testing.T, content, path string) (afero.Fs, func()) {
 		// Use an in-memory filesystem for tests
 		fs := afero.NewMemMapFs()
 		viper.SetFs(fs)
@@ -130,7 +130,7 @@ func TestLoginSvcApplication(t *testing.T) {
 		}
 
 		// Return a cleanup function
-		return func() {
+		return fs, func() {
 			viper.Reset()
 			structcli.Reset()
 		}
@@ -144,11 +144,12 @@ func TestLoginSvcApplication(t *testing.T) {
 					t.Setenv(key, value)
 				}
 			}
-			cleanup := setupTest(t, tc.config, tc.configPath)
+			fs, cleanup := setupTest(t, tc.config, tc.configPath)
 			defer cleanup()
 
 			cmd, err := NewRootCmd()
 			require.NoError(t, err)
+			structcli.GetConfigViper(cmd).SetFs(fs)
 
 			// Capture output
 			var out bytes.Buffer

@@ -2,28 +2,60 @@ package structcli
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/leodido/structcli/config"
 	internalconfig "github.com/leodido/structcli/internal/config"
 	internalenv "github.com/leodido/structcli/internal/env"
+	internalscope "github.com/leodido/structcli/internal/scope"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var defaultSearchPaths = []config.SearchPathType{
-	config.SearchPathEtc,
-	config.SearchPathExecutableDirHidden,
-	config.SearchPathHomeHidden,
-	config.SearchPathWorkingDirHidden,
+var (
+	defaultSearchPaths = []config.SearchPathType{
+		config.SearchPathEtc,
+		config.SearchPathExecutableDirHidden,
+		config.SearchPathHomeHidden,
+		config.SearchPathWorkingDirHidden,
+	}
+
+	configRootMu sync.RWMutex
+	configRoot   *cobra.Command
+)
+
+func setConfigRoot(rootC *cobra.Command) {
+	configRootMu.Lock()
+	defer configRootMu.Unlock()
+	configRoot = rootC
 }
 
-// SetupConfig creates the --config global flag and sets up viper search paths.
+func getConfigRoot() *cobra.Command {
+	configRootMu.RLock()
+	defer configRootMu.RUnlock()
+
+	return configRoot
+}
+
+func clearConfigRoot(rootC *cobra.Command) {
+	configRootMu.Lock()
+	defer configRootMu.Unlock()
+	if configRoot == rootC {
+		configRoot = nil
+	}
+}
+
+// SetupConfig creates the --config global flag and wires config discovery for the root command.
 //
 // Works only for the root command.
 //
 // Call this before attaching/defining options when you rely on app-prefixed
 // environment variables (eg. FULL_*), because SetupConfig is what initializes
 // the global env prefix used while defining env annotations.
+//
+// Configuration file data is loaded into a root-scoped config viper
+// (see GetConfigViper), then merged into the active command scoped viper
+// during UseConfig/Unmarshal.
 func SetupConfig(rootC *cobra.Command, cfgOpts config.Options) error {
 	if rootC.Parent() != nil {
 		return fmt.Errorf("SetupConfig must be called on the root command")
@@ -69,12 +101,16 @@ func SetupConfig(rootC *cobra.Command, cfgOpts config.Options) error {
 	}
 
 	// Set up viper configuration
+	setConfigRoot(rootC)
 	cobra.OnInitialize(func() {
-		internalconfig.SetupConfig(configFile, appName, cfgOpts)
+		configVip := internalscope.Get(rootC).ConfigViper()
+		internalconfig.SetupConfig(configVip, configFile, appName, cfgOpts)
 	})
 
 	// Store cleanup function
 	cobra.OnFinalize(func() {
+		internalscope.Get(rootC).ResetConfigViper()
+		clearConfigRoot(rootC)
 		viper.Reset()
 	})
 
@@ -88,30 +124,67 @@ func SetupConfig(rootC *cobra.Command, cfgOpts config.Options) error {
 //
 // The readWhen function determines whether config reading should be attempted.
 // Returns whether config was loaded, a status message, and any error encountered.
+//
+// When SetupConfig was configured, this reads into the root-scoped config viper
+// and merges command-relevant settings into the active command scoped viper.
+//
+// If SetupConfig was not called, UseConfig falls back to reading on the global
+// viper singleton. Prefer SetupConfig for deterministic command-scoped behavior.
 func UseConfig(readWhen func() bool) (inUse bool, mes string, err error) {
+	if rootC := getConfigRoot(); rootC != nil {
+		return useConfigForCommand(rootC, readWhen)
+	}
+
+	// Fallback for callers that use UseConfig without SetupConfig.
+	return useConfigOnViper(viper.GetViper(), readWhen)
+}
+
+func useConfigForCommand(c *cobra.Command, readWhen func() bool) (inUse bool, mes string, err error) {
+	if c == nil {
+		return useConfigOnViper(viper.GetViper(), readWhen)
+	}
+
+	rootVip := internalscope.Get(c.Root()).ConfigViper()
+	inUse, mes, err = useConfigOnViper(rootVip, readWhen)
+	if err != nil || !inUse {
+		return inUse, mes, err
+	}
+
+	configToMerge := internalconfig.Merge(rootVip.AllSettings(), c)
+	if err := internalscope.Get(c).Viper().MergeConfigMap(configToMerge); err != nil {
+		return false, "", fmt.Errorf("error merging config for command %q: %w", c.CommandPath(), err)
+	}
+
+	return inUse, mes, nil
+}
+
+func useConfigOnViper(vip *viper.Viper, readWhen func() bool) (inUse bool, mes string, err error) {
 	// Use the readWhen function to determine if we should read config
 	if readWhen != nil && !readWhen() {
 		return false, "", nil
 	}
 
-	if err := viper.ReadInConfig(); err == nil {
-		return true, fmt.Sprintf("Using config file: %s", viper.ConfigFileUsed()), nil
+	if err := vip.ReadInConfig(); err == nil {
+		return true, fmt.Sprintf("Using config file: %s", vip.ConfigFileUsed()), nil
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found, ignore...
 			return false, "Running without a configuration file", nil
 		} else {
 			// Config file was found but another error was produced
-			return false, "", fmt.Errorf("error running with config file: %s: %w", viper.ConfigFileUsed(), err)
+			return false, "", fmt.Errorf("error running with config file: %s: %w", vip.ConfigFileUsed(), err)
 		}
 	}
 }
 
-// UseConfigSimple is a simpler version of UseConfig that uses cmd.IsAvailableCommand() as the readWhen function.
+// UseConfigSimple is a simpler version of UseConfig that uses c.IsAvailableCommand() as the readWhen function.
 //
 // It does not check for the config file when the command is not available (eg., help).
+//
+// The config file (if found) is loaded through the root-scoped config viper and
+// merged into c's effective scoped viper.
 func UseConfigSimple(c *cobra.Command) (inUse bool, message string, err error) {
-	return UseConfig(func() bool {
+	return useConfigForCommand(c, func() bool {
 		return c.IsAvailableCommand()
 	})
 }

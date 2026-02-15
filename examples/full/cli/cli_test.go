@@ -430,7 +430,7 @@ srv:
 		},
 	}
 
-	setupTest := func(t *testing.T, content string, path string) func() {
+	setupTest := func(t *testing.T, content string, path string) (afero.Fs, func()) {
 		fs := afero.NewMemMapFs()
 		viper.SetFs(fs)
 
@@ -441,7 +441,7 @@ srv:
 		}
 
 		// Return a cleanup function to reset Viper's state after the test.
-		return func() {
+		return fs, func() {
 			viper.Reset()
 			structcli.Reset()
 		}
@@ -454,10 +454,11 @@ srv:
 					t.Setenv(key, value)
 				}
 			}
-			cleanup := setupTest(t, tc.config, tc.configPath)
+			fs, cleanup := setupTest(t, tc.config, tc.configPath)
 			defer cleanup()
 
 			c, _ := NewRootC(tc.exitOnDebug)
+			structcli.GetConfigViper(c).SetFs(fs)
 
 			// Capture output
 			var out bytes.Buffer

@@ -12,27 +12,27 @@ import (
 )
 
 // SetupConfig handles the viper initialization
-func SetupConfig(configFile string, appName string, opts config.Options) {
+func SetupConfig(vip *viper.Viper, configFile string, appName string, opts config.Options) {
 	if cfgFile := strings.TrimSpace(configFile); cfgFile != "" {
 		// Use explicit config file
-		viper.SetConfigFile(configFile)
+		vip.SetConfigFile(configFile)
 
 		return
 	}
 
 	if envConfigPath := strings.TrimSpace(os.Getenv(opts.EnvVar)); envConfigPath != "" {
-		viper.SetConfigFile(envConfigPath)
+		vip.SetConfigFile(envConfigPath)
 
 		return
 	}
 
 	searchPaths := resolveSearchPaths(opts.SearchPaths, opts.CustomPaths, appName, false)
 	for _, searchPath := range searchPaths {
-		viper.AddConfigPath(searchPath)
+		vip.AddConfigPath(searchPath)
 	}
 
 	// Viper will automatically try different extensions
-	viper.SetConfigName(opts.ConfigName)
+	vip.SetConfigName(opts.ConfigName)
 }
 
 // resolveSearchPaths converts SearchPathType strategies to paths
