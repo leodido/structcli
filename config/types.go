@@ -18,10 +18,11 @@ const (
 
 // Options defines configuration file behavior and search paths.
 type Options struct {
-	AppName     string
-	FlagName    string           // Name of config flag (defaults to "config")
-	ConfigName  string           // Config file name without extension (defaults to "config")
-	EnvVar      string           // Environment variable (defaults to {APP}_CONFIG)
-	SearchPaths []SearchPathType // Search path strategies (defaults to common paths)
-	CustomPaths []string         // Custom search paths (when SearchPaths contains SearchPathCustom)
+	AppName      string
+	FlagName     string           // Name of config flag (defaults to "config")
+	ConfigName   string           // Config file name without extension (defaults to "config")
+	EnvVar       string           // Environment variable (defaults to {APP}_CONFIG)
+	SearchPaths  []SearchPathType // Search path strategies (defaults to common paths)
+	CustomPaths  []string         // Custom search paths (when SearchPaths contains SearchPathCustom)
+	ValidateKeys bool             // Opt-in strict key validation during Unmarshal (default: false)
 }

@@ -103,6 +103,10 @@ func SyncMandatoryFlags(c *cobra.Command, T reflect.Type, vip *viper.Viper, stru
 // It correctly handles flattened keys that point to nested struct fields.
 func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]string) mapstructure.DecodeHookFunc {
 	return func(_ reflect.Type, t reflect.Type, data any) (any, error) {
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+
 		// Only when decoding into a struct...
 		if t.Kind() != reflect.Struct {
 			return data, nil

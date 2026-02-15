@@ -2670,6 +2670,17 @@ type viperBoundaryOptions struct {
 
 func (o *viperBoundaryOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
 
+type configValidationDatabaseOptions struct {
+	URL string `flag:"db-url" flagdescr:"database url"`
+}
+
+type configValidationOptions struct {
+	Value    string                          `flag:"value" flagdescr:"value"`
+	Database configValidationDatabaseOptions `flagdescr:"database"`
+}
+
+func (o *configValidationOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
 func TestUnmarshal_GlobalScopedViperBoundary_Characterization(t *testing.T) {
 	setup := func() {
 		viper.Reset()
@@ -2777,6 +2788,147 @@ func TestUnmarshal_GlobalScopedViperBoundary_Characterization(t *testing.T) {
 
 		require.NoError(t, structcli.Unmarshal(runB, optsB))
 		assert.Equal(t, "", optsB.Value, "separate root command should not consume another root scoped config")
+	})
+}
+
+func TestConfigValidation_Integration(t *testing.T) {
+	setup := func() {
+		viper.Reset()
+		structcli.Reset()
+	}
+
+	newCommand := func(opts structcli.Options, validate bool) (*cobra.Command, *cobra.Command) {
+		rootCmd := &cobra.Command{Use: "app"}
+		runCmd := &cobra.Command{Use: "run"}
+		rootCmd.AddCommand(runCmd)
+
+		require.NoError(t, opts.Attach(runCmd))
+		require.NoError(t, structcli.SetupConfig(rootCmd, config.Options{
+			AppName:      "app",
+			ValidateKeys: validate,
+		}))
+
+		rootCmd.PersistentPreRunE = func(c *cobra.Command, _ []string) error {
+			_, _, err := structcli.UseConfigSimple(c)
+			return err
+		}
+		runCmd.RunE = func(c *cobra.Command, _ []string) error {
+			return structcli.Unmarshal(c, opts)
+		}
+
+		return rootCmd, runCmd
+	}
+
+	t.Run("validate_keys_rejects_unknown_command_key", func(t *testing.T) {
+		setup()
+
+		cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("run:\n  value: ok\n  extra: bad\n"), 0o644))
+
+		opts := &viperBoundaryOptions{}
+		rootCmd, _ := newCommand(opts, true)
+		rootCmd.SetArgs([]string{"--config", cfgPath, "run"})
+
+		err := rootCmd.Execute()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid config file values")
+		assert.Contains(t, err.Error(), "unknown config keys")
+		assert.Contains(t, err.Error(), "extra")
+	})
+
+	t.Run("validate_keys_rejects_unknown_nested_key", func(t *testing.T) {
+		setup()
+
+		cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("run:\n  database:\n    db-url: postgres://localhost/db\n    extra: bad\n"), 0o644))
+
+		opts := &configValidationOptions{}
+		rootCmd, _ := newCommand(opts, true)
+		rootCmd.SetArgs([]string{"--config", cfgPath, "run"})
+
+		err := rootCmd.Execute()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid config file values")
+		assert.Contains(t, err.Error(), "unknown config keys")
+		assert.Contains(t, err.Error(), "database.extra")
+	})
+
+	t.Run("validate_keys_rejects_unknown_top_level_key", func(t *testing.T) {
+		setup()
+
+		cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("value: top\nextra: bad\nrun:\n  value: from-run\n"), 0o644))
+
+		opts := &viperBoundaryOptions{}
+		rootCmd, _ := newCommand(opts, true)
+		rootCmd.SetArgs([]string{"--config", cfgPath, "run"})
+
+		err := rootCmd.Execute()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid config file values")
+		assert.Contains(t, err.Error(), "unknown config keys")
+		assert.Contains(t, err.Error(), "extra")
+	})
+
+	t.Run("validate_keys_accepts_known_alias_and_field_keys", func(t *testing.T) {
+		setup()
+
+		cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("run:\n  value: from-run\n  database:\n    db-url: postgres://localhost/db\n"), 0o644))
+
+		opts := &configValidationOptions{}
+		rootCmd, _ := newCommand(opts, true)
+		rootCmd.SetArgs([]string{"--config", cfgPath, "run"})
+
+		err := rootCmd.Execute()
+		require.NoError(t, err)
+		assert.Equal(t, "from-run", opts.Value)
+		assert.Equal(t, "postgres://localhost/db", opts.Database.URL)
+	})
+
+	t.Run("validate_keys_ignores_sibling_command_sections", func(t *testing.T) {
+		setup()
+
+		cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("run:\n  value: from-run\nother:\n  unexpected: value\n"), 0o644))
+
+		opts := &viperBoundaryOptions{}
+		rootCmd, _ := newCommand(opts, true)
+		rootCmd.SetArgs([]string{"--config", cfgPath, "run"})
+
+		err := rootCmd.Execute()
+		require.NoError(t, err)
+		assert.Equal(t, "from-run", opts.Value)
+	})
+
+	t.Run("validate_keys_keeps_flag_precedence_over_config", func(t *testing.T) {
+		setup()
+
+		cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("run:\n  value: from-config\n"), 0o644))
+
+		opts := &viperBoundaryOptions{}
+		rootCmd, _ := newCommand(opts, true)
+		rootCmd.SetArgs([]string{"--config", cfgPath, "run", "--value", "from-flag"})
+
+		err := rootCmd.Execute()
+		require.NoError(t, err)
+		assert.Equal(t, "from-flag", opts.Value)
+	})
+
+	t.Run("validate_keys_disabled_keeps_current_behavior", func(t *testing.T) {
+		setup()
+
+		cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("run:\n  value: ok\n  extra: bad\n"), 0o644))
+
+		opts := &viperBoundaryOptions{}
+		rootCmd, _ := newCommand(opts, false)
+		rootCmd.SetArgs([]string{"--config", cfgPath, "run"})
+
+		err := rootCmd.Execute()
+		require.NoError(t, err)
+		assert.Equal(t, "ok", opts.Value)
 	})
 }
 
