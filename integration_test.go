@@ -2647,6 +2647,92 @@ type commandScopedEnvOptions struct {
 
 func (o *commandScopedEnvOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
 
+type viperBoundaryOptions struct {
+	Value string `flag:"value" flagdescr:"boundary test value"`
+}
+
+func (o *viperBoundaryOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
+
+func TestUnmarshal_GlobalScopedViperBoundary_Characterization(t *testing.T) {
+	setup := func() {
+		viper.Reset()
+		structcli.Reset()
+	}
+
+	t.Run("global_settings_are_not_visible_in_command_scope_before_unmarshal", func(t *testing.T) {
+		setup()
+
+		rootCmd := &cobra.Command{Use: "app"}
+		runCmd := &cobra.Command{Use: "run"}
+		rootCmd.AddCommand(runCmd)
+
+		opts := &viperBoundaryOptions{}
+		require.NoError(t, opts.Attach(runCmd))
+
+		viper.Set("run", map[string]any{
+			"value": "from-global",
+		})
+
+		scopedViper := structcli.GetViper(runCmd)
+		assert.False(t, scopedViper.IsSet("value"), "command-scoped viper should not see global singleton settings before Unmarshal")
+
+		require.NoError(t, structcli.Unmarshal(runCmd, opts))
+		assert.Equal(t, "from-global", opts.Value)
+		assert.Equal(t, "from-global", scopedViper.GetString("value"))
+	})
+
+	t.Run("updated_global_settings_are_applied_only_on_next_unmarshal", func(t *testing.T) {
+		setup()
+
+		rootCmd := &cobra.Command{Use: "app"}
+		runCmd := &cobra.Command{Use: "run"}
+		rootCmd.AddCommand(runCmd)
+
+		opts := &viperBoundaryOptions{}
+		require.NoError(t, opts.Attach(runCmd))
+
+		viper.Set("run", map[string]any{"value": "v1"})
+		require.NoError(t, structcli.Unmarshal(runCmd, opts))
+		assert.Equal(t, "v1", opts.Value)
+
+		viper.Set("run", map[string]any{"value": "v2"})
+
+		scopedViper := structcli.GetViper(runCmd)
+		assert.Equal(t, "v1", scopedViper.GetString("value"), "scoped viper keeps previous merged settings until next Unmarshal")
+
+		require.NoError(t, structcli.Unmarshal(runCmd, opts))
+		assert.Equal(t, "v2", opts.Value)
+		assert.Equal(t, "v2", scopedViper.GetString("value"))
+	})
+
+	t.Run("global_singleton_settings_are_shared_across_independent_roots", func(t *testing.T) {
+		setup()
+
+		rootA := &cobra.Command{Use: "app-a"}
+		runA := &cobra.Command{Use: "run"}
+		rootA.AddCommand(runA)
+		optsA := &viperBoundaryOptions{}
+		require.NoError(t, optsA.Attach(runA))
+
+		rootB := &cobra.Command{Use: "app-b"}
+		runB := &cobra.Command{Use: "run"}
+		rootB.AddCommand(runB)
+		optsB := &viperBoundaryOptions{}
+		require.NoError(t, optsB.Attach(runB))
+
+		viper.Set("run", map[string]any{"value": "shared-global"})
+
+		require.NoError(t, structcli.Unmarshal(runA, optsA))
+		assert.Equal(t, "shared-global", optsA.Value)
+
+		scopedViperB := structcli.GetViper(runB)
+		assert.False(t, scopedViperB.IsSet("value"), "second command scope should still be empty before its own Unmarshal")
+
+		require.NoError(t, structcli.Unmarshal(runB, optsB))
+		assert.Equal(t, "shared-global", optsB.Value, "separate root command should still consume global singleton settings once unmarshalled")
+	})
+}
+
 func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 	setup := func() {
 		viper.Reset()
