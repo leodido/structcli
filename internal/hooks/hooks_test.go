@@ -50,6 +50,12 @@ func (suite *structcliSuite) createTempYAMLFile(content string) string {
 	return tmpFile.Name()
 }
 
+func loadConfigForCommand(t require.TestingT, cmd *cobra.Command, configFile string) {
+	cfgVip := structcli.GetConfigViper(cmd)
+	cfgVip.SetConfigFile(configFile)
+	require.NoError(t, cfgVip.ReadInConfig())
+}
+
 func (suite *structcliSuite) TestStoreDecodeHookFunc() {
 	// Create a command with a flag
 	cmd := &cobra.Command{Use: "testcmd"}
@@ -117,8 +123,7 @@ func (suite *structcliSuite) TestHooks_ZapcoreLevelFromYAML() {
 	cmd := &cobra.Command{Use: "test"}
 
 	// Set up viper to read from our config file
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	// Define flags and unmarshal
 	structcli.Define(cmd, opts)
@@ -159,8 +164,7 @@ func (suite *structcliSuite) TestHooks_DurationFromYAMLString() {
 	opts := &durationOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -179,8 +183,7 @@ func (suite *structcliSuite) TestHooks_DurationFromYAMLNumber() {
 	opts := &durationOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -211,8 +214,7 @@ func (suite *structcliSuite) TestHooks_DurationVariousFormats() {
 			opts := &durationOptions{}
 			cmd := &cobra.Command{Use: "test"}
 
-			viper.SetConfigFile(configFile)
-			require.NoError(t, viper.ReadInConfig())
+			loadConfigForCommand(t, cmd, configFile)
 
 			structcli.Define(cmd, opts)
 			err := structcli.Unmarshal(cmd, opts)
@@ -244,8 +246,7 @@ func (suite *structcliSuite) TestHooks_DurationFlagOverridesConfig() {
 	opts := &durationOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 
@@ -290,8 +291,7 @@ func (suite *structcliSuite) TestHooks_StringSliceFromYAMLCommaSeparated() {
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -312,8 +312,7 @@ func (suite *structcliSuite) TestHooks_StringSliceFromYAMLArray() {
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -331,8 +330,7 @@ func (suite *structcliSuite) TestHooks_StringSliceEmptyString() {
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -351,8 +349,7 @@ func (suite *structcliSuite) TestHooks_StringSliceSingleValue() {
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -370,8 +367,7 @@ func (suite *structcliSuite) TestHooks_StringSliceWithSpaces() {
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -409,8 +405,7 @@ func (suite *structcliSuite) TestHooks_StringSliceFlagOverridesConfig() {
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 
@@ -434,8 +429,7 @@ func (suite *structcliSuite) TestHooks_StringSliceYAMLSpecialCharacters() {
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -453,8 +447,7 @@ func (suite *structcliSuite) TestHooks_StringSliceEmptyAfterSplit() {
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -495,8 +488,7 @@ func (suite *structcliSuite) TestHooks_IntSliceFromYAMLCommaSeparated() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -517,8 +509,7 @@ func (suite *structcliSuite) TestHooks_IntSliceFromYAMLArray() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -536,8 +527,7 @@ func (suite *structcliSuite) TestHooks_IntSliceEmptyString() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -556,8 +546,7 @@ func (suite *structcliSuite) TestHooks_IntSliceSingleValue() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -575,8 +564,7 @@ func (suite *structcliSuite) TestHooks_IntSliceWithSpaces() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -594,8 +582,7 @@ func (suite *structcliSuite) TestHooks_IntSliceNegativeNumbers() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -633,8 +620,7 @@ func (suite *structcliSuite) TestHooks_IntSliceFlagOverridesConfig() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 
@@ -658,8 +644,7 @@ func (suite *structcliSuite) TestHooks_IntSliceInvalidInteger() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -679,8 +664,7 @@ func (suite *structcliSuite) TestHooks_IntSliceFloatNumber() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -700,8 +684,7 @@ func (suite *structcliSuite) TestHooks_IntSliceOutOfRange() {
 	opts := &intSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	structcli.Define(cmd, opts)
 	err := structcli.Unmarshal(cmd, opts)
@@ -826,8 +809,7 @@ func (suite *structcliSuite) TestFlagrequired_WithEnvConfigFile() {
 		opts := &requiredWithEnvRuntimeOptions{}
 		cmd := &cobra.Command{Use: "test"}
 
-		viper.SetConfigFile(configFile)
-		require.NoError(t, viper.ReadInConfig())
+		loadConfigForCommand(t, cmd, configFile)
 
 		structcli.Define(cmd, opts)
 		err := structcli.Unmarshal(cmd, opts)
@@ -847,9 +829,7 @@ func (suite *structcliSuite) TestHooks_ZapcoreLevelFromYAML_InvalidLevel() {
 
 	structcli.Define(cmd, opts)
 
-	viper.SetConfigFile(configFile)
-	errRead := viper.ReadInConfig()
-	require.NoError(suite.T(), errRead, "Failed to read test config file")
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	err := structcli.Unmarshal(cmd, opts)
 
@@ -891,8 +871,7 @@ func (suite *structcliSuite) TestHooks_SlogLevelFromYAML() {
 	cmd := &cobra.Command{Use: "test"}
 
 	// Set up viper to read from our config file
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	// Define flags and unmarshal
 	structcli.Define(cmd, opts)
@@ -961,8 +940,7 @@ func (suite *structcliSuite) TestHooks_SlogLevelInvalidValue() {
 	cmd := &cobra.Command{Use: "test"}
 
 	// Set up viper to read from our config file
-	viper.SetConfigFile(configFile)
-	require.NoError(suite.T(), viper.ReadInConfig())
+	loadConfigForCommand(suite.T(), cmd, configFile)
 
 	// Define flags and unmarshal
 	structcli.Define(cmd, opts)
@@ -1003,8 +981,7 @@ func (suite *structcliSuite) TestHooks_SlogLevelWithOffsets() {
 			cmd := &cobra.Command{Use: "test"}
 
 			// Set up viper to read from our config file
-			viper.SetConfigFile(configFile)
-			require.NoError(t, viper.ReadInConfig())
+			loadConfigForCommand(t, cmd, configFile)
 
 			// Define flags and unmarshal
 			err := structcli.Define(cmd, opts)

@@ -20,8 +20,7 @@ func writeConfigFile(t *testing.T, path string, content string) {
 }
 
 func TestSetupConfig_ExplicitFileHasPrecedence(t *testing.T) {
-	viper.Reset()
-	defer viper.Reset()
+	vip := viper.New()
 
 	tmpDir := t.TempDir()
 	explicitFile := filepath.Join(tmpDir, "explicit.yaml")
@@ -39,16 +38,15 @@ func TestSetupConfig_ExplicitFileHasPrecedence(t *testing.T) {
 		CustomPaths: []string{tmpDir},
 	}
 
-	SetupConfig(explicitFile, "testapp", opts)
-	require.NoError(t, viper.ReadInConfig())
+	SetupConfig(vip, explicitFile, "testapp", opts)
+	require.NoError(t, vip.ReadInConfig())
 
-	assert.Equal(t, explicitFile, viper.ConfigFileUsed())
-	assert.Equal(t, "explicit", viper.GetString("source"))
+	assert.Equal(t, explicitFile, vip.ConfigFileUsed())
+	assert.Equal(t, "explicit", vip.GetString("source"))
 }
 
 func TestSetupConfig_EnvFileHasPrecedenceOverSearchPaths(t *testing.T) {
-	viper.Reset()
-	defer viper.Reset()
+	vip := viper.New()
 
 	tmpDir := t.TempDir()
 	envFile := filepath.Join(tmpDir, "env.yaml")
@@ -66,16 +64,15 @@ func TestSetupConfig_EnvFileHasPrecedenceOverSearchPaths(t *testing.T) {
 		CustomPaths: []string{tmpDir},
 	}
 
-	SetupConfig("", "testapp", opts)
-	require.NoError(t, viper.ReadInConfig())
+	SetupConfig(vip, "", "testapp", opts)
+	require.NoError(t, vip.ReadInConfig())
 
-	assert.Equal(t, envFile, viper.ConfigFileUsed())
-	assert.Equal(t, "env", viper.GetString("source"))
+	assert.Equal(t, envFile, vip.ConfigFileUsed())
+	assert.Equal(t, "env", vip.GetString("source"))
 }
 
 func TestSetupConfig_SearchPathFallbackIsUsedWhenNoExplicitOrEnv(t *testing.T) {
-	viper.Reset()
-	defer viper.Reset()
+	vip := viper.New()
 
 	tmpDir := t.TempDir()
 	appName := "testapp"
@@ -92,11 +89,11 @@ func TestSetupConfig_SearchPathFallbackIsUsedWhenNoExplicitOrEnv(t *testing.T) {
 		CustomPaths: []string{filepath.Join(tmpDir, "{APP}")},
 	}
 
-	SetupConfig("", appName, opts)
-	require.NoError(t, viper.ReadInConfig())
+	SetupConfig(vip, "", appName, opts)
+	require.NoError(t, vip.ReadInConfig())
 
-	assert.Equal(t, configFile, viper.ConfigFileUsed())
-	assert.Equal(t, "search", viper.GetString("source"))
+	assert.Equal(t, configFile, vip.ConfigFileUsed())
+	assert.Equal(t, "search", vip.GetString("source"))
 }
 
 func TestResolveSearchPaths_CustomPathsAddedOnce(t *testing.T) {

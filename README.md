@@ -233,6 +233,32 @@ rootC.PersistentPreRunE = func(c *cobra.Command, args []string) error {
 }
 ```
 
+`UseConfigSimple(c)` loads config into the root config scope and merges only the relevant section into `c`'s effective scope.
+
+#### 🧠 Viper Model Scopes
+
+`structcli` uses two different viper scopes on purpose:
+
+- `structcli.GetConfigViper(rootOrLeafCmd)` -> root-scoped **config source** (config file data tree)
+- `structcli.GetViper(cmd)` -> command-scoped **effective values** (flags/env/defaults + command-relevant config)
+
+This separation keeps config-file loading isolated from runtime command state.
+
+If you need imperative values in tests or application code, write to the right scope:
+
+```go
+// 1) Effective override for one command context
+structcli.GetViper(cmd).Set("timeout", 60)
+
+// 2) Config-tree style injection (top-level + command section)
+structcli.GetConfigViper(rootCmd).Set("srv", map[string]any{
+  "port": 8443,
+})
+```
+
+Global `viper.Set(...)` is not used by `structcli.Unmarshal(...)` resolution.
+Use `GetViper`/`GetConfigViper` instead.
+
 #### 📜 Configuration Is First-Class Citizen
 
 Configuration can mirror your command hierarchy.

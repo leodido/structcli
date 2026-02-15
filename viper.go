@@ -48,26 +48,50 @@ func remappingMetadataFromCommand(c *cobra.Command) (map[string]string, map[stri
 	return aliasToPathMap, defaultsMap
 }
 
-// GetViper returns the viper instance associated with the given command.
+// GetViper returns the effective command-scoped viper associated with c.
 //
-// Each command has its own isolated viper instance for configuration management.
+// This is the runtime source used by Unmarshal and includes flags, env vars,
+// defaults, plus command-relevant config merged from the root-scoped config viper.
+//
+// Use this for imperative overrides that must affect option resolution for c.
 func GetViper(c *cobra.Command) *viper.Viper {
 	s := internalscope.Get(c)
 
 	return s.Viper()
 }
 
-// Unmarshal populates the options struct with values from flags, environment variables,
-// and configuration files.
+// GetConfigViper returns the root-scoped config-source viper for c.
+//
+// SetupConfig/UseConfig read configuration file data into this viper.
+// Unmarshal then merges command-relevant settings from this viper into
+// the effective command-scoped viper returned by GetViper.
+//
+// Use this viper for imperative config-tree style injection (eg. top-level keys
+// and command sections). Use GetViper for direct command-effective overrides.
+func GetConfigViper(c *cobra.Command) *viper.Viper {
+	s := internalscope.Get(c.Root())
+
+	return s.ConfigViper()
+}
+
+// Unmarshal populates opts with values from flags, environment variables,
+// defaults, and configuration files.
 //
 // It automatically handles decode hooks, validation, transformation, and context updates based on the options type.
+//
+// Resolution happens from the effective command-scoped viper (GetViper(c)).
+// Before decoding, Unmarshal merges command-relevant config from the root-scoped
+// config-source viper (GetConfigViper(c)).
 func Unmarshal(c *cobra.Command, opts Options, hooks ...mapstructure.DecodeHookFunc) error {
 	scope := internalscope.Get(c)
 	vip := scope.Viper()
 
-	// Merging the config map (if any) from the global viper singleton instance
-	configToMerge := internalconfig.Merge(viper.AllSettings(), c)
-	vip.MergeConfigMap(configToMerge)
+	// Primary path: consume config loaded by SetupConfig/UseConfig into the
+	// root command scoped config viper.
+	scopedConfigToMerge := internalconfig.Merge(internalscope.Get(c.Root()).ConfigViper().AllSettings(), c)
+	if err := vip.MergeConfigMap(scopedConfigToMerge); err != nil {
+		return fmt.Errorf("couldn't merge scoped config: %w", err)
+	}
 
 	aliasToPathMap, defaultsMap := remappingMetadataFromCommand(c)
 

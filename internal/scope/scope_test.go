@@ -74,11 +74,17 @@ func TestConcurrentCommandCreation(t *testing.T) {
 
 	// Verify each scope has its own viper instance
 	viperSet := make(map[*viper.Viper]bool)
+	configViperSet := make(map[*viper.Viper]bool)
 	for _, scope := range scopes {
 		viper := scope.Viper()
 		assert.NotNil(t, viper)
 		assert.False(t, viperSet[viper], "Found duplicate viper instance - indicates shared state")
 		viperSet[viper] = true
+
+		configViper := scope.ConfigViper()
+		assert.NotNil(t, configViper)
+		assert.False(t, configViperSet[configViper], "Found duplicate config viper instance - indicates shared state")
+		configViperSet[configViper] = true
 	}
 }
 
@@ -104,6 +110,10 @@ func TestCommandIsolation(t *testing.T) {
 		viper1 := scope1.Viper()
 		viper2 := scope2.Viper()
 		assert.NotSame(t, viper1, viper2, "Commands should have different viper instances")
+
+		configViper1 := scope1.ConfigViper()
+		configViper2 := scope2.ConfigViper()
+		assert.NotSame(t, configViper1, configViper2, "Commands should have different config viper instances")
 
 		// Get initial state of second scope
 		initialBoundEnvs2 := scope2.GetBoundEnvs()
@@ -199,6 +209,7 @@ func TestMemoryCleanup(t *testing.T) {
 		// Verify scope is created
 		assert.NotNil(t, scope)
 		assert.NotNil(t, scope.Viper())
+		assert.NotNil(t, scope.ConfigViper())
 
 		// Verify scope isolation by adding some data
 		scope.SetBound(fmt.Sprintf("test-env-%d", i))

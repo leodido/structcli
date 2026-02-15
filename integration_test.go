@@ -132,8 +132,8 @@ func TestUnmarshal_Integration_WithLibraries(t *testing.T) {
 		errDefine := structcli.Define(cmd, opts)
 		require.NoError(t, errDefine)
 
-		viper.Set("email", "valid@example.com")
-		viper.Set("age", 5) // Invalid age
+		structcli.GetViper(cmd).Set("email", "valid@example.com")
+		structcli.GetViper(cmd).Set("age", 5) // Invalid age
 
 		err := structcli.Unmarshal(cmd, opts)
 
@@ -166,10 +166,10 @@ func TestUnmarshal_Integration_WithLibraries(t *testing.T) {
 		errDefine := structcli.Define(cmd, opts)
 		require.NoError(t, errDefine)
 
-		viper.Set("email", "valid@example.com")
-		viper.Set("age", 30)
-		viper.Set("status", "pending")
-		viper.Set("justification", "")
+		structcli.GetViper(cmd).Set("email", "valid@example.com")
+		structcli.GetViper(cmd).Set("age", 30)
+		structcli.GetViper(cmd).Set("status", "pending")
+		structcli.GetViper(cmd).Set("justification", "")
 
 		err := structcli.Unmarshal(cmd, opts)
 
@@ -186,8 +186,8 @@ func TestUnmarshal_Integration_WithLibraries(t *testing.T) {
 		errDefine := structcli.Define(cmd, opts)
 		require.NoError(t, errDefine)
 
-		viper.Set("email", "  NOTANEMAIL@domain  ")
-		viper.Set("age", 25)
+		structcli.GetViper(cmd).Set("email", "  NOTANEMAIL@domain  ")
+		structcli.GetViper(cmd).Set("age", 25)
 
 		err := structcli.Unmarshal(cmd, opts)
 
@@ -224,10 +224,10 @@ func TestUnmarshal_Integration_WithLibraries(t *testing.T) {
 		errDefine := structcli.Define(cmd, opts)
 		require.NoError(t, errDefine)
 
-		viper.Set("name", "  Test User  ")
-		viper.Set("email", "  USER.TEST@Example.COM  ")
-		viper.Set("age", 42)
-		viper.Set("status", "inactive")
+		structcli.GetViper(cmd).Set("name", "  Test User  ")
+		structcli.GetViper(cmd).Set("email", "  USER.TEST@Example.COM  ")
+		structcli.GetViper(cmd).Set("age", 42)
+		structcli.GetViper(cmd).Set("status", "inactive")
 
 		err := structcli.Unmarshal(cmd, opts)
 
@@ -783,9 +783,9 @@ tty:
 							buf.WriteString("CONFIG_LOADED:")
 							buf.WriteString(message)
 							buf.WriteString(":LOGLEVEL:")
-							buf.WriteString(viper.GetString("loglevel"))
+							buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 							buf.WriteString(":JSONLOGGING:")
-							if viper.GetBool("jsonlogging") {
+							if structcli.GetViper(cmd).GetBool("jsonlogging") {
 								buf.WriteString("true")
 							} else {
 								buf.WriteString("false")
@@ -807,6 +807,7 @@ tty:
 
 				err = structcli.SetupConfig(rootCmd, configOpts)
 				require.NoError(t, err)
+				structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 				// Execute the command with the --config flag
 				rootCmd.SetArgs([]string{"--config", explicitConfigPath})
@@ -853,9 +854,9 @@ tty:
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":JSONLOGGING:")
-					if viper.GetBool("jsonlogging") {
+					if structcli.GetViper(cmd).GetBool("jsonlogging") {
 						buf.WriteString("true")
 					} else {
 						buf.WriteString("false")
@@ -877,6 +878,7 @@ tty:
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command WITHOUT --config flag and WITHOUT env var (should discover from search paths)
 		rootCmd.SetArgs([]string{})
@@ -951,9 +953,9 @@ jsonlogging: true`
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":JSONLOGGING:")
-					if viper.GetBool("jsonlogging") {
+					if structcli.GetViper(cmd).GetBool("jsonlogging") {
 						buf.WriteString("true")
 					} else {
 						buf.WriteString("false")
@@ -975,6 +977,7 @@ jsonlogging: true`
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute with explicit --config flag (should take precedence over env var and search paths)
 		rootCmd.SetArgs([]string{"--config", explicitConfigPath})
@@ -991,7 +994,7 @@ jsonlogging: true`
 
 	t.Run("ConfigFileNotFound", func(t *testing.T) {
 		setupTest()
-		_, cleanup := setupMockEnvironment(t)
+		fs, cleanup := setupMockEnvironment(t)
 		defer cleanup()
 
 		// Don't create any config files - test when none are found
@@ -1028,6 +1031,7 @@ jsonlogging: true`
 
 		err := structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command (should not find any config)
 		rootCmd.SetArgs([]string{})
@@ -1069,9 +1073,9 @@ jsonlogging: true`
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":JSONLOGGING:")
-					if viper.GetBool("jsonlogging") {
+					if structcli.GetViper(cmd).GetBool("jsonlogging") {
 						buf.WriteString("true")
 					} else {
 						buf.WriteString("false")
@@ -1095,6 +1099,7 @@ jsonlogging: true`
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command (should find config in custom search path)
 		rootCmd.SetArgs([]string{})
@@ -1139,9 +1144,9 @@ jsonlogging: true`
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":JSONLOGGING:")
-					if viper.GetBool("jsonlogging") {
+					if structcli.GetViper(cmd).GetBool("jsonlogging") {
 						buf.WriteString("true")
 					} else {
 						buf.WriteString("false")
@@ -1165,6 +1170,7 @@ jsonlogging: true`
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command (should find config in custom search path)
 		rootCmd.SetArgs([]string{})
@@ -1209,9 +1215,9 @@ jsonlogging: true`
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":JSONLOGGING:")
-					if viper.GetBool("jsonlogging") {
+					if structcli.GetViper(cmd).GetBool("jsonlogging") {
 						buf.WriteString("true")
 					} else {
 						buf.WriteString("false")
@@ -1235,6 +1241,7 @@ jsonlogging: true`
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command (should find config in custom search path)
 		rootCmd.SetArgs([]string{})
@@ -1279,9 +1286,9 @@ jsonlogging: true`
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":JSONLOGGING:")
-					if viper.GetBool("jsonlogging") {
+					if structcli.GetViper(cmd).GetBool("jsonlogging") {
 						buf.WriteString("true")
 					} else {
 						buf.WriteString("false")
@@ -1305,6 +1312,7 @@ jsonlogging: true`
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command (should find config in custom search path)
 		rootCmd.SetArgs([]string{})
@@ -1352,9 +1360,9 @@ timeout: 30`
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":TIMEOUT:")
-					buf.WriteString(viper.GetString("timeout"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("timeout"))
 				} else {
 					buf.WriteString("NO_CONFIG:")
 					buf.WriteString(message)
@@ -1371,6 +1379,7 @@ timeout: 30`
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command with default setup
 		rootCmd.SetArgs([]string{})
@@ -1425,9 +1434,9 @@ timeout: 30`
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":JSONLOGGING:")
-					if viper.GetBool("jsonlogging") {
+					if structcli.GetViper(cmd).GetBool("jsonlogging") {
 						buf.WriteString("true")
 					} else {
 						buf.WriteString("false")
@@ -1449,6 +1458,7 @@ timeout: 30`
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command WITHOUT --config flag (should discover from env var)
 		rootCmd.SetArgs([]string{})
@@ -1504,9 +1514,9 @@ timeout: 30`
 					buf.WriteString("CONFIG_LOADED:")
 					buf.WriteString(message)
 					buf.WriteString(":LOGLEVEL:")
-					buf.WriteString(viper.GetString("loglevel"))
+					buf.WriteString(structcli.GetViper(cmd).GetString("loglevel"))
 					buf.WriteString(":JSONLOGGING:")
-					if viper.GetBool("jsonlogging") {
+					if structcli.GetViper(cmd).GetBool("jsonlogging") {
 						buf.WriteString("true")
 					} else {
 						buf.WriteString("false")
@@ -1530,6 +1540,7 @@ timeout: 30`
 
 		err = structcli.SetupConfig(rootCmd, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 		// Execute the command (should discover from custom env var)
 		rootCmd.SetArgs([]string{})
@@ -1584,6 +1595,7 @@ timeout: 30`
 
 		err = structcli.SetupConfig(hiddenC, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(hiddenC).SetFs(fs)
 
 		hiddenC.SetOut(&resultBuf)
 		hiddenC.SetErr(&resultBuf)
@@ -1621,7 +1633,7 @@ timeout: 30`
 					resultBuf.WriteString("CONFIG_LOADED:")
 					resultBuf.WriteString(message)
 					resultBuf.WriteString(":LOGLEVEL:")
-					resultBuf.WriteString(viper.GetString("loglevel"))
+					resultBuf.WriteString(structcli.GetViper(c).GetString("loglevel"))
 				} else {
 					resultBuf.WriteString("NO_CONFIG:")
 					resultBuf.WriteString(message)
@@ -1635,6 +1647,7 @@ timeout: 30`
 
 		err = structcli.SetupConfig(availableC, configOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(availableC).SetFs(fs)
 
 		availableC.SetOut(&resultBuf)
 		availableC.SetErr(&resultBuf)
@@ -1724,6 +1737,7 @@ func TestSetupOrdering_CustomOptions(t *testing.T) {
 
 	err = structcli.SetupConfig(cmd, configOpts)
 	require.NoError(t, err)
+	structcli.GetConfigViper(cmd).SetFs(fs)
 	err = structcli.Define(cmd, opts)
 	require.NoError(t, err)
 	err = structcli.SetupDebug(cmd, debugOpts)
@@ -1847,6 +1861,7 @@ verbose: false`
 	// Execute the setup function with the specific ordering
 	err = setupFunc(cmd, opts)
 	require.NoError(t, err, "Setup function should succeed regardless of ordering")
+	structcli.GetConfigViper(cmd).SetFs(fs)
 
 	// Verify all expected flags exist
 	t.Run("flags_exist", func(t *testing.T) {
@@ -1965,6 +1980,7 @@ verbose: false`
 		flagTestOpts := &OrderingTestOptions{}
 		err = setupFunc(flagTestCmd, flagTestOpts)
 		require.NoError(t, err)
+		structcli.GetConfigViper(flagTestCmd).SetFs(fs)
 
 		// Test with explicit flags (should override environment)
 		flagTestCmd.SetArgs([]string{"--log-level", "error", "--timeout", "120"})
@@ -2250,8 +2266,8 @@ func TestUnmarshal_CustomDecodeHook_Integration(t *testing.T) {
 		err := structcli.Define(cmd, opts)
 		require.NoError(t, err)
 
-		viper.Set("server-mode", "test_custom_decode")
-		viper.Set("log-level", "debug")
+		structcli.GetViper(cmd).Set("server-mode", "test_custom_decode")
+		structcli.GetViper(cmd).Set("log-level", "debug")
 
 		err = structcli.Unmarshal(cmd, opts)
 		require.NoError(t, err, "Unmarshal should succeed with custom decode hook")
@@ -2292,7 +2308,7 @@ func TestUnmarshal_CustomDecodeHook_Integration(t *testing.T) {
 				err := structcli.Define(cmd, opts)
 				require.NoError(t, err)
 
-				viper.Set("server-mode", tc.input)
+				structcli.GetViper(cmd).Set("server-mode", tc.input)
 
 				err = structcli.Unmarshal(cmd, opts)
 				require.NoError(t, err)
@@ -2311,7 +2327,7 @@ func TestUnmarshal_CustomDecodeHook_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Set invalid value that should cause decode hook to return error
-		viper.Set("server-mode", "invalid-mode")
+		structcli.GetViper(cmd).Set("server-mode", "invalid-mode")
 
 		err = structcli.Unmarshal(cmd, opts)
 		require.Error(t, err, "Unmarshal should fail when custom decode hook returns error")
@@ -2328,7 +2344,7 @@ func TestUnmarshal_CustomDecodeHook_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Set config value
-		viper.Set("server-mode", "dev")
+		structcli.GetConfigViper(cmd).Set("server-mode", "dev")
 
 		// Set flag value (should override config)
 		err = cmd.Flags().Set("server-mode", "staging")
@@ -2363,7 +2379,7 @@ func TestUnmarshal_CustomDecodeHook_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Set config value (should be overridden by env var)
-		viper.Set("server-mode", "dev")
+		structcli.GetConfigViper(cmd).Set("server-mode", "dev")
 
 		err = structcli.Unmarshal(cmd, opts)
 		require.NoError(t, err)
@@ -2386,9 +2402,9 @@ func TestUnmarshal_CustomDecodeHook_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Set values for all types
-		viper.Set("timeout", "37s")      // Built-in time.Duration hook
-		viper.Set("log-level", "debug")  // Built-in zapcore.Level hook
-		viper.Set("server-mode", "test") // Custom hook
+		structcli.GetViper(cmd).Set("timeout", "37s")      // Built-in time.Duration hook
+		structcli.GetViper(cmd).Set("log-level", "debug")  // Built-in zapcore.Level hook
+		structcli.GetViper(cmd).Set("server-mode", "test") // Custom hook
 
 		err = structcli.Unmarshal(cmd, opts)
 		require.NoError(t, err)
@@ -2419,7 +2435,7 @@ func TestUnmarshal_CustomDecodeHook_ScopeRetrieval(t *testing.T) {
 		require.NotNil(t, scope, "Should have a scope")
 
 		// Step 3: Set up config to trigger decode hook
-		viper.Set("server-mode", "test_custom_decode")
+		structcli.GetViper(cmd).Set("server-mode", "test_custom_decode")
 
 		// Step 4: Call Unmarshal - this is where the scope.getCustomDecodeHook is called
 		err = structcli.Unmarshal(cmd, opts)
@@ -2453,9 +2469,9 @@ func TestUnmarshal_CustomDecodeHook_ScopeRetrieval(t *testing.T) {
 		assert.Contains(t, mode2Flag.Usage, "second custom mode", "mode2 should have custom description")
 
 		// Set test values that will trigger both custom decode hooks
-		viper.Set("mode1", "test1") // Should trigger Mode1 custom decode hook
-		viper.Set("mode2", "test2") // Should trigger Mode2 custom decode hook
-		viper.Set("level", "info")  // Normal field, no custom hook
+		structcli.GetViper(cmd).Set("mode1", "test1") // Should trigger Mode1 custom decode hook
+		structcli.GetViper(cmd).Set("mode2", "test2") // Should trigger Mode2 custom decode hook
+		structcli.GetViper(cmd).Set("level", "info")  // Normal field, no custom hook
 
 		err = structcli.Unmarshal(cmd, opts)
 		require.NoError(t, err)
@@ -2477,8 +2493,8 @@ func TestUnmarshal_CustomDecodeHook_ScopeRetrieval(t *testing.T) {
 		require.NoError(t, err)
 
 		// Set values that should be transformed differently by each hook
-		viper.Set("mode1", "production") // Mode1 hook adds "mode1_" prefix
-		viper.Set("mode2", "production") // Mode2 hook adds "mode2_" prefix
+		structcli.GetViper(cmd).Set("mode1", "production") // Mode1 hook adds "mode1_" prefix
+		structcli.GetViper(cmd).Set("mode2", "production") // Mode2 hook adds "mode2_" prefix
 
 		err = structcli.Unmarshal(cmd, opts)
 		require.NoError(t, err)
@@ -2501,8 +2517,8 @@ func TestUnmarshal_CustomDecodeHook_ScopeRetrieval(t *testing.T) {
 		require.NoError(t, err)
 
 		// Set config values
-		viper.Set("mode1", "config1")
-		viper.Set("mode2", "config2")
+		structcli.GetConfigViper(cmd).Set("mode1", "config1")
+		structcli.GetConfigViper(cmd).Set("mode2", "config2")
 
 		// Set flag values (should override config)
 		err = cmd.Flags().Set("mode1", "flag1")
@@ -2659,6 +2675,36 @@ func TestUnmarshal_GlobalScopedViperBoundary_Characterization(t *testing.T) {
 		structcli.Reset()
 	}
 
+	t.Run("setup_useconfig_loads_into_root_scoped_config_viper", func(t *testing.T) {
+		setup()
+
+		cfgDir := t.TempDir()
+		cfgPath := filepath.Join(cfgDir, "config.yaml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte("run:\n  value: from-file\n"), 0o644))
+
+		rootCmd := &cobra.Command{Use: "app"}
+		runCmd := &cobra.Command{Use: "run"}
+		rootCmd.AddCommand(runCmd)
+
+		opts := &viperBoundaryOptions{}
+		require.NoError(t, opts.Attach(runCmd))
+		require.NoError(t, structcli.SetupConfig(rootCmd, config.Options{AppName: "app"}))
+
+		rootCmd.PersistentPreRunE = func(c *cobra.Command, _ []string) error {
+			_, _, err := structcli.UseConfigSimple(c)
+			return err
+		}
+		runCmd.RunE = func(c *cobra.Command, _ []string) error {
+			return structcli.Unmarshal(c, opts)
+		}
+
+		rootCmd.SetArgs([]string{"--config", cfgPath, "run"})
+		require.NoError(t, rootCmd.Execute())
+
+		assert.Equal(t, "from-file", opts.Value)
+		assert.False(t, viper.IsSet("run"), "global singleton should not receive config loaded via UseConfigSimple")
+	})
+
 	t.Run("global_settings_are_not_visible_in_command_scope_before_unmarshal", func(t *testing.T) {
 		setup()
 
@@ -2669,7 +2715,7 @@ func TestUnmarshal_GlobalScopedViperBoundary_Characterization(t *testing.T) {
 		opts := &viperBoundaryOptions{}
 		require.NoError(t, opts.Attach(runCmd))
 
-		viper.Set("run", map[string]any{
+		structcli.GetConfigViper(rootCmd).Set("run", map[string]any{
 			"value": "from-global",
 		})
 
@@ -2691,11 +2737,11 @@ func TestUnmarshal_GlobalScopedViperBoundary_Characterization(t *testing.T) {
 		opts := &viperBoundaryOptions{}
 		require.NoError(t, opts.Attach(runCmd))
 
-		viper.Set("run", map[string]any{"value": "v1"})
+		structcli.GetConfigViper(rootCmd).Set("run", map[string]any{"value": "v1"})
 		require.NoError(t, structcli.Unmarshal(runCmd, opts))
 		assert.Equal(t, "v1", opts.Value)
 
-		viper.Set("run", map[string]any{"value": "v2"})
+		structcli.GetConfigViper(rootCmd).Set("run", map[string]any{"value": "v2"})
 
 		scopedViper := structcli.GetViper(runCmd)
 		assert.Equal(t, "v1", scopedViper.GetString("value"), "scoped viper keeps previous merged settings until next Unmarshal")
@@ -2720,7 +2766,7 @@ func TestUnmarshal_GlobalScopedViperBoundary_Characterization(t *testing.T) {
 		optsB := &viperBoundaryOptions{}
 		require.NoError(t, optsB.Attach(runB))
 
-		viper.Set("run", map[string]any{"value": "shared-global"})
+		structcli.GetConfigViper(rootA).Set("run", map[string]any{"value": "shared-global"})
 
 		require.NoError(t, structcli.Unmarshal(runA, optsA))
 		assert.Equal(t, "shared-global", optsA.Value)
@@ -2729,7 +2775,7 @@ func TestUnmarshal_GlobalScopedViperBoundary_Characterization(t *testing.T) {
 		assert.False(t, scopedViperB.IsSet("value"), "second command scope should still be empty before its own Unmarshal")
 
 		require.NoError(t, structcli.Unmarshal(runB, optsB))
-		assert.Equal(t, "shared-global", optsB.Value, "separate root command should still consume global singleton settings once unmarshalled")
+		assert.Equal(t, "", optsB.Value, "separate root command should not consume another root scoped config")
 	})
 }
 
@@ -2749,8 +2795,8 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		opts := &remappingSharedOptions{}
 		require.NoError(t, opts.Attach(rootCmd))
 
-		viper.Set("db-url", "postgres://top-level")
-		viper.Set("run", map[string]any{
+		structcli.GetConfigViper(rootCmd).Set("db-url", "postgres://top-level")
+		structcli.GetConfigViper(rootCmd).Set("run", map[string]any{
 			"db-url": "postgres://leaf-level",
 		})
 
@@ -2789,8 +2835,8 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		require.NoError(t, alphaOpts.Attach(rootAlpha))
 		require.NoError(t, betaOpts.Attach(rootBeta))
 
-		viper.Set("alpha-url", "https://alpha-configured")
-		viper.Set("beta-url", "https://beta-configured")
+		structcli.GetConfigViper(rootAlpha).Set("alpha-url", "https://alpha-configured")
+		structcli.GetConfigViper(rootBeta).Set("beta-url", "https://beta-configured")
 
 		require.NoError(t, structcli.Unmarshal(leafAlpha, alphaOpts))
 		require.NoError(t, structcli.Unmarshal(leafBeta, betaOpts))
@@ -2817,7 +2863,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		require.NoError(t, betaOpts.Attach(rootBeta))
 
 		// This key is unrelated to alpha options and should not affect alpha command tree.
-		viper.Set("beta-url", "https://beta-configured")
+		structcli.GetConfigViper(rootBeta).Set("beta-url", "https://beta-configured")
 
 		require.NoError(t, structcli.Unmarshal(leafAlpha, alphaOpts))
 		assert.Equal(t, "", alphaOpts.Service.URL)
@@ -2832,7 +2878,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		opts := &remappingNestedAliasOptions{}
 		require.NoError(t, opts.Attach(cmd))
 
-		viper.Set("srv", map[string]any{
+		structcli.GetConfigViper(rootCmd).Set("srv", map[string]any{
 			"database": map[string]any{
 				"db-url": "postgres://nested-alias",
 			},
@@ -2851,7 +2897,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 		opts := &remappingNestedAliasOptions{}
 		require.NoError(t, opts.Attach(cmd))
 
-		viper.Set("srv", map[string]any{
+		structcli.GetConfigViper(rootCmd).Set("srv", map[string]any{
 			"database": map[string]any{
 				"url": "postgres://nested-field",
 			},
@@ -2875,7 +2921,7 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 
 		t.Setenv("FULL_PORT", "7777")
 		t.Setenv("FULL_SRV_PORT", "9090")
-		viper.Set("srv", map[string]any{"port": 8443})
+		structcli.GetConfigViper(rootCmd).Set("srv", map[string]any{"port": 8443})
 
 		require.NoError(t, structcli.Unmarshal(srvCmd, opts))
 		assert.Equal(t, 9090, opts.Port)
