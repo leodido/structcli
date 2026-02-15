@@ -1,0 +1,161 @@
+package internalvalidation
+
+import (
+	"errors"
+	"reflect"
+	"testing"
+
+	structclierrors "github.com/leodido/structcli/errors"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type validationCustomType string
+
+type invalidShorthandOpts struct {
+	Name string `flagshort:"ab"`
+}
+
+type invalidBoolTagOpts struct {
+	Name string `flagenv:"oops"`
+}
+
+type conflictingTagsOpts struct {
+	Name string `flagrequired:"true" flagignore:"true"`
+}
+
+type invalidFlagNameOpts struct {
+	Name string `flag:"bad name"`
+}
+
+type duplicateFlagOpts struct {
+	A string `flag:"same"`
+	B string `flag:"same"`
+}
+
+type customMissingDefineOpts struct {
+	Mode validationCustomType `flagcustom:"true"`
+}
+
+type customMissingDecodeOpts struct {
+	Mode validationCustomType `flagcustom:"true"`
+}
+
+func (o *customMissingDecodeOpts) DefineMode(name, short, descr string, _ reflect.StructField, _ reflect.Value) (pflag.Value, string) {
+	return nil, descr
+}
+
+type customInvalidDefineSigOpts struct {
+	Mode validationCustomType `flagcustom:"true"`
+}
+
+func (o *customInvalidDefineSigOpts) DefineMode(_ int, short, descr string, _ reflect.StructField, _ reflect.Value) (pflag.Value, string) {
+	return nil, descr
+}
+
+func (o *customInvalidDefineSigOpts) DecodeMode(input any) (any, error) {
+	return input, nil
+}
+
+type customInvalidDecodeSigOpts struct {
+	Mode validationCustomType `flagcustom:"true"`
+}
+
+func (o *customInvalidDecodeSigOpts) DefineMode(name, short, descr string, _ reflect.StructField, _ reflect.Value) (pflag.Value, string) {
+	return nil, descr
+}
+
+func (o *customInvalidDecodeSigOpts) DecodeMode(_ string) string {
+	return ""
+}
+
+type customValidOpts struct {
+	Mode validationCustomType `flagcustom:"true"`
+}
+
+func (o *customValidOpts) DefineMode(name, short, descr string, _ reflect.StructField, _ reflect.Value) (pflag.Value, string) {
+	return nil, descr
+}
+
+func (o *customValidOpts) DecodeMode(input any) (any, error) {
+	return input, nil
+}
+
+type customConflictingTypeOpts struct {
+	Mode1 validationCustomType `flagcustom:"true"`
+	Mode2 validationCustomType `flagcustom:"true"`
+}
+
+func (o *customConflictingTypeOpts) DefineMode1(name, short, descr string, _ reflect.StructField, _ reflect.Value) (pflag.Value, string) {
+	return nil, descr
+}
+
+func (o *customConflictingTypeOpts) DecodeMode1(input any) (any, error) {
+	return input, nil
+}
+
+func (o *customConflictingTypeOpts) DefineMode2(name, short, descr string, _ reflect.StructField, _ reflect.Value) (pflag.Value, string) {
+	return nil, descr
+}
+
+func (o *customConflictingTypeOpts) DecodeMode2(input any) (any, error) {
+	return input, nil
+}
+
+func TestIsValidBoolTag(t *testing.T) {
+	val, err := IsValidBoolTag("X", "flagenv", "")
+	require.NoError(t, err)
+	assert.Nil(t, val)
+
+	val, err = IsValidBoolTag("X", "flagenv", "true")
+	require.NoError(t, err)
+	require.NotNil(t, val)
+	assert.True(t, *val)
+
+	_, err = IsValidBoolTag("X", "flagenv", "not-bool")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, structclierrors.ErrInvalidBooleanTag))
+}
+
+func TestStructValidationErrors(t *testing.T) {
+	cmd := &cobra.Command{Use: "app"}
+
+	cases := []struct {
+		name string
+		opts any
+		err  error
+	}{
+		{name: "invalid shorthand", opts: &invalidShorthandOpts{}, err: structclierrors.ErrInvalidShorthand},
+		{name: "invalid bool tag", opts: &invalidBoolTagOpts{}, err: structclierrors.ErrInvalidBooleanTag},
+		{name: "conflicting tags", opts: &conflictingTagsOpts{}, err: structclierrors.ErrConflictingTags},
+		{name: "invalid flag name", opts: &invalidFlagNameOpts{}, err: structclierrors.ErrInvalidFlagName},
+		{name: "duplicate flag", opts: &duplicateFlagOpts{}, err: structclierrors.ErrDuplicateFlag},
+		{name: "missing define hook", opts: &customMissingDefineOpts{}, err: structclierrors.ErrMissingDefineHook},
+		{name: "missing decode hook", opts: &customMissingDecodeOpts{}, err: structclierrors.ErrMissingDecodeHook},
+		{name: "invalid define signature", opts: &customInvalidDefineSigOpts{}, err: structclierrors.ErrInvalidDefineHookSignature},
+		{name: "invalid decode signature", opts: &customInvalidDecodeSigOpts{}, err: structclierrors.ErrInvalidDecodeHookSignature},
+		{name: "conflicting custom type", opts: &customConflictingTypeOpts{}, err: structclierrors.ErrConflictingType},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Struct(cmd, tt.opts)
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, tt.err), err.Error())
+		})
+	}
+}
+
+func TestStructValidationSuccess(t *testing.T) {
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Struct(cmd, &customValidOpts{}))
+}
+
+func TestStructValidationNilInput(t *testing.T) {
+	cmd := &cobra.Command{Use: "app"}
+	err := Struct(cmd, nil)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, structclierrors.ErrInputValue))
+}
