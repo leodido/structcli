@@ -127,6 +127,12 @@ func Unmarshal(c *cobra.Command, opts Options, hooks ...mapstructure.DecodeHookF
 		}
 	})
 
+	if validateConfigKeysEnabled(c) {
+		if err := internalconfig.ValidateKeys(scopedConfigToMerge, opts, hooks...); err != nil {
+			return fmt.Errorf("invalid config file values: %w", err)
+		}
+	}
+
 	decodeHook := viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
 		hooks...,
 	))

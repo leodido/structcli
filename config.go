@@ -24,6 +24,8 @@ var (
 	configRoot   *cobra.Command
 )
 
+const configValidateKeysAnnotation = "___leodido_structcli_config_validate_keys"
+
 func setConfigRoot(rootC *cobra.Command) {
 	configRootMu.Lock()
 	defer configRootMu.Unlock()
@@ -45,6 +47,18 @@ func clearConfigRoot(rootC *cobra.Command) {
 	}
 }
 
+func validateConfigKeysEnabled(c *cobra.Command) bool {
+	if c == nil {
+		return false
+	}
+	rootC := c.Root()
+	if rootC == nil || rootC.Annotations == nil {
+		return false
+	}
+
+	return rootC.Annotations[configValidateKeysAnnotation] == "true"
+}
+
 // SetupConfig creates the --config global flag and wires config discovery for the root command.
 //
 // Works only for the root command.
@@ -56,6 +70,9 @@ func clearConfigRoot(rootC *cobra.Command) {
 // Configuration file data is loaded into a root-scoped config viper
 // (see GetConfigViper), then merged into the active command scoped viper
 // during UseConfig/Unmarshal.
+//
+// Set config.Options.ValidateKeys to enable strict config-key validation
+// during Unmarshal for command-relevant config entries.
 func SetupConfig(rootC *cobra.Command, cfgOpts config.Options) error {
 	if rootC.Parent() != nil {
 		return fmt.Errorf("SetupConfig must be called on the root command")
@@ -93,6 +110,15 @@ func SetupConfig(rootC *cobra.Command, cfgOpts config.Options) error {
 
 	// Add persistent flag to root command
 	rootC.PersistentFlags().StringVar(&configFile, cfgOpts.FlagName, configFile, internalconfig.Description(appName, cfgOpts))
+
+	if rootC.Annotations == nil {
+		rootC.Annotations = make(map[string]string)
+	}
+	if cfgOpts.ValidateKeys {
+		rootC.Annotations[configValidateKeysAnnotation] = "true"
+	} else {
+		delete(rootC.Annotations, configValidateKeysAnnotation)
+	}
 
 	// Add filename completion
 	extensions := []string{"yaml", "yml", "json", "toml"}
