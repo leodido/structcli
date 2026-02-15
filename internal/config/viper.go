@@ -117,7 +117,7 @@ func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]s
 			return data, nil
 		}
 
-		// Hande flattened keys for nested structs
+		// Handle flattened keys for nested structs
 		for alias, path := range aliasToPathMap {
 			// Find nested paths like "database.url"
 			if strings.Contains(path, ".") {
