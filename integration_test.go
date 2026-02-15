@@ -1689,6 +1689,88 @@ func TestSetupOrdering_ErrorConditions(t *testing.T) {
 	})
 }
 
+func TestSetupDebug_Exit_WrapsSubcommandsAddedAfterSetup(t *testing.T) {
+	viper.Reset()
+	structcli.Reset()
+	defer func() {
+		viper.Reset()
+		structcli.Reset()
+	}()
+
+	rootCmd := &cobra.Command{Use: "root"}
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+
+	err := structcli.SetupDebug(rootCmd, debug.Options{Exit: true})
+	require.NoError(t, err)
+
+	ranRun := false
+	runCmd := &cobra.Command{
+		Use: "run",
+		Run: func(_ *cobra.Command, _ []string) {
+			ranRun = true
+		},
+	}
+
+	ranRunE := false
+	runECmd := &cobra.Command{
+		Use: "rune",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			ranRunE = true
+			return nil
+		},
+	}
+
+	// These subcommands are registered after SetupDebug, so wrapping must happen lazily.
+	rootCmd.AddCommand(runCmd, runECmd)
+
+	rootCmd.SetArgs([]string{"run", "--debug-options"})
+	err = rootCmd.Execute()
+	require.NoError(t, err)
+	assert.False(t, ranRun, "Run should not execute when debug exit is active")
+
+	rootCmd.SetArgs([]string{"rune", "--debug-options"})
+	err = rootCmd.Execute()
+	require.NoError(t, err)
+	assert.False(t, ranRunE, "RunE should not execute when debug exit is active")
+
+	rootCmdNoDebug := &cobra.Command{Use: "root-nondebug"}
+	rootCmdNoDebug.SetOut(io.Discard)
+	rootCmdNoDebug.SetErr(io.Discard)
+
+	err = structcli.SetupDebug(rootCmdNoDebug, debug.Options{Exit: true})
+	require.NoError(t, err)
+
+	ranRunNoDebug := false
+	runCmdNoDebug := &cobra.Command{
+		Use: "run",
+		Run: func(_ *cobra.Command, _ []string) {
+			ranRunNoDebug = true
+		},
+	}
+
+	ranRunENoDebug := false
+	runECmdNoDebug := &cobra.Command{
+		Use: "rune",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			ranRunENoDebug = true
+			return nil
+		},
+	}
+
+	rootCmdNoDebug.AddCommand(runCmdNoDebug, runECmdNoDebug)
+
+	rootCmdNoDebug.SetArgs([]string{"run"})
+	err = rootCmdNoDebug.Execute()
+	require.NoError(t, err)
+	assert.True(t, ranRunNoDebug, "Run should execute when debug exit is inactive")
+
+	rootCmdNoDebug.SetArgs([]string{"rune"})
+	err = rootCmdNoDebug.Execute()
+	require.NoError(t, err)
+	assert.True(t, ranRunENoDebug, "RunE should execute when debug exit is inactive")
+}
+
 func TestSetupOrdering_CustomOptions(t *testing.T) {
 	viper.Reset()
 	structcli.SetEnvPrefix("")

@@ -62,7 +62,13 @@ func SetupDebug(rootC *cobra.Command, debugOpts debug.Options) error {
 
 	// Wrap all commands run hooks
 	if debugOpts.Exit {
+		// Wrap already-registered commands now.
 		internalcmd.RecursivelyWrapRun(rootC)
+
+		// Also wrap right before execution so commands added after SetupDebug are covered.
+		cobra.OnInitialize(func() {
+			internalcmd.RecursivelyWrapRun(rootC)
+		})
 	}
 
 	// Regenerate usage templates for any commands already processed by Define()

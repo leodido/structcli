@@ -5,24 +5,34 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const wrappedRunAnnotation = "structcli/debug-run-wrapped"
+
 func RecursivelyWrapRun(c *cobra.Command) {
-	if c.RunE != nil {
-		originalRunE := c.RunE
-		c.RunE = func(c *cobra.Command, args []string) error {
-			if internaldebug.IsDebugActive(c) {
-				return nil // Exit cleanly without running the original function
+	if c.Annotations == nil || c.Annotations[wrappedRunAnnotation] != "true" {
+		// Idempotency guard: SetupDebug can trigger wrapping multiple times via cobra.OnInitialize.
+		if c.RunE != nil {
+			originalRunE := c.RunE
+			c.RunE = func(c *cobra.Command, args []string) error {
+				if internaldebug.IsDebugActive(c) {
+					return nil // Exit cleanly without running the original function
+				}
+				return originalRunE(c, args)
 			}
-			return originalRunE(c, args)
-		}
-	} else if c.Run != nil {
-		// Handle non-error returning Run as well
-		originalRun := c.Run
-		c.Run = func(c *cobra.Command, args []string) {
-			if internaldebug.IsDebugActive(c) {
-				return // Exit cleanly
+		} else if c.Run != nil {
+			// Handle non-error returning Run as well
+			originalRun := c.Run
+			c.Run = func(c *cobra.Command, args []string) {
+				if internaldebug.IsDebugActive(c) {
+					return // Exit cleanly
+				}
+				originalRun(c, args)
 			}
-			originalRun(c, args)
 		}
+
+		if c.Annotations == nil {
+			c.Annotations = make(map[string]string)
+		}
+		c.Annotations[wrappedRunAnnotation] = "true"
 	}
 
 	// Recurse into subcommands
