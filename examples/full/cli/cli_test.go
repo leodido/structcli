@@ -458,6 +458,7 @@ srv:
 			defer cleanup()
 
 			c, _ := NewRootC(tc.exitOnDebug)
+			// SetupConfig/UseConfig read from structcli's root-scoped config viper, not the global singleton.
 			structcli.GetConfigViper(c).SetFs(fs)
 
 			// Capture output

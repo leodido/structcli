@@ -149,6 +149,7 @@ func TestLoginSvcApplication(t *testing.T) {
 
 			cmd, err := NewRootCmd()
 			require.NoError(t, err)
+			// Config loading uses structcli's root-scoped config viper, so point that scoped instance to the in-memory fs.
 			structcli.GetConfigViper(cmd).SetFs(fs)
 
 			// Capture output

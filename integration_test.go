@@ -807,6 +807,7 @@ tty:
 
 				err = structcli.SetupConfig(rootCmd, configOpts)
 				require.NoError(t, err)
+				// SetupConfig/UseConfig read through the root-scoped config viper; SetFs mutates that instance in place.
 				structcli.GetConfigViper(rootCmd).SetFs(fs)
 
 				// Execute the command with the --config flag
