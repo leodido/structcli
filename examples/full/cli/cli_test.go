@@ -233,6 +233,24 @@ srv:
 			},
 		},
 		{
+			name: "Flagpreset aliases pass through transform and validation",
+			args: []string{"preset", "--as-admin", "--auto-label"},
+			assertFunc: func(t *testing.T, output string, err error) {
+				require.NoError(t, err)
+				assert.Contains(t, output, `"Role": "admin"`)
+				assert.Contains(t, output, `"Label": "John Doe"`)
+			},
+		},
+		{
+			name: "Flagpreset alias can fail validation when preset value is invalid",
+			args: []string{"preset", "--as-super", "--auto-label"},
+			assertFunc: func(t *testing.T, output string, err error) {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, "invalid options for preset")
+				assert.ErrorContains(t, err, "Field validation for 'Role' failed on the 'oneof' tag")
+			},
+		},
+		{
 			name: "Flag value overrides both Environment and Config",
 			args: []string{"srv", "--port", "1111"},      // Flag has highest precedence
 			envs: map[string]string{"FULL_PORT": "2222"}, // Env has middle precedence
