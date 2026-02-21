@@ -35,6 +35,29 @@ type duplicateFlagOpts struct {
 	B string `flag:"same"`
 }
 
+type invalidPresetSyntaxOpts struct {
+	Level int `flagpreset:"logeverything"`
+}
+
+type presetOnStructOpts struct {
+	Nested struct {
+		Level int
+	} `flagpreset:"logeverything=5"`
+}
+
+type presetWithIgnoreOpts struct {
+	Level int `flagignore:"true" flagpreset:"logeverything=5"`
+}
+
+type presetDuplicateWithFlagOpts struct {
+	Level int `flag:"logeverything" flagpreset:"logeverything=5"`
+}
+
+type presetDuplicateAcrossFieldsOpts struct {
+	A int `flagpreset:"logeverything=5"`
+	B int `flagpreset:"logeverything=4"`
+}
+
 type customMissingDefineOpts struct {
 	Mode validationCustomType `flagcustom:"true"`
 }
@@ -132,6 +155,11 @@ func TestStructValidationErrors(t *testing.T) {
 		{name: "conflicting tags", opts: &conflictingTagsOpts{}, err: structclierrors.ErrConflictingTags},
 		{name: "invalid flag name", opts: &invalidFlagNameOpts{}, err: structclierrors.ErrInvalidFlagName},
 		{name: "duplicate flag", opts: &duplicateFlagOpts{}, err: structclierrors.ErrDuplicateFlag},
+		{name: "invalid preset syntax", opts: &invalidPresetSyntaxOpts{}, err: structclierrors.ErrInvalidTagUsage},
+		{name: "preset on struct", opts: &presetOnStructOpts{}, err: structclierrors.ErrInvalidTagUsage},
+		{name: "preset with ignore", opts: &presetWithIgnoreOpts{}, err: structclierrors.ErrInvalidTagUsage},
+		{name: "preset duplicate with flag", opts: &presetDuplicateWithFlagOpts{}, err: structclierrors.ErrDuplicateFlag},
+		{name: "preset duplicate across fields", opts: &presetDuplicateAcrossFieldsOpts{}, err: structclierrors.ErrDuplicateFlag},
 		{name: "missing define hook", opts: &customMissingDefineOpts{}, err: structclierrors.ErrMissingDefineHook},
 		{name: "missing decode hook", opts: &customMissingDecodeOpts{}, err: structclierrors.ErrMissingDecodeHook},
 		{name: "invalid define signature", opts: &customInvalidDefineSigOpts{}, err: structclierrors.ErrInvalidDefineHookSignature},

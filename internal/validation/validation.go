@@ -65,6 +65,15 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		fieldName := internalpath.GetFieldName(prefix, structF)
 		isStructKind := structF.Type.Kind() == reflect.Struct
 
+		// Validate flagpreset tag syntax
+		presets, presetErr := internaltag.ParseFlagPresets(structF.Tag.Get("flagpreset"))
+		if presetErr != nil {
+			return structclierrors.NewInvalidTagUsageError(fieldName, "flagpreset", presetErr.Error())
+		}
+		if len(presets) > 0 && isStructKind {
+			return structclierrors.NewInvalidTagUsageError(fieldName, "flagpreset", "flagpreset cannot be used on struct types")
+		}
+
 		// Validate flagshort tag
 		short := structF.Tag.Get("flagshort")
 		if short != "" && len(short) > 1 {
@@ -117,6 +126,9 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		if flagIgnoreValue != nil && *flagIgnoreValue && isStructKind {
 			return structclierrors.NewInvalidTagUsageError(fieldName, "flagignore", "flagignore cannot be used on struct types")
 		}
+		if len(presets) > 0 && flagIgnoreValue != nil && *flagIgnoreValue {
+			return structclierrors.NewInvalidTagUsageError(fieldName, "flagpreset", "flagpreset cannot be used with flagignore='true'")
+		}
 
 		// Validate flagrequired tag
 		flagRequiredValue, flagRequiredErr := IsValidBoolTag(fieldName, "flagrequired", structF.Tag.Get("flagrequired"))
@@ -154,6 +166,11 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 
 			if err := s.AddDefinedFlag(flagName, fieldName); err != nil {
 				return err
+			}
+			for _, preset := range presets {
+				if err := s.AddDefinedFlag(preset.Name, fieldName); err != nil {
+					return err
+				}
 			}
 		}
 
