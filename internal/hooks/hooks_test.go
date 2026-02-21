@@ -90,6 +90,25 @@ func (suite *structcliSuite) TestStoreDecodeHookFunc() {
 	assert.Equal(suite.T(), expectedKey, annotations[0], "Annotation should contain the correct key")
 }
 
+func (suite *structcliSuite) TestStoreCompletionHookFunc() {
+	cmd := &cobra.Command{Use: "testcmd"}
+	cmd.Flags().String("mode", "", "test flag")
+
+	completeMethod := func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"dev", "prod"}, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	err := internalhooks.StoreCompletionHookFunc(cmd, "mode", reflect.ValueOf(completeMethod))
+	require.NoError(suite.T(), err)
+
+	completion, exists := cmd.GetFlagCompletionFunc("mode")
+	require.True(suite.T(), exists, "completion function should be registered")
+
+	suggestions, directive := completion(cmd, nil, "")
+	assert.Equal(suite.T(), []string{"dev", "prod"}, suggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
 type zapcoreLevelOptions struct {
 	LogLevel zapcore.Level `default:"info" flagcustom:"true" flagdescr:"the logging level" flagenv:"true"`
 }
