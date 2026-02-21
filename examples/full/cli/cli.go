@@ -245,6 +245,64 @@ func makeUsrC() *cobra.Command {
 	return usrC
 }
 
+var _ structcli.ValidatableOptions = (*PresetDemoOptions)(nil)
+var _ structcli.TransformableOptions = (*PresetDemoOptions)(nil)
+
+// PresetDemoOptions demonstrates flagpreset values flowing through
+// transform and validation logic.
+type PresetDemoOptions struct {
+	Role  string `flag:"role" flagpreset:"as-admin=admin;as-guest=guest;as-super=superadmin" validate:"required,oneof=admin guest"`
+	Label string `flag:"label" flagpreset:"auto-label=  john doe  " mod:"trim,title" validate:"required,min=3,max=32"`
+}
+
+func (o *PresetDemoOptions) Validate(ctx context.Context) []error {
+	var errs []error
+	err := validator.New().Struct(o)
+	if err != nil {
+		if validationErrs, ok := err.(validator.ValidationErrors); ok {
+			for _, fieldErr := range validationErrs {
+				errs = append(errs, fieldErr)
+			}
+		} else {
+			errs = append(errs, fmt.Errorf("validator.Struct() failed unexpectedly: %w", err))
+		}
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+
+	return errs
+}
+
+func (o *PresetDemoOptions) Transform(ctx context.Context) error {
+	return modifiers.New().Struct(ctx, o)
+}
+
+func (o *PresetDemoOptions) Attach(c *cobra.Command) error {
+	return structcli.Define(c, o)
+}
+
+func makePresetC() *cobra.Command {
+	opts := &PresetDemoOptions{}
+
+	presetC := &cobra.Command{
+		Use:   "preset",
+		Short: "Demonstrate flag presets with validation and transformation",
+		Long:  "Demonstrate that flagpreset aliases are syntactic sugar and still flow through Transform and Validate",
+		RunE: func(c *cobra.Command, args []string) error {
+			if err := structcli.Unmarshal(c, opts); err != nil {
+				return err
+			}
+			fmt.Fprintln(c.OutOrStdout(), pretty(opts))
+
+			return nil
+		},
+	}
+	opts.Attach(presetC)
+
+	return presetC
+}
+
 var _ structcli.ContextOptions = (*UtilityFlags)(nil)
 
 type UtilityFlags struct {
@@ -324,6 +382,7 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 	commonOpts.Attach(rootC)
 	rootC.AddCommand(makeSrvC())
 	rootC.AddCommand(makeUsrC())
+	rootC.AddCommand(makePresetC())
 
 	// This single line enables the debugging global flag
 	if err := structcli.SetupDebug(rootC, debug.Options{Exit: exitOnDebug}); err != nil {
