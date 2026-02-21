@@ -49,3 +49,67 @@ func TestIsMandatory(t *testing.T) {
 	assert.True(t, ok)
 	assert.False(t, IsMandatory(invalid))
 }
+
+func TestParseFlagPresets(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		got, err := ParseFlagPresets("")
+		assert.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("single", func(t *testing.T) {
+		got, err := ParseFlagPresets("logeverything=5")
+		assert.NoError(t, err)
+		assert.Equal(t, []FlagPreset{{Name: "logeverything", Value: "5"}}, got)
+	})
+
+	t.Run("multiple_semicolon", func(t *testing.T) {
+		got, err := ParseFlagPresets("logeverything=5;logquiet=0")
+		assert.NoError(t, err)
+		assert.Equal(t, []FlagPreset{
+			{Name: "logeverything", Value: "5"},
+			{Name: "logquiet", Value: "0"},
+		}, got)
+	})
+
+	t.Run("multiple_comma", func(t *testing.T) {
+		got, err := ParseFlagPresets("a=1,b=2")
+		assert.NoError(t, err)
+		assert.Equal(t, []FlagPreset{
+			{Name: "a", Value: "1"},
+			{Name: "b", Value: "2"},
+		}, got)
+	})
+
+	t.Run("value_can_contain_equals", func(t *testing.T) {
+		got, err := ParseFlagPresets("token=foo=bar")
+		assert.NoError(t, err)
+		assert.Equal(t, []FlagPreset{{Name: "token", Value: "foo=bar"}}, got)
+	})
+
+	t.Run("value_can_be_empty", func(t *testing.T) {
+		got, err := ParseFlagPresets("clear=")
+		assert.NoError(t, err)
+		assert.Equal(t, []FlagPreset{{Name: "clear", Value: ""}}, got)
+	})
+
+	t.Run("invalid_missing_equals", func(t *testing.T) {
+		_, err := ParseFlagPresets("logeverything")
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid_name", func(t *testing.T) {
+		_, err := ParseFlagPresets("bad_name=1")
+		assert.Error(t, err)
+	})
+
+	t.Run("duplicate_names", func(t *testing.T) {
+		_, err := ParseFlagPresets("same=1;same=2")
+		assert.Error(t, err)
+	})
+
+	t.Run("empty_entries_not_allowed", func(t *testing.T) {
+		_, err := ParseFlagPresets("a=1;;b=2")
+		assert.Error(t, err)
+	})
+}

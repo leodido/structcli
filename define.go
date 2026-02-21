@@ -127,6 +127,21 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			group = startingGroup
 		}
 		name := internalpath.GetName(path, alias)
+		presets, err := internaltag.ParseFlagPresets(f.Tag.Get("flagpreset"))
+		if err != nil {
+			// Validation should already catch this path. Keep defensive guard for direct/internal callers.
+			return fmt.Errorf("field '%s': invalid usage of tag 'flagpreset': %w", path, err)
+		}
+		if len(presets) > 0 {
+			filtered := make([]internaltag.FlagPreset, 0, len(presets))
+			for _, preset := range presets {
+				if cname, ok := exclusions[strings.ToLower(preset.Name)]; ok && c.Name() == cname {
+					continue
+				}
+				filtered = append(filtered, preset)
+			}
+			presets = filtered
+		}
 
 		// Determine whether to represent hierarchy with the command name
 		// We assume that options that are not context options are subcommand-specific options
@@ -177,6 +192,53 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 			return nil
 		}
+		applyPresetAliases := func() error {
+			for _, preset := range presets {
+				aliasName := preset.Name
+				aliasValue := preset.Value
+				targetFlagName := name
+
+				// Avoid redefining when the same options are attached multiple times.
+				if c.Flags().Lookup(aliasName) != nil {
+					continue
+				}
+
+				usage := fmt.Sprintf("alias for --%s=%s", targetFlagName, aliasValue)
+				c.Flags().BoolFunc(aliasName, usage, func(raw string) error {
+					enabled, err := strconv.ParseBool(raw)
+					if err != nil {
+						return fmt.Errorf("invalid boolean value for alias --%s: %w", aliasName, err)
+					}
+					if !enabled {
+						return nil
+					}
+
+					if err := c.Flags().Set(targetFlagName, aliasValue); err != nil {
+						return fmt.Errorf("couldn't apply alias --%s to --%s: %w", aliasName, targetFlagName, err)
+					}
+
+					return nil
+				})
+
+				if group != "" {
+					if err := c.Flags().SetAnnotation(aliasName, internalusage.FlagGroupAnnotation, []string{group}); err != nil {
+						return fmt.Errorf("couldn't set group annotation for flag %s: %w", aliasName, err)
+					}
+				}
+			}
+
+			return nil
+		}
+		finalizeFieldDefinition := func() error {
+			if err := applyFieldMetadata(); err != nil {
+				return err
+			}
+			if err := applyPresetAliases(); err != nil {
+				return err
+			}
+
+			return nil
+		}
 
 		// Flags with `flagcustom:"true"` tag (validation already done)
 		custom, _ := strconv.ParseBool(f.Tag.Get("flagcustom"))
@@ -207,7 +269,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 						return fmt.Errorf("couldn't register decode hook %s: %w", decodeHookName, err)
 					}
 
-					if err := applyFieldMetadata(); err != nil {
+					if err := finalizeFieldDefinition(); err != nil {
 						return err
 					}
 
@@ -218,7 +280,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
 					internalhooks.InferDecodeHooks(c, name, f.Type.String())
 
-					if err := applyFieldMetadata(); err != nil {
+					if err := finalizeFieldDefinition(); err != nil {
 						return err
 					}
 
@@ -236,7 +298,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 			}
 
-			if err := applyFieldMetadata(); err != nil {
+			if err := finalizeFieldDefinition(); err != nil {
 				return err
 			}
 
@@ -249,7 +311,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		}
 
 		if c.Flags().Lookup(name) != nil {
-			if err := applyFieldMetadata(); err != nil {
+			if err := finalizeFieldDefinition(); err != nil {
 				return err
 			}
 
@@ -320,7 +382,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			if f.Tag.Get("flagtype") == "count" {
 				c.Flags().CountVarP(ref, name, short, descr)
 
-				if err := applyFieldMetadata(); err != nil {
+				if err := finalizeFieldDefinition(); err != nil {
 					return err
 				}
 
@@ -377,7 +439,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			continue
 		}
 
-		if err := applyFieldMetadata(); err != nil {
+		if err := finalizeFieldDefinition(); err != nil {
 			return err
 		}
 	}
