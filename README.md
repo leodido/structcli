@@ -584,6 +584,7 @@ Use these tags in your struct fields to control the behavior:
 | Tag            | Description                                                                                                                             | Example                     |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
 | `flag`         | Sets a custom name for the flag (otherwise, generated from the field name)                                                              | `flag:"log-level"`          |
+| `flagpreset`   | Defines CLI-only preset aliases for this field's flag. Each preset is `<alias-flag-name>=<value-for-this-field-flag>`. No env/config keys are created. | `flagpreset:"logeverything=5;logquiet=0"` |
 | `flagshort`    | Sets a single-character shorthand for the flag                                                                                          | `flagshort:"l"`             |
 | `flagdescr`    | Provides the help text for the flag                                                                                                     | `flagdescr:"Logging level"` |
 | `default`      | Sets the default value for the flag                                                                                                     | `default:"info"`            |
@@ -593,6 +594,12 @@ Use these tags in your struct fields to control the behavior:
 | `flagignore`   | Skips creating a flag for this field (`"true"`/`"false"`)                                                                               | `flagignore:"true"`         |
 | `flagcustom`   | Uses a custom `Define<FieldName>` method for advanced flag creation and a custom `Decode<FieldName>` method for advanced value decoding | `flagcustom:"true"`         |
 | `flagtype`     | Specifies a special flag type. Currently supports `count`                                                                               | `flagtype:"count"`          |
+
+`flagpreset` is syntactic sugar: it creates alias flags that set the canonical flag value.
+Format: `<alias>=<value>`; multiple entries can be separated by `;` or `,`.
+Example: `flagpreset:"logeverything=5;logquiet=0"` makes `--logeverything` behave like `--loglevel=5`.
+If both alias and canonical flags are passed, the last assignment in argv wins.
+It does not bypass transform/validate flow.
 
 ## 📖 Documentation
 
