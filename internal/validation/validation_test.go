@@ -127,6 +127,22 @@ func (o *customConflictingTypeOpts) DecodeMode2(input any) (any, error) {
 	return input, nil
 }
 
+type invalidCompleteSigOpts struct {
+	Mode string `flag:"mode"`
+}
+
+func (o *invalidCompleteSigOpts) CompleteMode(_ string) []string {
+	return []string{"dev"}
+}
+
+type validCompleteSigOpts struct {
+	Mode string `flag:"mode"`
+}
+
+func (o *validCompleteSigOpts) CompleteMode(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"dev", "prod"}, cobra.ShellCompDirectiveNoFileComp
+}
+
 func TestIsValidBoolTag(t *testing.T) {
 	val, err := IsValidBoolTag("X", "flagenv", "")
 	require.NoError(t, err)
@@ -164,6 +180,7 @@ func TestStructValidationErrors(t *testing.T) {
 		{name: "missing decode hook", opts: &customMissingDecodeOpts{}, err: structclierrors.ErrMissingDecodeHook},
 		{name: "invalid define signature", opts: &customInvalidDefineSigOpts{}, err: structclierrors.ErrInvalidDefineHookSignature},
 		{name: "invalid decode signature", opts: &customInvalidDecodeSigOpts{}, err: structclierrors.ErrInvalidDecodeHookSignature},
+		{name: "invalid completion signature", opts: &invalidCompleteSigOpts{}, err: structclierrors.ErrInvalidCompleteHookSignature},
 		{name: "conflicting custom type", opts: &customConflictingTypeOpts{}, err: structclierrors.ErrConflictingType},
 	}
 
@@ -177,8 +194,8 @@ func TestStructValidationErrors(t *testing.T) {
 }
 
 func TestStructValidationSuccess(t *testing.T) {
-	cmd := &cobra.Command{Use: "app"}
-	require.NoError(t, Struct(cmd, &customValidOpts{}))
+	require.NoError(t, Struct(&cobra.Command{Use: "app-1"}, &customValidOpts{}))
+	require.NoError(t, Struct(&cobra.Command{Use: "app-2"}, &validCompleteSigOpts{}))
 }
 
 func TestStructValidationNilInput(t *testing.T) {

@@ -456,6 +456,10 @@ func (o *comprehensiveCustomOptions) DecodeServerMode(input any) (any, error) {
 	return s, nil
 }
 
+func (o *comprehensiveCustomOptions) CompleteServerMode(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{string(development), string(staging), string(production)}, cobra.ShellCompDirectiveDefault
+}
+
 func (o *comprehensiveCustomOptions) DefineSomeConfig(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 	enhancedDesc := descr + " (must be .yaml, .yml, or .json)"
 	fieldPtr := fieldValue.Addr().Interface().(*string)
@@ -468,30 +472,19 @@ func (o *comprehensiveCustomOptions) DecodeSomeConfig(input any) (any, error) {
 	return input, nil
 }
 
+func (o *comprehensiveCustomOptions) CompleteSomeConfig(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"yaml", "yml", "json"}, cobra.ShellCompDirectiveFilterFileExt
+}
+
 func (o *comprehensiveCustomOptions) Attach(c *cobra.Command) error {
-	// 1. Define all the flags first.
-	if err := Define(c, o); err != nil {
-		return err
-	}
-
-	// 2. Now, perform any command-specific setup, like completion.
-	// This is the new, recommended pattern.
-	c.RegisterFlagCompletionFunc("server-mode", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return []string{string(development), string(staging), string(production)}, cobra.ShellCompDirectiveDefault
-	})
-
-	c.RegisterFlagCompletionFunc("some-config", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return []string{"yaml", "yml", "json"}, cobra.ShellCompDirectiveFilterFileExt
-	})
-
-	return nil
+	return Define(c, o)
 }
 
 func (suite *structcliSuite) TestFlagcustom_ComprehensiveScenarios() {
 	opts := &comprehensiveCustomOptions{}
 
 	c := &cobra.Command{Use: "test"}
-	// Call Attach, which now handles both Define and completion setup.
+	// Call Attach, which now delegates completion registration to Define().
 	err := opts.Attach(c)
 	require.NoError(suite.T(), err, "define should work for custom flags too")
 
@@ -516,9 +509,45 @@ func (suite *structcliSuite) TestFlagcustom_ComprehensiveScenarios() {
 	normalFlag := f.Lookup("normal-flag")
 	assert.NotNil(suite.T(), normalFlag, "normal flags should still work")
 
+	modeCompletion, modeCompletionExists := c.GetFlagCompletionFunc("server-mode")
+	require.True(suite.T(), modeCompletionExists, "server-mode completion should be registered")
+	modeSuggestions, modeDirective := modeCompletion(c, nil, "")
+	assert.Equal(suite.T(), []string{string(development), string(staging), string(production)}, modeSuggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveDefault, modeDirective)
+
+	configCompletion, configCompletionExists := c.GetFlagCompletionFunc("some-config")
+	require.True(suite.T(), configCompletionExists, "some-config completion should be registered")
+	configSuggestions, configDirective := configCompletion(c, nil, "")
+	assert.Equal(suite.T(), []string{"yaml", "yml", "json"}, configSuggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveFilterFileExt, configDirective)
+
 	// Assert a field without a real flag tag is skipped
 	missingFlag := f.Lookup("no-method")
 	assert.Nil(suite.T(), missingFlag, "flags without methods should be skipped")
+}
+
+type autoCompleteOptions struct {
+	Region string `flag:"region" flagdescr:"target region"`
+}
+
+func (o *autoCompleteOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *autoCompleteOptions) CompleteRegion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"us-east-1", "us-west-2"}, cobra.ShellCompDirectiveNoFileComp
+}
+
+func (suite *structcliSuite) TestDefine_AutoRegistersCompletionForStandardFlags() {
+	opts := &autoCompleteOptions{}
+	c := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(c, opts))
+
+	completion, exists := c.GetFlagCompletionFunc("region")
+	require.True(suite.T(), exists, "region completion should be registered")
+
+	suggestions, directive := completion(c, nil, "us")
+	assert.Equal(suite.T(), []string{"us-east-1", "us-west-2"}, suggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
 }
 
 type nestedStruct struct {
