@@ -85,6 +85,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 	if !val.IsValid() {
 		val = internalreflect.GetValue(internalreflect.GetValuePtr(o).Interface())
 	}
+	structPtr := internalreflect.GetValuePtr(o)
 
 	for i := range val.NumField() {
 		field := val.Field(i)
@@ -236,6 +237,15 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			if err := applyPresetAliases(); err != nil {
 				return err
 			}
+			completeHookName := fmt.Sprintf("Complete%s", f.Name)
+			completeHookFunc := structPtr.MethodByName(completeHookName)
+			if completeHookFunc.IsValid() {
+				if _, exists := c.GetFlagCompletionFunc(name); !exists {
+					if err := internalhooks.StoreCompletionHookFunc(c, name, completeHookFunc); err != nil {
+						return fmt.Errorf("couldn't register completion hook %s: %w", completeHookName, err)
+					}
+				}
+			}
 
 			return nil
 		}
@@ -246,7 +256,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			defineHookName := fmt.Sprintf("Define%s", f.Name)
 			decodeHookName := fmt.Sprintf("Decode%s", f.Name)
 
-			if structPtr := internalreflect.GetValuePtr(o); structPtr.IsValid() {
+			if structPtr.IsValid() {
 				defineHookFunc := structPtr.MethodByName(defineHookName)
 				decodeHookFunc := structPtr.MethodByName(decodeHookName)
 

@@ -64,6 +64,8 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 
 		fieldName := internalpath.GetFieldName(prefix, structF)
 		isStructKind := structF.Type.Kind() == reflect.Struct
+		parts := strings.Split(fieldName, ".")
+		methodFieldName := parts[len(parts)-1]
 
 		// Validate flagpreset tag syntax
 		presets, presetErr := internaltag.ParseFlagPresets(structF.Tag.Get("flagpreset"))
@@ -102,10 +104,6 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 			if !internaltag.IsStandardType(structF.Type) {
 				typeToFields[structF.Type] = append(typeToFields[structF.Type], fieldName)
 			}
-			// Extract the field name (without prefix) for hook lookup
-			parts := strings.Split(fieldName, ".")
-			methodFieldName := parts[len(parts)-1]
-
 			if err := validateCustomFlag(val, methodFieldName, structF.Type.String()); err != nil {
 				return err
 			}
@@ -128,6 +126,11 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		}
 		if len(presets) > 0 && flagIgnoreValue != nil && *flagIgnoreValue {
 			return structclierrors.NewInvalidTagUsageError(fieldName, "flagpreset", "flagpreset cannot be used with flagignore='true'")
+		}
+		if !isStructKind && !(flagIgnoreValue != nil && *flagIgnoreValue) {
+			if err := validateCompletionHook(val, methodFieldName); err != nil {
+				return err
+			}
 		}
 
 		// Validate flagrequired tag
@@ -236,6 +239,31 @@ func validateDecodeHookSignature(m reflect.Value) error {
 	return nil
 }
 
+func validateCompleteHookSignature(m reflect.Value) error {
+	expectedType := reflect.TypeOf((*internalhooks.CompleteHookFunc)(nil)).Elem()
+	actualType := m.Type()
+
+	if actualType.NumIn() != expectedType.NumIn() || actualType.NumOut() != expectedType.NumOut() {
+		var fx internalhooks.CompleteHookFunc
+
+		return fmt.Errorf("complete hook must have signature: %s", internalreflect.Signature(fx))
+	}
+
+	for i := range actualType.NumIn() {
+		if actualType.In(i) != expectedType.In(i) {
+			return fmt.Errorf("complete hook parameter %d has wrong type: expected %v, got %v", i, expectedType.In(i), actualType.In(i))
+		}
+	}
+
+	for i := range actualType.NumOut() {
+		if actualType.Out(i) != expectedType.Out(i) {
+			return fmt.Errorf("complete hook return value %d has wrong type: expected %v, got %v", i, expectedType.Out(i), actualType.Out(i))
+		}
+	}
+
+	return nil
+}
+
 // validateCustomFlag validates that a custom flag has proper define and decode mechanisms
 func validateCustomFlag(structValue reflect.Value, fieldName, fieldType string) error {
 	// Get pointer to struct to access methods
@@ -285,4 +313,23 @@ func validateCustomFlag(structValue reflect.Value, fieldName, fieldType string) 
 
 	// Case 3: No define mechanism found
 	return structclierrors.NewMissingDefineHookError(fieldName, defineMethodName)
+}
+
+func validateCompletionHook(structValue reflect.Value, fieldName string) error {
+	structPtr := internalreflect.GetStructPtr(structValue)
+	if !structPtr.IsValid() {
+		return fmt.Errorf("cannot get pointer to struct for field '%s'", fieldName)
+	}
+
+	methodName := fmt.Sprintf("Complete%s", fieldName)
+	completeHookFunc := structPtr.MethodByName(methodName)
+	if !completeHookFunc.IsValid() {
+		return nil
+	}
+
+	if err := validateCompleteHookSignature(completeHookFunc); err != nil {
+		return structclierrors.NewInvalidCompleteHookSignatureError(fieldName, methodName, err)
+	}
+
+	return nil
 }

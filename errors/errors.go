@@ -47,18 +47,19 @@ func (e *ValidationError) UnderlyingErrors() []error {
 
 // These are all DefinitionError
 var (
-	ErrInvalidBooleanTag          = errors.New("invalid boolean tag value")
-	ErrInvalidShorthand           = errors.New("invalid shorthand flag")
-	ErrMissingDefineHook          = errors.New("missing custom flag definition hook")
-	ErrMissingDecodeHook          = errors.New("missing custom flag decoding hook")
-	ErrInvalidDefineHookSignature = errors.New("invalid define hook signature")
-	ErrInvalidDecodeHookSignature = errors.New("invalid decode hook signature")
-	ErrInvalidTagUsage            = errors.New("invalid tag usage")
-	ErrConflictingTags            = errors.New("conflicting struct tags")
-	ErrConflictingType            = errors.New("conflicting struct field types")
-	ErrUnsupportedType            = errors.New("unsupported field type")
-	ErrDuplicateFlag              = errors.New("duplicate flag name")
-	ErrInvalidFlagName            = errors.New("invalid flag name")
+	ErrInvalidBooleanTag            = errors.New("invalid boolean tag value")
+	ErrInvalidShorthand             = errors.New("invalid shorthand flag")
+	ErrMissingDefineHook            = errors.New("missing custom flag definition hook")
+	ErrMissingDecodeHook            = errors.New("missing custom flag decoding hook")
+	ErrInvalidDefineHookSignature   = errors.New("invalid define hook signature")
+	ErrInvalidDecodeHookSignature   = errors.New("invalid decode hook signature")
+	ErrInvalidCompleteHookSignature = errors.New("invalid complete hook signature")
+	ErrInvalidTagUsage              = errors.New("invalid tag usage")
+	ErrConflictingTags              = errors.New("conflicting struct tags")
+	ErrConflictingType              = errors.New("conflicting struct field types")
+	ErrUnsupportedType              = errors.New("unsupported field type")
+	ErrDuplicateFlag                = errors.New("duplicate flag name")
+	ErrInvalidFlagName              = errors.New("invalid flag name")
 )
 
 // DefinitionError represents an error that occurred while processing a struct field's tags at definition time.
@@ -197,6 +198,26 @@ func (e *InvalidDefineHookSignatureError) Field() string {
 
 func (e *InvalidDefineHookSignatureError) Unwrap() error {
 	return ErrInvalidDefineHookSignature
+}
+
+// InvalidCompleteHookSignatureError represents an invalid completion hook.
+type InvalidCompleteHookSignatureError struct {
+	FieldName string
+	HookName  string
+	Message   string
+}
+
+func (e *InvalidCompleteHookSignatureError) Error() string {
+	return fmt.Sprintf("field '%s': invalid '%s' completion hook: %s",
+		e.FieldName, e.HookName, e.Message)
+}
+
+func (e *InvalidCompleteHookSignatureError) Field() string {
+	return e.FieldName
+}
+
+func (e *InvalidCompleteHookSignatureError) Unwrap() error {
+	return ErrInvalidCompleteHookSignature
 }
 
 // InvalidTagUsageError represents invalid tag usages
@@ -356,6 +377,14 @@ func NewInvalidDecodeHookSignatureError(fieldName, hookName string, err error) e
 
 func NewInvalidDefineHookSignatureError(fieldName, hookName string, err error) error {
 	return &InvalidDefineHookSignatureError{
+		FieldName: fieldName,
+		HookName:  hookName,
+		Message:   err.Error(),
+	}
+}
+
+func NewInvalidCompleteHookSignatureError(fieldName, hookName string, err error) error {
+	return &InvalidCompleteHookSignatureError{
 		FieldName: fieldName,
 		HookName:  hookName,
 		Message:   err.Error(),
