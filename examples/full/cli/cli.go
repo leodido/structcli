@@ -99,21 +99,18 @@ func (o *ServerOptions) DecodeTargetEnv(input any) (any, error) {
 	}
 }
 
+// CompleteTargetEnv provides shell completion for the target environment flag.
+func (o *ServerOptions) CompleteTargetEnv(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{
+		"dev\tDevelopment environment",
+		"staging\tStaging environment",
+		"prod\tProduction environment",
+	}, cobra.ShellCompDirectiveNoFileComp
+}
+
 // Attach makes ServerOptions implement the Options interface
 func (o *ServerOptions) Attach(c *cobra.Command) error {
-	if err := structcli.Define(c, o); err != nil {
-		return err
-	}
-
-	c.RegisterFlagCompletionFunc("target-env", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return []string{
-			"dev\tDevelopment environment",
-			"staging\tStaging environment",
-			"prod\tProduction environment",
-		}, cobra.ShellCompDirectiveNoFileComp
-	})
-
-	return nil
+	return structcli.Define(c, o)
 }
 
 func makeSrvC() *cobra.Command {
