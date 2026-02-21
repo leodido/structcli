@@ -445,12 +445,13 @@ For a complete, runnable implementation of this pattern, see the loginsvc exampl
 
 ### 🪃 Custom Type Handlers
 
-Declare options (flags, env vars, config file keys) with custom types by implementing two methods on your options struct.
+Declare options (flags, env vars, config file keys) with custom types by implementing methods on your options struct.
 
-Just implement two methods on your options structs:
+Implement these methods on your options structs:
 
 - `Define<FieldName>`: return a `pflag.Value` that knows how to handle your custom type, along with an enhanced description.
 - `Decode<FieldName>`: decode the input into your custom type.
+- `Complete<FieldName>` (optional): provide shell completion candidates for the generated flag value. `Define()` auto-registers it.
 
 ```go
 type Environment string
@@ -482,20 +483,17 @@ func (o *ServerOptions) DecodeTargetEnv(input any) (any, error) {
     return EnvDevelopment, nil
 }
 
-// Attach handles flag definition and shell completion for our custom type.
+// CompleteTargetEnv provides shell completion for --target-env.
+func (o *ServerOptions) CompleteTargetEnv(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+    return []string{"dev", "staging", "prod"}, cobra.ShellCompDirectiveNoFileComp
+}
+
 func (o *ServerOptions) Attach(c *cobra.Command) error {
-	if err := structcli.Define(c, o); err != nil {
-        return err
-    }
-
-    // Register shell completion after the flag has been defined.
-    c.RegisterFlagCompletionFunc("target-env", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-        return []string{"dev", "staging", "prod"}, cobra.ShellCompDirectiveNoFileComp
-    })
-
-    return nil
+	return structcli.Define(c, o)
 }
 ```
+
+`Complete<FieldName>` works for any field that becomes a flag (not only `flagcustom:"true"` fields).
 
 In [values](/values/values.go) we provide `pflag.Value` implementations for standard types.
 
