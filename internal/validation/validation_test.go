@@ -143,6 +143,14 @@ func (o *validCompleteSigOpts) CompleteMode(cmd *cobra.Command, args []string, t
 	return []string{"dev", "prod"}, cobra.ShellCompDirectiveNoFileComp
 }
 
+type ignoredInvalidCompleteSigOpts struct {
+	Hidden string `flag:"hidden" flagignore:"true"`
+}
+
+func (o *ignoredInvalidCompleteSigOpts) CompleteHidden(_ string) []string {
+	return []string{"ignored"}
+}
+
 func TestIsValidBoolTag(t *testing.T) {
 	val, err := IsValidBoolTag("X", "flagenv", "")
 	require.NoError(t, err)
@@ -196,6 +204,7 @@ func TestStructValidationErrors(t *testing.T) {
 func TestStructValidationSuccess(t *testing.T) {
 	require.NoError(t, Struct(&cobra.Command{Use: "app-1"}, &customValidOpts{}))
 	require.NoError(t, Struct(&cobra.Command{Use: "app-2"}, &validCompleteSigOpts{}))
+	require.NoError(t, Struct(&cobra.Command{Use: "app-3"}, &ignoredInvalidCompleteSigOpts{}))
 }
 
 func TestStructValidationNilInput(t *testing.T) {

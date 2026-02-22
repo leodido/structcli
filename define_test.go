@@ -550,6 +550,182 @@ func (suite *structcliSuite) TestDefine_AutoRegistersCompletionForStandardFlags(
 	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
 }
 
+type builtInCompletionOptions struct {
+	LogLevel zapcore.Level `flag:"log-level" flagdescr:"log level"`
+}
+
+func (o *builtInCompletionOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *builtInCompletionOptions) CompleteLogLevel(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"debug", "info", "warn", "error"}, cobra.ShellCompDirectiveNoFileComp
+}
+
+func (suite *structcliSuite) TestDefine_AutoRegistersCompletionForBuiltInHookFlags() {
+	opts := &builtInCompletionOptions{}
+	c := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(c, opts))
+
+	completion, exists := c.GetFlagCompletionFunc("log-level")
+	require.True(suite.T(), exists, "log-level completion should be registered")
+
+	suggestions, directive := completion(c, nil, "de")
+	assert.Equal(suite.T(), []string{"debug", "info", "warn", "error"}, suggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
+type nestedCompletionChild struct {
+	Profile string `flag:"profile"`
+}
+
+func (o *nestedCompletionChild) CompleteProfile(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"default", "strict"}, cobra.ShellCompDirectiveNoFileComp
+}
+
+type nestedCompletionOptions struct {
+	Child nestedCompletionChild
+}
+
+func (o *nestedCompletionOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_AutoRegistersCompletionForNestedStructFlags() {
+	opts := &nestedCompletionOptions{}
+	c := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(c, opts))
+
+	completion, exists := c.GetFlagCompletionFunc("profile")
+	require.True(suite.T(), exists, "nested profile completion should be registered")
+
+	suggestions, directive := completion(c, nil, "")
+	assert.Equal(suite.T(), []string{"default", "strict"}, suggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
+type manualCompletionPrecedenceOptions struct {
+	Mode string `flag:"mode"`
+}
+
+func (o *manualCompletionPrecedenceOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *manualCompletionPrecedenceOptions) CompleteMode(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"hook"}, cobra.ShellCompDirectiveNoFileComp
+}
+
+func (suite *structcliSuite) TestDefine_DoesNotOverrideExistingFlagCompletion() {
+	opts := &manualCompletionPrecedenceOptions{}
+	c := &cobra.Command{Use: "test"}
+	c.Flags().String("mode", "", "pre-defined mode")
+
+	require.NoError(suite.T(), c.RegisterFlagCompletionFunc("mode", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"manual"}, cobra.ShellCompDirectiveDefault
+	}))
+
+	require.NoError(suite.T(), Define(c, opts))
+
+	completion, exists := c.GetFlagCompletionFunc("mode")
+	require.True(suite.T(), exists, "mode completion should exist")
+
+	suggestions, directive := completion(c, nil, "")
+	assert.Equal(suite.T(), []string{"manual"}, suggestions, "existing completion must take precedence")
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveDefault, directive)
+}
+
+type ignoreCompletionOptions struct {
+	Hidden  string `flag:"hidden" flagignore:"true"`
+	Visible string `flag:"visible"`
+}
+
+func (o *ignoreCompletionOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *ignoreCompletionOptions) CompleteHidden(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"should-not-register"}, cobra.ShellCompDirectiveNoFileComp
+}
+
+func (o *ignoreCompletionOptions) CompleteVisible(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"register-me"}, cobra.ShellCompDirectiveNoFileComp
+}
+
+func (suite *structcliSuite) TestDefine_DoesNotRegisterCompletionForIgnoredFlags() {
+	opts := &ignoreCompletionOptions{}
+	c := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(c, opts))
+	assert.Nil(suite.T(), c.Flags().Lookup("hidden"), "ignored flag should not be defined")
+	require.NotNil(suite.T(), c.Flags().Lookup("visible"), "visible flag should be defined")
+
+	_, hiddenCompletionExists := c.GetFlagCompletionFunc("hidden")
+	assert.False(suite.T(), hiddenCompletionExists, "ignored flag completion should not be registered")
+
+	visibleCompletion, visibleCompletionExists := c.GetFlagCompletionFunc("visible")
+	require.True(suite.T(), visibleCompletionExists, "visible completion should be registered")
+	suggestions, directive := visibleCompletion(c, nil, "")
+	assert.Equal(suite.T(), []string{"register-me"}, suggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
+type presetCompletionOptions struct {
+	Level int `flag:"level" flagpreset:"max=10"`
+}
+
+func (o *presetCompletionOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *presetCompletionOptions) CompleteLevel(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"1", "5", "10"}, cobra.ShellCompDirectiveNoFileComp
+}
+
+func (suite *structcliSuite) TestDefine_RegistersCompletionOnlyForCanonicalFlagWithPresets() {
+	opts := &presetCompletionOptions{}
+	c := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(c, opts))
+	require.NotNil(suite.T(), c.Flags().Lookup("level"), "canonical flag should be defined")
+	require.NotNil(suite.T(), c.Flags().Lookup("max"), "preset alias flag should be defined")
+
+	levelCompletion, levelCompletionExists := c.GetFlagCompletionFunc("level")
+	require.True(suite.T(), levelCompletionExists, "canonical flag completion should be registered")
+
+	suggestions, directive := levelCompletion(c, nil, "")
+	assert.Equal(suite.T(), []string{"1", "5", "10"}, suggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
+
+	_, aliasCompletionExists := c.GetFlagCompletionFunc("max")
+	assert.False(suite.T(), aliasCompletionExists, "preset alias should not get value completion")
+}
+
+type completionForwardingOptions struct {
+	Target         string `flag:"target"`
+	seenCommandUse string
+	seenArgs       []string
+	seenToComplete string
+}
+
+func (o *completionForwardingOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *completionForwardingOptions) CompleteTarget(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	o.seenCommandUse = cmd.Use
+	o.seenArgs = append([]string{}, args...)
+	o.seenToComplete = toComplete
+
+	return []string{"ok"}, cobra.ShellCompDirectiveNoFileComp
+}
+
+func (suite *structcliSuite) TestDefine_ForwardsCompletionInvocationArguments() {
+	opts := &completionForwardingOptions{}
+	c := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(c, opts))
+	completion, exists := c.GetFlagCompletionFunc("target")
+	require.True(suite.T(), exists, "target completion should be registered")
+
+	suggestions, directive := completion(c, []string{"sub", "cmd"}, "to-comp")
+	assert.Equal(suite.T(), []string{"ok"}, suggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
+	assert.Equal(suite.T(), "test", opts.seenCommandUse)
+	assert.Equal(suite.T(), []string{"sub", "cmd"}, opts.seenArgs)
+	assert.Equal(suite.T(), "to-comp", opts.seenToComplete)
+}
+
 type nestedStruct struct {
 	Value string `flagdescr:"nested value"`
 }
