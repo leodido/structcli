@@ -451,7 +451,7 @@ Implement these methods on your options structs:
 
 - `Define<FieldName>`: return a `pflag.Value` that knows how to handle your custom type, along with an enhanced description.
 - `Decode<FieldName>`: decode the input into your custom type.
-- `Complete<FieldName>` (optional): provide shell completion candidates for the generated flag value. `Define()` auto-registers it.
+- `Complete<FieldName>` (optional): provide shell completion candidates for the generated flag value. `structcli.Define()` auto-registers it.
 
 ```go
 type Environment string
