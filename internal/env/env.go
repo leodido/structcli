@@ -50,27 +50,25 @@ func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) 
 	defineEnv, _ := strconv.ParseBool(env)
 
 	if defineEnv || inherit {
-		if f.Type.Kind() != reflect.Struct {
-			envPath := path
-			envAlias := alias
+		envPath := path
+		envAlias := alias
 
-			// Apply env prefix to current env variable
-			// But avoid double prefixing if the given prefix matches the global prefix (usually the CLI/app name)
-			if envPrefix != "" {
-				// Extract app name from prefix (remove trailing underscore and lowercase)
-				appName := strings.ToLower(strings.TrimSuffix(currentPrefix, "_"))
-				if envPrefix != appName {
-					envPath = envPrefix + "." + path
-					if alias != "" {
-						envAlias = envPrefix + "." + alias
-					}
+		// Apply env prefix to current env variable
+		// But avoid double prefixing if the given prefix matches the global prefix (usually the CLI/app name)
+		if envPrefix != "" {
+			// Extract app name from prefix (remove trailing underscore and lowercase)
+			appName := strings.ToLower(strings.TrimSuffix(currentPrefix, "_"))
+			if envPrefix != appName {
+				envPath = envPrefix + "." + path
+				if alias != "" {
+					envAlias = envPrefix + "." + alias
 				}
 			}
+		}
 
-			ret = append(ret, currentPrefix+NormEnv(envPath))
-			if alias != "" && path != alias {
-				ret = append(ret, currentPrefix+NormEnv(envAlias))
-			}
+		ret = append(ret, currentPrefix+NormEnv(envPath))
+		if alias != "" && path != alias {
+			ret = append(ret, currentPrefix+NormEnv(envAlias))
 		}
 	}
 

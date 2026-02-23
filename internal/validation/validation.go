@@ -63,7 +63,8 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		}
 
 		fieldName := internalpath.GetFieldName(prefix, structF)
-		isStructKind := structF.Type.Kind() == reflect.Struct
+		_, hasDefineHook := internalhooks.DefineHookRegistry[structF.Type.String()]
+		isStructKind := structF.Type.Kind() == reflect.Struct && !hasDefineHook
 		parts := strings.Split(fieldName, ".")
 		methodFieldName := parts[len(parts)-1]
 
