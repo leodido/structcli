@@ -3,6 +3,7 @@ package internalhooks
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"reflect"
 	"sort"
 	"strings"
@@ -29,6 +30,10 @@ type DefineHookFunc func(name, short, descr string, structField reflect.StructFi
 var DefineHookRegistry = map[string]DefineHookFunc{
 	"zapcore.Level":    DefineZapcoreLevelHookFunc(),
 	"time.Duration":    DefineTimeDurationHookFunc(),
+	"net.IP":           DefineIPHookFunc(),
+	"net.IPMask":       DefineIPMaskHookFunc(),
+	"net.IPNet":        DefineIPNetHookFunc(),
+	"[]net.IP":         DefineIPSliceHookFunc(),
 	"slog.Level":       DefineSlogLevelHookFunc(),
 	"[]uint8":          DefineRawBytesHookFunc(),
 	"structcli.Hex":    DefineHexBytesHookFunc(),
@@ -62,6 +67,42 @@ func DefineBase64BytesHookFunc() DefineHookFunc {
 	return defineByteSliceValueHookFunc(func(val []byte, ref *[]byte) pflag.Value {
 		return structclivalues.NewBase64Bytes(val, ref)
 	})
+}
+
+func DefineIPHookFunc() DefineHookFunc {
+	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+		val := fieldValue.Interface().(net.IP)
+		ref := (*net.IP)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+
+		return structclivalues.NewIP(val, ref), descr
+	}
+}
+
+func DefineIPMaskHookFunc() DefineHookFunc {
+	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+		val := fieldValue.Interface().(net.IPMask)
+		ref := (*net.IPMask)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+
+		return structclivalues.NewIPMask(val, ref), descr
+	}
+}
+
+func DefineIPNetHookFunc() DefineHookFunc {
+	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+		val := fieldValue.Interface().(net.IPNet)
+		ref := (*net.IPNet)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+
+		return structclivalues.NewIPNet(val, ref), descr
+	}
+}
+
+func DefineIPSliceHookFunc() DefineHookFunc {
+	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+		val := fieldValue.Interface().([]net.IP)
+		ref := (*[]net.IP)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+
+		return structclivalues.NewIPSlice(val, ref), descr
+	}
 }
 
 func DefineTimeDurationHookFunc() DefineHookFunc {

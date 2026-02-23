@@ -2,9 +2,11 @@ package internalhooks
 
 import (
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,6 +32,22 @@ var DecodeHookRegistry = map[string]decodingAnnotation{
 	"time.Duration": {
 		"StringToTimeDurationHookFunc",
 		mapstructure.StringToTimeDurationHookFunc(),
+	},
+	"net.IP": {
+		"StringToIPHookFunc",
+		mapstructure.StringToIPHookFunc(),
+	},
+	"net.IPMask": {
+		"StringToIPMaskHookFunc",
+		StringToIPMaskHookFunc(),
+	},
+	"net.IPNet": {
+		"StringToIPNetHookFunc",
+		mapstructure.StringToIPNetHookFunc(),
+	},
+	"[]net.IP": {
+		"StringToIPSliceHookFunc",
+		StringToIPSliceHookFunc(),
 	},
 	"zapcore.Level": {
 		"StringToZapcoreLevelHookFunc",
@@ -211,6 +229,142 @@ func decodeHexBytes(raw string) ([]byte, error) {
 
 func decodeBase64Bytes(raw string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(strings.TrimSpace(raw))
+}
+
+// StringToIPMaskHookFunc converts textual input into net.IPMask.
+func StringToIPMaskHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data any,
+	) (any, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t != reflect.TypeOf(net.IPMask(nil)) {
+			return data, nil
+		}
+
+		raw := data.(string)
+		mask := parseIPv4Mask(strings.TrimSpace(raw))
+		if mask == nil {
+			return nil, fmt.Errorf("invalid string for net.IPMask '%s'", raw)
+		}
+
+		return mask, nil
+	}
+}
+
+// StringToIPSliceHookFunc converts textual and list input into []net.IP.
+func StringToIPSliceHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data any,
+	) (any, error) {
+		if t != reflect.TypeOf([]net.IP(nil)) {
+			return data, nil
+		}
+
+		switch f.Kind() {
+		case reflect.String:
+			raw := data.(string)
+			ips, err := parseIPSlice(raw)
+			if err != nil {
+				return nil, fmt.Errorf("invalid string for []net.IP '%s': %w", raw, err)
+			}
+
+			return ips, nil
+		case reflect.Slice, reflect.Array:
+			rv := reflect.ValueOf(data)
+			out := make([]net.IP, rv.Len())
+			for i := range rv.Len() {
+				item := rv.Index(i).Interface()
+				switch v := item.(type) {
+				case string:
+					ip := net.ParseIP(strings.TrimSpace(v))
+					if ip == nil {
+						return nil, fmt.Errorf("invalid IP '%s' at position %d", v, i)
+					}
+					out[i] = ip
+				case net.IP:
+					out[i] = v
+				default:
+					return nil, fmt.Errorf("invalid element type %T at position %d for []net.IP", item, i)
+				}
+			}
+
+			return out, nil
+		default:
+			return data, nil
+		}
+	}
+}
+
+func readAsCSV(raw string) ([]string, error) {
+	if raw == "" {
+		return []string{}, nil
+	}
+
+	reader := csv.NewReader(strings.NewReader(raw))
+
+	return reader.Read()
+}
+
+func parseIPSlice(raw string) ([]net.IP, error) {
+	trimmed := strings.TrimSpace(raw)
+	rmQuote := strings.NewReplacer(`"`, "", `'`, "", "`", "")
+	trimmed = rmQuote.Replace(trimmed)
+	if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		trimmed = strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+	}
+	if trimmed == "" {
+		return []net.IP{}, nil
+	}
+
+	parts, err := readAsCSV(trimmed)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]net.IP, len(parts))
+	for i, part := range parts {
+		ip := net.ParseIP(strings.TrimSpace(part))
+		if ip == nil {
+			return nil, fmt.Errorf("invalid IP '%s' at position %d", part, i)
+		}
+
+		out[i] = ip
+	}
+
+	return out, nil
+}
+
+func parseIPv4Mask(s string) net.IPMask {
+	mask := net.ParseIP(s)
+	if mask == nil {
+		if len(s) != 8 {
+			return nil
+		}
+
+		parts := []int{}
+		for i := 0; i < 4; i++ {
+			b := "0x" + s[2*i:2*i+2]
+			d, err := strconv.ParseInt(b, 0, 0)
+			if err != nil {
+				return nil
+			}
+			parts = append(parts, int(d))
+		}
+
+		s = fmt.Sprintf("%d.%d.%d.%d", parts[0], parts[1], parts[2], parts[3])
+		mask = net.ParseIP(s)
+		if mask == nil {
+			return nil
+		}
+	}
+
+	return net.IPv4Mask(mask[12], mask[13], mask[14], mask[15])
 }
 
 func StoreDecodeHookFunc(c *cobra.Command, flagname string, decodeM reflect.Value, target reflect.Type) error {
