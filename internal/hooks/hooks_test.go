@@ -722,6 +722,161 @@ func (suite *structcliSuite) TestHooks_IntSliceOutOfRange() {
 	assert.Contains(suite.T(), err.Error(), "couldn't unmarshal config to options:")
 }
 
+type bytesOptions struct {
+	Raw    []byte           `flag:"raw" flagdescr:"raw bytes" flagenv:"true" default:"raw-default"`
+	Hex    structcli.Hex    `flag:"hex" flagdescr:"hex bytes" flagenv:"true" default:"68656c6c6f"`
+	Base64 structcli.Base64 `flag:"base64" flagdescr:"base64 bytes" flagenv:"true" default:"aGVsbG8="`
+}
+
+func (o *bytesOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestHooks_BytesDefaults() {
+	opts := &bytesOptions{}
+	cmd := &cobra.Command{Use: "bytes"}
+
+	structcli.Define(cmd, opts)
+	err := structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []byte("raw-default"), opts.Raw)
+	assert.Equal(suite.T(), []byte("hello"), []byte(opts.Hex))
+	assert.Equal(suite.T(), []byte("hello"), []byte(opts.Base64))
+}
+
+func (suite *structcliSuite) TestHooks_BytesFromFlag() {
+	opts := &bytesOptions{}
+	cmd := &cobra.Command{Use: "bytes"}
+
+	structcli.Define(cmd, opts)
+
+	err := cmd.Flags().Set("raw", "from-flag")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("hex", "666c61672d686578") // "flag-hex"
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("base64", "ZmxhZy1iYXNlNjQ=") // "flag-base64"
+	require.NoError(suite.T(), err)
+
+	err = structcli.Unmarshal(cmd, opts)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []byte("from-flag"), opts.Raw)
+	assert.Equal(suite.T(), []byte("flag-hex"), []byte(opts.Hex))
+	assert.Equal(suite.T(), []byte("flag-base64"), []byte(opts.Base64))
+}
+
+func (suite *structcliSuite) TestHooks_BytesFromYAML() {
+	configContent := `raw: "from-config"
+hex: "636f6e6669672d686578"
+base64: "Y29uZmlnLWJhc2U2NA=="`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &bytesOptions{}
+	cmd := &cobra.Command{Use: "bytes"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	structcli.Define(cmd, opts)
+	err := structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []byte("from-config"), opts.Raw)
+	assert.Equal(suite.T(), []byte("config-hex"), []byte(opts.Hex))
+	assert.Equal(suite.T(), []byte("config-base64"), []byte(opts.Base64))
+}
+
+func (suite *structcliSuite) TestHooks_BytesFromEnv() {
+	const (
+		envRaw    = "BYTESAPP_RAW"
+		envHex    = "BYTESAPP_HEX"
+		envBase64 = "BYTESAPP_BASE64"
+	)
+	originalRaw := os.Getenv(envRaw)
+	originalHex := os.Getenv(envHex)
+	originalBase64 := os.Getenv(envBase64)
+	defer func() {
+		if originalRaw == "" {
+			os.Unsetenv(envRaw)
+		} else {
+			os.Setenv(envRaw, originalRaw)
+		}
+		if originalHex == "" {
+			os.Unsetenv(envHex)
+		} else {
+			os.Setenv(envHex, originalHex)
+		}
+		if originalBase64 == "" {
+			os.Unsetenv(envBase64)
+		} else {
+			os.Setenv(envBase64, originalBase64)
+		}
+		structcli.SetEnvPrefix("")
+	}()
+
+	os.Setenv(envRaw, "from-env")
+	os.Setenv(envHex, "656e762d686578")      // "env-hex"
+	os.Setenv(envBase64, "ZW52LWJhc2U2NA==") // "env-base64"
+	structcli.SetEnvPrefix("bytesapp")
+
+	opts := &bytesOptions{}
+	cmd := &cobra.Command{Use: "bytesapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []byte("from-env"), opts.Raw)
+	assert.Equal(suite.T(), []byte("env-hex"), []byte(opts.Hex))
+	assert.Equal(suite.T(), []byte("env-base64"), []byte(opts.Base64))
+}
+
+func (suite *structcliSuite) TestHooks_BytesFlagOverridesConfig() {
+	configContent := `raw: "config-raw"
+hex: "636f6e6669672d686578"
+base64: "Y29uZmlnLWJhc2U2NA=="`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &bytesOptions{}
+	cmd := &cobra.Command{Use: "bytes"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	structcli.Define(cmd, opts)
+
+	err := cmd.Flags().Set("raw", "flag-raw")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("hex", "666c61672d686578") // "flag-hex"
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("base64", "ZmxhZy1iYXNlNjQ=") // "flag-base64"
+	require.NoError(suite.T(), err)
+
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []byte("flag-raw"), opts.Raw)
+	assert.Equal(suite.T(), []byte("flag-hex"), []byte(opts.Hex))
+	assert.Equal(suite.T(), []byte("flag-base64"), []byte(opts.Base64))
+}
+
+func (suite *structcliSuite) TestHooks_HexBytesInvalidFromYAML() {
+	configContent := `hex: "invalid-hex"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &bytesOptions{}
+	cmd := &cobra.Command{Use: "bytes"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	structcli.Define(cmd, opts)
+	err := structcli.Unmarshal(cmd, opts)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid string for structcli.Hex")
+	assert.Contains(suite.T(), err.Error(), "couldn't unmarshal config to options:")
+}
+
 type requiredWithEnvRuntimeOptions struct {
 	RequiredEnvFlag string `flag:"required-env-flag" flagrequired:"true" flagenv:"true" flagdescr:"required flag with env"`
 	OptionalEnvFlag string `flag:"optional-env-flag" flagenv:"true" flagdescr:"optional flag with env"`
