@@ -309,6 +309,60 @@ func (o TestDefineOptions) Attach(c *cobra.Command) error       { return nil }
 func (o TestDefineOptions) Transform(ctx context.Context) error { return nil }
 func (o TestDefineOptions) Validate() []error                   { return nil }
 
+type completionIntegrationOptions struct {
+	Region string `flag:"region" flagdescr:"target region"`
+}
+
+func (o *completionIntegrationOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *completionIntegrationOptions) CompleteRegion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	candidates := []string{"us-east-1", "us-west-2", "eu-west-1"}
+	if toComplete == "" {
+		return candidates, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	filtered := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if strings.HasPrefix(candidate, toComplete) {
+			filtered = append(filtered, candidate)
+		}
+	}
+
+	return filtered, cobra.ShellCompDirectiveNoFileComp
+}
+
+func TestDefine_CompletionShellRequest_Integration(t *testing.T) {
+	viper.Reset()
+	structcli.Reset()
+	defer viper.Reset()
+	defer structcli.Reset()
+
+	opts := &completionIntegrationOptions{}
+
+	runCmd := &cobra.Command{
+		Use: "run",
+		Run: func(cmd *cobra.Command, args []string) {},
+	}
+	require.NoError(t, structcli.Define(runCmd, opts))
+
+	rootCmd := &cobra.Command{Use: "app"}
+	rootCmd.AddCommand(runCmd)
+
+	var out bytes.Buffer
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
+	rootCmd.SetArgs([]string{"__complete", "run", "--region", "us"})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	output := out.String()
+	assert.Contains(t, output, "us-east-1")
+	assert.Contains(t, output, "us-west-2")
+	assert.NotContains(t, output, "eu-west-1")
+	assert.Contains(t, output, ":4")
+}
+
 func TestDefine_Integration(t *testing.T) {
 	setupTest := func() {
 		viper.Reset()

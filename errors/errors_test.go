@@ -756,6 +756,69 @@ func TestInvalidDefineHookSignatureError_ErrorsAs(t *testing.T) {
 	assert.Equal(t, "TestField", fieldErr.Field())
 }
 
+func TestInvalidCompleteHookSignatureError_ErrorMessage(t *testing.T) {
+	err := &InvalidCompleteHookSignatureError{
+		FieldName: "ServerMode",
+		HookName:  "CompleteServerMode",
+		Message:   "complete hook must have signature: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)",
+	}
+
+	expected := "field 'ServerMode': invalid 'CompleteServerMode' completion hook: complete hook must have signature: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)"
+	assert.Equal(t, expected, err.Error())
+}
+
+func TestInvalidCompleteHookSignatureError_ContainsExpectedStrings(t *testing.T) {
+	err := &InvalidCompleteHookSignatureError{
+		FieldName: "CustomField",
+		HookName:  "CompleteCustomField",
+		Message:   "wrong return type",
+	}
+
+	errorMsg := err.Error()
+	assert.Contains(t, errorMsg, "CustomField")
+	assert.Contains(t, errorMsg, "CompleteCustomField")
+	assert.Contains(t, errorMsg, "wrong return type")
+	assert.Contains(t, errorMsg, "completion hook")
+}
+
+func TestInvalidCompleteHookSignatureError_FieldInterface(t *testing.T) {
+	err := &InvalidCompleteHookSignatureError{
+		FieldName: "TestField",
+		HookName:  "CompleteTestField",
+		Message:   "invalid signature",
+	}
+
+	var fieldErr DefinitionError = err
+	assert.Equal(t, "TestField", fieldErr.Field())
+}
+
+func TestInvalidCompleteHookSignatureError_ErrorsIs(t *testing.T) {
+	err := &InvalidCompleteHookSignatureError{
+		FieldName: "TestField",
+		HookName:  "CompleteTestField",
+		Message:   "invalid signature",
+	}
+
+	assert.True(t, errors.Is(err, ErrInvalidCompleteHookSignature))
+	assert.False(t, errors.Is(err, ErrInvalidDefineHookSignature))
+	assert.False(t, errors.Is(err, ErrInvalidDecodeHookSignature))
+}
+
+func TestInvalidCompleteHookSignatureError_ErrorsAs(t *testing.T) {
+	originalErr := errors.New("parameter 2 has wrong type")
+	err := NewInvalidCompleteHookSignatureError("TestField", "CompleteTestField", originalErr)
+
+	var completeErr *InvalidCompleteHookSignatureError
+	require.True(t, errors.As(err, &completeErr))
+	assert.Equal(t, "TestField", completeErr.FieldName)
+	assert.Equal(t, "CompleteTestField", completeErr.HookName)
+	assert.Equal(t, "parameter 2 has wrong type", completeErr.Message)
+
+	var fieldErr DefinitionError
+	require.True(t, errors.As(err, &fieldErr))
+	assert.Equal(t, "TestField", fieldErr.Field())
+}
+
 func TestConflictingTagsError_ErrorMessage(t *testing.T) {
 	err := &ConflictingTagsError{
 		FieldName:       "TestField",
