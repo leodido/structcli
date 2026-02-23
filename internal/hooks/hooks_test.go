@@ -109,6 +109,15 @@ func (suite *structcliSuite) TestStoreCompletionHookFunc() {
 	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
 }
 
+func (suite *structcliSuite) TestStoreCompletionHookFunc_InvalidHookValue() {
+	cmd := &cobra.Command{Use: "testcmd"}
+	cmd.Flags().String("mode", "", "test flag")
+
+	err := internalhooks.StoreCompletionHookFunc(cmd, "mode", reflect.Value{})
+	require.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid completion hook")
+}
+
 type zapcoreLevelOptions struct {
 	LogLevel zapcore.Level `default:"info" flagcustom:"true" flagdescr:"the logging level" flagenv:"true"`
 }

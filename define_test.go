@@ -631,6 +631,19 @@ func (suite *structcliSuite) TestDefine_DoesNotOverrideExistingFlagCompletion() 
 	assert.Equal(suite.T(), cobra.ShellCompDirectiveDefault, directive)
 }
 
+func (suite *structcliSuite) TestDefine_ManualCompletionRegistrationAfterAutoRegistrationFails() {
+	opts := &autoCompleteOptions{}
+	c := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(c, opts))
+
+	err := c.RegisterFlagCompletionFunc("region", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"manual"}, cobra.ShellCompDirectiveDefault
+	})
+	require.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "already registered")
+}
+
 type ignoreCompletionOptions struct {
 	Hidden  string `flag:"hidden" flagignore:"true"`
 	Visible string `flag:"visible"`
