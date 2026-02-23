@@ -238,6 +238,7 @@ func (s *ipSliceValue) Type() string {
 }
 
 func (s *ipSliceValue) String() string {
+	// Emit pflag-compatible bracketed CSV for help/default rendering and round-tripping.
 	ipStrSlice := make([]string, len(*s.value))
 	for i, ip := range *s.value {
 		ipStrSlice[i] = ip.String()

@@ -312,6 +312,8 @@ func readAsCSV(raw string) ([]string, error) {
 }
 
 func parseIPSlice(raw string) ([]net.IP, error) {
+	// Keep CSV splitting semantics aligned with pflag slice parsing:
+	// commas split values, quoted items remain intact.
 	trimmed := strings.TrimSpace(raw)
 	rmQuote := strings.NewReplacer(`"`, "", `'`, "", "`", "")
 	trimmed = rmQuote.Replace(trimmed)

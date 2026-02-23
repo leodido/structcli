@@ -63,6 +63,8 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		}
 
 		fieldName := internalpath.GetFieldName(prefix, structF)
+		// Some Go structs are handled as scalar/leaf values by built-in hooks
+		// (e.g. net.IPNet), so validation must not recurse into their exported fields.
 		_, hasDefineHook := internalhooks.DefineHookRegistry[structF.Type.String()]
 		isStructKind := structF.Type.Kind() == reflect.Struct && !hasDefineHook
 		parts := strings.Split(fieldName, ".")
