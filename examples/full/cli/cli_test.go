@@ -125,6 +125,22 @@ func TestFullApplication(t *testing.T) {
 				assert.Contains(t, output, `"MaxConns": 10`)
 				assert.Contains(t, output, `"TargetEnv": "dev"`)
 				assert.Contains(t, output, `Decoded tokens: hex="hello" base64="hello"`)
+				assert.Contains(t, output, `Decoded network: ip=127.0.0.1 mask=ffffff00 cidr=127.0.0.0/24 peers=127.0.0.2,127.0.0.3`)
+			},
+		},
+		{
+			name: "Net fields accept explicit flag values",
+			args: []string{
+				"srv", "--port", "1234",
+				"--bind-ip", "10.42.0.10",
+				"--bind-mask", "ffffff00",
+				"--advertise-cidr", "10.42.0.0/24",
+				"--trusted-peers", "10.42.0.11,10.42.0.12",
+				"--trusted-peers", "10.42.0.13",
+			},
+			assertFunc: func(t *testing.T, output string, err error) {
+				require.NoError(t, err)
+				assert.Contains(t, output, `Decoded network: ip=10.42.0.10 mask=ffffff00 cidr=10.42.0.0/24 peers=10.42.0.11,10.42.0.12,10.42.0.13`)
 			},
 		},
 		{
@@ -232,6 +248,25 @@ srv:
 			},
 		},
 		{
+			name:       "Net fields load from config and env override works",
+			args:       []string{"srv"},
+			envs:       map[string]string{"FULL_SRV_BIND_IP": "10.50.0.10"},
+			configPath: "/etc/full/config.yaml",
+			config: `
+srv:
+  port: 6767
+  bind-ip: "10.50.0.2"
+  bind-mask: "ffffff00"
+  advertise-cidr: "10.50.0.0/24"
+  trusted-peers: "10.50.0.11,10.50.0.12"
+`,
+			assertFunc: func(t *testing.T, output string, err error) {
+				require.NoError(t, err)
+				assert.Contains(t, output, `"Port": 6767`)
+				assert.Contains(t, output, `Decoded network: ip=10.50.0.10 mask=ffffff00 cidr=10.50.0.0/24 peers=10.50.0.11,10.50.0.12`)
+			},
+		},
+		{
 			name: "Count flag verbosity is correctly tallied",
 			args: []string{"srv", "version", "-vvv"},
 			assertFunc: func(t *testing.T, output string, err error) {
@@ -298,6 +333,20 @@ srv:
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "error running with config file: /etc/full/config.yaml")
 				assert.Contains(t, err.Error(), "parsing config: yaml")
+			},
+		},
+		{
+			name:       "Error on invalid net mask in config",
+			args:       []string{"srv"},
+			configPath: "/etc/full/config.yaml",
+			config: `
+srv:
+  port: 7777
+  bind-mask: "this-is-not-a-mask"
+`,
+			assertFunc: func(t *testing.T, output string, err error) {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, "invalid string for net.IPMask")
 			},
 		},
 		{

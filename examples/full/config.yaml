@@ -21,6 +21,10 @@ srv:
   host: "production-server"
   port: 8443
   apikey: "secret-api-key"
+  bind-ip: "0.0.0.0"
+  bind-mask: "ffffff00"
+  advertise-cidr: "10.20.0.0/24"
+  trusted-peers: "10.20.0.11,10.20.0.12"
   log-level: "debug"
   logfile: /var/log/mysrv.log
   db-url: postgres://user:pass@localhost/mydb

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
 
@@ -47,6 +48,12 @@ type ServerOptions struct {
 	// Same in-memory type (bytes), different textual contracts at the CLI boundary.
 	TokenHex    structcli.Hex    `flag:"token-hex" flaggroup:"Security" flagdescr:"Token bytes encoded as hex" flagenv:"true" default:"68656c6c6f"`
 	TokenBase64 structcli.Base64 `flag:"token-base64" flaggroup:"Security" flagdescr:"Token bytes encoded as base64" flagenv:"true" default:"aGVsbG8="`
+
+	// Network contracts using net families.
+	BindIP        net.IP     `flag:"bind-ip" flaggroup:"Network" flagdescr:"Bind interface IP" flagenv:"true" default:"127.0.0.1"`
+	BindMask      net.IPMask `flag:"bind-mask" flaggroup:"Network" flagdescr:"Bind interface mask" flagenv:"true" default:"ffffff00"`
+	AdvertiseCIDR net.IPNet  `flag:"advertise-cidr" flaggroup:"Network" flagdescr:"Advertised service subnet (CIDR)" flagenv:"true" default:"127.0.0.0/24"`
+	TrustedPeers  []net.IP   `flag:"trusted-peers" flaggroup:"Network" flagdescr:"Trusted peer IPs (comma separated)" flagenv:"true" default:"127.0.0.2,127.0.0.3"`
 
 	// Flag grouping for organized help
 	LogLevel zapcore.Level `flag:"log-level" flaggroup:"Logging" flagdescr:"Set log level"`
@@ -132,6 +139,11 @@ func makeSrvC() *cobra.Command {
 			}
 			fmt.Fprintln(c.OutOrStdout(), pretty(opts))
 			fmt.Fprintf(c.OutOrStdout(), "Decoded tokens: hex=%q base64=%q\n", string(opts.TokenHex), string(opts.TokenBase64))
+			fmt.Fprintf(c.OutOrStdout(), "Decoded network: ip=%s mask=%s cidr=%s peers=%s\n",
+				opts.BindIP.String(),
+				net.IPMask(opts.BindMask).String(),
+				opts.AdvertiseCIDR.String(),
+				joinIPs(opts.TrustedPeers))
 
 			return nil
 		},
@@ -401,4 +413,17 @@ func pretty(opts any) string {
 	}
 
 	return string(prettyOpts)
+}
+
+func joinIPs(ips []net.IP) string {
+	if len(ips) == 0 {
+		return ""
+	}
+
+	out := make([]string, len(ips))
+	for i := range ips {
+		out[i] = ips[i].String()
+	}
+
+	return strings.Join(out, ",")
 }
