@@ -44,6 +44,10 @@ type ServerOptions struct {
 	// Environment variable binding
 	APIKey string `flagenv:"true" flagdescr:"API authentication key"`
 
+	// Same in-memory type (bytes), different textual contracts at the CLI boundary.
+	TokenHex    structcli.Hex    `flag:"token-hex" flaggroup:"Security" flagdescr:"Token bytes encoded as hex" flagenv:"true" default:"68656c6c6f"`
+	TokenBase64 structcli.Base64 `flag:"token-base64" flaggroup:"Security" flagdescr:"Token bytes encoded as base64" flagenv:"true" default:"aGVsbG8="`
+
 	// Flag grouping for organized help
 	LogLevel zapcore.Level `flag:"log-level" flaggroup:"Logging" flagdescr:"Set log level"`
 	LogFile  string        `flag:"log-file" flaggroup:"Logging" flagdescr:"Log file path" flagenv:"true"`
@@ -127,6 +131,7 @@ func makeSrvC() *cobra.Command {
 				return err
 			}
 			fmt.Fprintln(c.OutOrStdout(), pretty(opts))
+			fmt.Fprintf(c.OutOrStdout(), "Decoded tokens: hex=%q base64=%q\n", string(opts.TokenHex), string(opts.TokenBase64))
 
 			return nil
 		},

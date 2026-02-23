@@ -124,6 +124,31 @@ func TestFullApplication(t *testing.T) {
 				assert.Contains(t, output, `"Host": "localhost"`)
 				assert.Contains(t, output, `"MaxConns": 10`)
 				assert.Contains(t, output, `"TargetEnv": "dev"`)
+				assert.Contains(t, output, `Decoded tokens: hex="hello" base64="hello"`)
+			},
+		},
+		{
+			name: "Hex and Base64 fields accept different textual encodings but decode to same bytes",
+			args: []string{"srv", "--port", "1234", "--token-hex", "736563726574", "--token-base64", "c2VjcmV0"},
+			assertFunc: func(t *testing.T, output string, err error) {
+				require.NoError(t, err)
+				assert.Contains(t, output, `Decoded tokens: hex="secret" base64="secret"`)
+			},
+		},
+		{
+			name: "Hex field rejects Base64 input",
+			args: []string{"srv", "--port", "1234", "--token-hex", "c2VjcmV0"},
+			assertFunc: func(t *testing.T, output string, err error) {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, "encoding/hex")
+			},
+		},
+		{
+			name: "Base64 field rejects Hex input",
+			args: []string{"srv", "--port", "1234", "--token-base64", "736563"},
+			assertFunc: func(t *testing.T, output string, err error) {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, "illegal base64 data")
 			},
 		},
 		{
