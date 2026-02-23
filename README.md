@@ -495,6 +495,11 @@ func (o *ServerOptions) Attach(c *cobra.Command) error {
 
 `Complete<FieldName>` works for any field that becomes a flag (not only `flagcustom:"true"` fields).
 
+Completion precedence:
+
+- If a completion function is already registered on a flag before `structcli.Define()`, structcli preserves it.
+- If `structcli.Define()` auto-registers `Complete<FieldName>`, a later manual `RegisterFlagCompletionFunc` on the same flag returns Cobra's `already registered` error.
+
 In [values](/values/values.go) we provide `pflag.Value` implementations for standard types.
 
 See [full example](examples/full/cli/cli.go) for more details.
