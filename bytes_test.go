@@ -10,8 +10,8 @@ import (
 
 func TestBytesWrapperTypes_AreDistinctFromPlainBytes(t *testing.T) {
 	rawType := reflect.TypeOf([]byte{})
-	hexType := reflect.TypeOf(structcli.HexBytes{})
-	base64Type := reflect.TypeOf(structcli.Base64Bytes{})
+	hexType := reflect.TypeOf(structcli.Hex{})
+	base64Type := reflect.TypeOf(structcli.Base64{})
 
 	assert.NotEqual(t, rawType, hexType)
 	assert.NotEqual(t, rawType, base64Type)
