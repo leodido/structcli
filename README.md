@@ -162,6 +162,12 @@ type ServerOptions struct {
 	// Environment variable binding
 	APIKey string `flagenv:"true" flagdescr:"API authentication key"`
 
+	// Network contracts using net families
+	BindIP        net.IP     `flag:"bind-ip" flaggroup:"Network" flagdescr:"Bind interface IP" flagenv:"true"`
+	BindMask      net.IPMask `flag:"bind-mask" flaggroup:"Network" flagdescr:"Bind interface mask" flagenv:"true"`
+	AdvertiseCIDR net.IPNet  `flag:"advertise-cidr" flaggroup:"Network" flagdescr:"Advertised service subnet (CIDR)" flagenv:"true"`
+	TrustedPeers  []net.IP   `flag:"trusted-peers" flaggroup:"Network" flagdescr:"Trusted peer IPs (comma separated)" flagenv:"true"`
+
 	// Flag grouping for organized help
 	LogLevel zapcore.Level `flag:"log-level" flaggroup:"Logging" flagdescr:"Set log level"`
 	LogFile  string        `flag:"log-file" flaggroup:"Logging" flagdescr:"Log file path" flagenv:"true"`
@@ -189,6 +195,10 @@ From the previous options struct, you get the following env vars automatically:
 
 - `FULL_SRV_PORT`
 - `FULL_SRV_APIKEY`
+- `FULL_SRV_BIND_IP`
+- `FULL_SRV_BIND_MASK`
+- `FULL_SRV_ADVERTISE_CIDR`
+- `FULL_SRV_TRUSTED_PEERS`
 - `FULL_SRV_DATABASE_MAXCONNS`
 - `FULL_SRV_LOGFILE`, `FULL_SRV_LOG_FILE`
 
@@ -286,6 +296,11 @@ verbose: 1 # A default verbosity level for all commands.
 srv:
   # `port` matches the `Port` field name.
   port: 8433
+  # Network options
+  bind-ip: "10.20.0.10"
+  bind-mask: "ffffff00"
+  advertise-cidr: "10.20.0.0/24"
+  trusted-peers: "10.20.0.11,10.20.0.12"
   # `log-level` matches the `flag:"log-level"` tag.
   log-level: "warn"
   # `logfile` matches the `LogFile` field name.
@@ -506,13 +521,20 @@ See [full example](examples/full/cli/cli.go) for more details.
 
 ### 🧱 Built-in Custom Types
 
-| Type            | Description                     | Example Values                                               | Special Features                   |
-| --------------- | ------------------------------- | ------------------------------------------------------------ | ---------------------------------- |
-| `zapcore.Level` | Zap logging levels              | `debug`, `info`, `warn`, `error`, `dpanic`, `panic`, `fatal` | Enum validation                    |
+| Type            | Description                     | Example Values                                               | Special Features                    |
+| --------------- | ------------------------------- | ------------------------------------------------------------ | ----------------------------------- |
+| `zapcore.Level` | Zap logging levels              | `debug`, `info`, `warn`, `error`, `dpanic`, `panic`, `fatal` | Enum validation                     |
 | `slog.Level`    | Standard library logging levels | `debug`, `info`, `warn`, `error`, `error+2`, ...             | Level offsets: `ERROR+2`, `INFO-4` |
-| `time.Duration` | Time durations                  | `30s`, `5m`, `2h`, `1h30m`                                   | Go duration parsing                |
-| `[]string`      | String slices                   | `item1,item2,item3`                                          | Comma-separated                    |
-| `[]int`         | Integer slices                  | `1,2,3,42`                                                   | Comma-separated                    |
+| `time.Duration` | Time durations                  | `30s`, `5m`, `2h`, `1h30m`                                   | Go duration parsing                 |
+| `net.IP`        | IP address                      | `127.0.0.1`, `10.42.0.10`, `2001:db8::1`                     | IP parsing                          |
+| `net.IPMask`    | IPv4 mask                       | `255.255.255.0`, `ffffff00`                                  | Dotted or hex mask parsing          |
+| `net.IPNet`     | CIDR subnet                     | `10.42.0.0/24`, `2001:db8::/64`                              | CIDR parsing                        |
+| `[]net.IP`      | IP slices                       | `10.0.0.1,10.0.0.2`                                          | Comma-separated / repeated flags    |
+| `[]string`      | String slices                   | `item1,item2,item3`                                          | Comma-separated                     |
+| `[]int`         | Integer slices                  | `1,2,3,42`                                                   | Comma-separated                     |
+
+Note on JSON output: `net.IPMask` is a byte slice under the hood, so Go's `encoding/json`
+renders it as base64 (for example `255.255.255.0` appears as `////AA==`). This is expected.
 
 All built-in types support:
 
@@ -572,6 +594,12 @@ Organize your `--help` output into logical groups for better readability.
 # Logging Flags:
 #       --log-file string           Log file path
 #       --log-level zapcore.Level   Set log level {debug,info,warn,error,dpanic,panic,fatal} (default info)
+#
+# Network Flags:
+#       --advertise-cidr ipNet      Advertised service subnet (CIDR) (default 127.0.0.0/24)
+#       --bind-ip ip                Bind interface IP (default 127.0.0.1)
+#       --bind-mask ipMask          Bind interface mask (default ffffff00)
+#       --trusted-peers ipSlice     Trusted peer IPs (comma separated) (default [127.0.0.2,127.0.0.3])
 #
 # Global Flags:
 #       --config string   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full}/config.{yaml,json,toml})
