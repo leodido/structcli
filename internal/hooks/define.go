@@ -27,9 +27,41 @@ type DefineHookFunc func(name, short, descr string, structField reflect.StructFi
 
 // DefineHookRegistry keeps track of the built-in flag definition functions
 var DefineHookRegistry = map[string]DefineHookFunc{
-	"zapcore.Level": DefineZapcoreLevelHookFunc(),
-	"time.Duration": DefineTimeDurationHookFunc(),
-	"slog.Level":    DefineSlogLevelHookFunc(),
+	"zapcore.Level":    DefineZapcoreLevelHookFunc(),
+	"time.Duration":    DefineTimeDurationHookFunc(),
+	"slog.Level":       DefineSlogLevelHookFunc(),
+	"[]uint8":          DefineRawBytesHookFunc(),
+	"structcli.Hex":    DefineHexBytesHookFunc(),
+	"structcli.Base64": DefineBase64BytesHookFunc(),
+}
+
+var byteSliceType = reflect.TypeOf([]byte(nil))
+
+func defineByteSliceValueHookFunc(newValue func(val []byte, ref *[]byte) pflag.Value) DefineHookFunc {
+	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+		val := fieldValue.Convert(byteSliceType).Interface().([]byte)
+		ref := (*[]byte)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+
+		return newValue(val, ref), descr
+	}
+}
+
+func DefineRawBytesHookFunc() DefineHookFunc {
+	return defineByteSliceValueHookFunc(func(val []byte, ref *[]byte) pflag.Value {
+		return structclivalues.NewRawBytes(val, ref)
+	})
+}
+
+func DefineHexBytesHookFunc() DefineHookFunc {
+	return defineByteSliceValueHookFunc(func(val []byte, ref *[]byte) pflag.Value {
+		return structclivalues.NewHexBytes(val, ref)
+	})
+}
+
+func DefineBase64BytesHookFunc() DefineHookFunc {
+	return defineByteSliceValueHookFunc(func(val []byte, ref *[]byte) pflag.Value {
+		return structclivalues.NewBase64Bytes(val, ref)
+	})
 }
 
 func DefineTimeDurationHookFunc() DefineHookFunc {

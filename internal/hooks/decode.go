@@ -1,6 +1,8 @@
 package internalhooks
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"reflect"
@@ -44,6 +46,18 @@ var DecodeHookRegistry = map[string]decodingAnnotation{
 	"[]int": {
 		"StringToIntSliceHookFunc",
 		StringToIntSliceHookFunc(","),
+	},
+	"[]uint8": {
+		"StringToRawBytesHookFunc",
+		StringToRawBytesHookFunc(),
+	},
+	"structcli.Hex": {
+		"StringToHexHookFunc",
+		StringToNamedBytesHookFunc("structcli.Hex", decodeHexBytes),
+	},
+	"structcli.Base64": {
+		"StringToBase64HookFunc",
+		StringToNamedBytesHookFunc("structcli.Base64", decodeBase64Bytes),
 	},
 }
 
@@ -147,6 +161,56 @@ func StringToIntSliceHookFunc(sep string) mapstructure.DecodeHookFunc {
 
 		return result, nil
 	}
+}
+
+// StringToRawBytesHookFunc converts plain textual input into raw []byte.
+func StringToRawBytesHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data any,
+	) (any, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t != reflect.TypeOf([]byte{}) {
+			return data, nil
+		}
+
+		return []byte(data.(string)), nil
+	}
+}
+
+// StringToNamedBytesHookFunc converts encoded textual input into a named []byte type.
+func StringToNamedBytesHookFunc(typeName string, decode func(string) ([]byte, error)) mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data any,
+	) (any, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t.String() != typeName {
+			return data, nil
+		}
+
+		raw := data.(string)
+		decoded, err := decode(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid string for %s '%s': %w", typeName, raw, err)
+		}
+
+		return reflect.ValueOf(decoded).Convert(t).Interface(), nil
+	}
+}
+
+func decodeHexBytes(raw string) ([]byte, error) {
+	return hex.DecodeString(strings.TrimSpace(raw))
+}
+
+func decodeBase64Bytes(raw string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(strings.TrimSpace(raw))
 }
 
 func StoreDecodeHookFunc(c *cobra.Command, flagname string, decodeM reflect.Value, target reflect.Type) error {
