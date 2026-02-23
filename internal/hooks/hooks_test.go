@@ -3,6 +3,7 @@ package internalhooks_test
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"reflect"
 	"testing"
@@ -874,6 +875,219 @@ func (suite *structcliSuite) TestHooks_HexBytesInvalidFromYAML() {
 
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "invalid string for structcli.Hex")
+	assert.Contains(suite.T(), err.Error(), "couldn't unmarshal config to options:")
+}
+
+type netOptions struct {
+	Address net.IP     `flag:"address" flagdescr:"ip address" flagenv:"true"`
+	Mask    net.IPMask `flag:"mask" flagdescr:"ip mask" flagenv:"true"`
+	Network net.IPNet  `flag:"network" flagdescr:"ip network" flagenv:"true"`
+	Peers   []net.IP   `flag:"peers" flagdescr:"peer addresses" flagenv:"true"`
+}
+
+func (o *netOptions) Attach(c *cobra.Command) error { return nil }
+
+func assertIPSliceEqual(t *testing.T, expected []net.IP, actual []net.IP) {
+	require.Len(t, actual, len(expected))
+
+	for i := range expected {
+		assert.True(t, expected[i].Equal(actual[i]), "IP at position %d should match", i)
+	}
+}
+
+func assertIPNetEqual(t *testing.T, expected *net.IPNet, actual net.IPNet) {
+	assert.True(t, expected.IP.Equal(actual.IP))
+	assert.Equal(t, expected.Mask, actual.Mask)
+}
+
+func (suite *structcliSuite) TestHooks_NetTypesFromFlag() {
+	opts := &netOptions{}
+	cmd := &cobra.Command{Use: "net"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	err = cmd.Flags().Set("address", "10.42.0.10")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("mask", "ffffff00")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("network", "10.42.0.0/24")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("peers", "10.42.0.11,10.42.0.12")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("peers", "10.42.0.13")
+	require.NoError(suite.T(), err)
+
+	err = structcli.Unmarshal(cmd, opts)
+	assert.NoError(suite.T(), err)
+
+	assert.True(suite.T(), net.ParseIP("10.42.0.10").Equal(opts.Address))
+	assert.Equal(suite.T(), net.IPv4Mask(255, 255, 255, 0), opts.Mask)
+	_, expectedNet, _ := net.ParseCIDR("10.42.0.0/24")
+	assertIPNetEqual(suite.T(), expectedNet, opts.Network)
+	assertIPSliceEqual(suite.T(), []net.IP{
+		net.ParseIP("10.42.0.11"),
+		net.ParseIP("10.42.0.12"),
+		net.ParseIP("10.42.0.13"),
+	}, opts.Peers)
+}
+
+func (suite *structcliSuite) TestHooks_NetTypesFromYAMLString() {
+	configContent := `address: "192.168.10.10"
+mask: "255.255.255.0"
+network: "192.168.10.0/24"
+peers: "192.168.10.11,192.168.10.12"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &netOptions{}
+	cmd := &cobra.Command{Use: "net"}
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+	assert.NoError(suite.T(), err)
+
+	assert.True(suite.T(), net.ParseIP("192.168.10.10").Equal(opts.Address))
+	assert.Equal(suite.T(), net.IPv4Mask(255, 255, 255, 0), opts.Mask)
+	_, expectedNet, _ := net.ParseCIDR("192.168.10.0/24")
+	assertIPNetEqual(suite.T(), expectedNet, opts.Network)
+	assertIPSliceEqual(suite.T(), []net.IP{
+		net.ParseIP("192.168.10.11"),
+		net.ParseIP("192.168.10.12"),
+	}, opts.Peers)
+}
+
+func (suite *structcliSuite) TestHooks_NetTypesFromYAMLArray() {
+	configContent := `address: "172.16.10.10"
+mask: "ffffff00"
+network: "172.16.10.0/24"
+peers:
+  - "172.16.10.11"
+  - "172.16.10.12"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &netOptions{}
+	cmd := &cobra.Command{Use: "net"}
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+	assert.NoError(suite.T(), err)
+
+	assert.True(suite.T(), net.ParseIP("172.16.10.10").Equal(opts.Address))
+	assert.Equal(suite.T(), net.IPv4Mask(255, 255, 255, 0), opts.Mask)
+	_, expectedNet, _ := net.ParseCIDR("172.16.10.0/24")
+	assertIPNetEqual(suite.T(), expectedNet, opts.Network)
+	assertIPSliceEqual(suite.T(), []net.IP{
+		net.ParseIP("172.16.10.11"),
+		net.ParseIP("172.16.10.12"),
+	}, opts.Peers)
+}
+
+func (suite *structcliSuite) TestHooks_NetTypesFromEnv() {
+	const (
+		envAddress = "NETAPP_ADDRESS"
+		envMask    = "NETAPP_MASK"
+		envNetwork = "NETAPP_NETWORK"
+		envPeers   = "NETAPP_PEERS"
+	)
+
+	originalAddress := os.Getenv(envAddress)
+	originalMask := os.Getenv(envMask)
+	originalNetwork := os.Getenv(envNetwork)
+	originalPeers := os.Getenv(envPeers)
+	defer func() {
+		if originalAddress == "" {
+			os.Unsetenv(envAddress)
+		} else {
+			os.Setenv(envAddress, originalAddress)
+		}
+		if originalMask == "" {
+			os.Unsetenv(envMask)
+		} else {
+			os.Setenv(envMask, originalMask)
+		}
+		if originalNetwork == "" {
+			os.Unsetenv(envNetwork)
+		} else {
+			os.Setenv(envNetwork, originalNetwork)
+		}
+		if originalPeers == "" {
+			os.Unsetenv(envPeers)
+		} else {
+			os.Setenv(envPeers, originalPeers)
+		}
+		structcli.SetEnvPrefix("")
+	}()
+
+	os.Setenv(envAddress, "10.10.0.10")
+	os.Setenv(envMask, "ffffff00")
+	os.Setenv(envNetwork, "10.10.0.0/24")
+	os.Setenv(envPeers, "10.10.0.11,10.10.0.12")
+	structcli.SetEnvPrefix("netapp")
+
+	opts := &netOptions{}
+	cmd := &cobra.Command{Use: "netapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+	assert.NoError(suite.T(), err)
+
+	assert.True(suite.T(), net.ParseIP("10.10.0.10").Equal(opts.Address))
+	assert.Equal(suite.T(), net.IPv4Mask(255, 255, 255, 0), opts.Mask)
+	_, expectedNet, _ := net.ParseCIDR("10.10.0.0/24")
+	assertIPNetEqual(suite.T(), expectedNet, opts.Network)
+	assertIPSliceEqual(suite.T(), []net.IP{
+		net.ParseIP("10.10.0.11"),
+		net.ParseIP("10.10.0.12"),
+	}, opts.Peers)
+}
+
+func (suite *structcliSuite) TestHooks_NetIPMaskInvalidFromYAML() {
+	configContent := `address: "10.0.0.10"
+mask: "not-a-mask"
+network: "10.0.0.0/24"
+peers: "10.0.0.11"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &netOptions{}
+	cmd := &cobra.Command{Use: "net"}
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid string for net.IPMask")
+	assert.Contains(suite.T(), err.Error(), "couldn't unmarshal config to options:")
+}
+
+func (suite *structcliSuite) TestHooks_NetIPSliceInvalidFromYAML() {
+	configContent := `address: "10.0.0.10"
+mask: "ffffff00"
+network: "10.0.0.0/24"
+peers: "10.0.0.11,not-an-ip"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &netOptions{}
+	cmd := &cobra.Command{Use: "net"}
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid string for []net.IP")
+	assert.Contains(suite.T(), err.Error(), "not-an-ip")
 	assert.Contains(suite.T(), err.Error(), "couldn't unmarshal config to options:")
 }
 
