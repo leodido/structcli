@@ -136,6 +136,32 @@ func (suite *structcliSuite) TestMergeC_MultipleCommandSections() {
 	assert.Equal(suite.T(), expected, result, "should only include the specific command section, excluding other command sections")
 }
 
+func (suite *structcliSuite) TestMergeC_PreservesTopLevelMapSettingWhenFlagExists() {
+	globalSettings := map[string]any{
+		"labels": map[string]any{
+			"env":  "prod",
+			"team": "platform",
+		},
+		"dns": map[string]any{
+			"freeze": true,
+		},
+	}
+
+	cmd := suite.createTestC("dns")
+	cmd.Flags().StringToString("labels", nil, "labels")
+
+	result := Merge(globalSettings, cmd)
+
+	expected := map[string]any{
+		"labels": map[string]any{
+			"env":  "prod",
+			"team": "platform",
+		},
+		"freeze": true,
+	}
+	assert.Equal(suite.T(), expected, result, "should keep top-level map values that correspond to defined flags")
+}
+
 func (suite *structcliSuite) TestMergeC_NestedCommandConfigurations() {
 	globalSettings := map[string]any{
 		"shared-setting": "value",
