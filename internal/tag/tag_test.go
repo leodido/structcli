@@ -81,6 +81,24 @@ func TestParseFlagPresets(t *testing.T) {
 		}, got)
 	})
 
+	t.Run("mixed_separators_prefer_semicolon", func(t *testing.T) {
+		got, err := ParseFlagPresets("a=1,b=2;c=3,d=4")
+		assert.NoError(t, err)
+		assert.Equal(t, []FlagPreset{
+			{Name: "a", Value: "1,b=2"},
+			{Name: "c", Value: "3,d=4"},
+		}, got)
+	})
+
+	t.Run("semicolon_entries_can_keep_commas_in_values", func(t *testing.T) {
+		got, err := ParseFlagPresets("a=1,2,3;b=4,5")
+		assert.NoError(t, err)
+		assert.Equal(t, []FlagPreset{
+			{Name: "a", Value: "1,2,3"},
+			{Name: "b", Value: "4,5"},
+		}, got)
+	})
+
 	t.Run("value_can_contain_equals", func(t *testing.T) {
 		got, err := ParseFlagPresets("token=foo=bar")
 		assert.NoError(t, err)

@@ -19,7 +19,8 @@ type FlagPreset struct {
 // - "alias1=value1;alias2=value2"
 // - "alias1=value1,alias2=value2"
 //
-// If both separators are present, ';' wins to allow commas in values.
+// Both separators are accepted for backward compatibility.
+// If both separators are present, ';' wins so commas can remain inside values.
 func ParseFlagPresets(raw string) ([]FlagPreset, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -62,6 +63,7 @@ func ParseFlagPresets(raw string) ([]FlagPreset, error) {
 }
 
 func splitPresetEntries(raw string) []string {
+	// Prefer semicolon splitting when both separators are present.
 	if strings.Contains(raw, ";") {
 		return strings.Split(raw, ";")
 	}
