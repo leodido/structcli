@@ -24,9 +24,15 @@ func Merge(globalSettings map[string]any, c *cobra.Command) map[string]any {
 	// It also serves as defaults that can be overridden by more specific command sections
 	for key, value := range globalSettings {
 		// Skip command-specific sections to avoid conflicts
-		if _, isMap := value.(map[string]any); !isMap {
-			configToMerge[key] = value
+		if _, isMap := value.(map[string]any); isMap {
+			if c.Flags().Lookup(key) != nil {
+				configToMerge[key] = value
+			}
+
+			continue
 		}
+
+		configToMerge[key] = value
 	}
 
 	var finalSettings map[string]any

@@ -48,6 +48,18 @@ var DecodeHookRegistry = map[string]decodingAnnotation{
 		"StringToUintSliceHookFunc",
 		StringToUintSliceHookFunc(),
 	},
+	"map[string]string": {
+		"StringToStringMapHookFunc",
+		StringToStringMapHookFunc(),
+	},
+	"map[string]int": {
+		"StringToIntMapHookFunc",
+		StringToIntMapHookFunc(),
+	},
+	"map[string]int64": {
+		"StringToInt64MapHookFunc",
+		StringToInt64MapHookFunc(),
+	},
 	"net.IP": {
 		"StringToIPHookFunc",
 		mapstructure.StringToIPHookFunc(),
@@ -206,6 +218,108 @@ func parseWithFlagSet[T any](register func(fs *pflag.FlagSet, target *T), raw st
 	}
 
 	return out, nil
+}
+
+func normalizePFlagCollectionString(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		return strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+	}
+
+	return trimmed
+}
+
+func convertMapInput[T any](data any, convertValue func(any) (T, error)) (map[string]T, error) {
+	rv := reflect.ValueOf(data)
+	if rv.Kind() != reflect.Map {
+		return nil, fmt.Errorf("invalid map source type %T", data)
+	}
+
+	out := make(map[string]T, rv.Len())
+	iter := rv.MapRange()
+	for iter.Next() {
+		key, ok := iter.Key().Interface().(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid map key type %T", iter.Key().Interface())
+		}
+
+		value, err := convertValue(iter.Value().Interface())
+		if err != nil {
+			return nil, fmt.Errorf("invalid map value for key %q: %w", key, err)
+		}
+		out[key] = value
+	}
+
+	return out, nil
+}
+
+func convertToString(value any) (string, error) {
+	return fmt.Sprint(value), nil
+}
+
+func convertToInt(value any) (int, error) {
+	switch v := value.(type) {
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 0)
+		if err != nil {
+			return 0, err
+		}
+		return int(parsed), nil
+	case int:
+		return v, nil
+	case int8:
+		return int(v), nil
+	case int16:
+		return int(v), nil
+	case int32:
+		return int(v), nil
+	case int64:
+		return int(v), nil
+	case uint:
+		return int(v), nil
+	case uint8:
+		return int(v), nil
+	case uint16:
+		return int(v), nil
+	case uint32:
+		return int(v), nil
+	case uint64:
+		return int(v), nil
+	default:
+		return 0, fmt.Errorf("unsupported type %T", value)
+	}
+}
+
+func convertToInt64(value any) (int64, error) {
+	switch v := value.(type) {
+	case string:
+		return strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+	case int:
+		return int64(v), nil
+	case int8:
+		return int64(v), nil
+	case int16:
+		return int64(v), nil
+	case int32:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case uint:
+		return int64(v), nil
+	case uint8:
+		return int64(v), nil
+	case uint16:
+		return int64(v), nil
+	case uint32:
+		return int64(v), nil
+	case uint64:
+		if v > uint64(^uint64(0)>>1) {
+			return 0, fmt.Errorf("overflow converting %d to int64", v)
+		}
+		return int64(v), nil
+	default:
+		return 0, fmt.Errorf("unsupported type %T", value)
+	}
 }
 
 func StringToDurationSliceHookFunc() mapstructure.DecodeHookFunc {
@@ -420,6 +534,114 @@ func StringToUintSliceHookFunc() mapstructure.DecodeHookFunc {
 			}
 
 			return out, nil
+		default:
+			return data, nil
+		}
+	}
+}
+
+func StringToStringMapHookFunc() mapstructure.DecodeHookFunc {
+	targetType := reflect.TypeOf(map[string]string(nil))
+
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if t == nil {
+			return data, nil
+		}
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		if t != targetType {
+			return data, nil
+		}
+		switch f.Kind() {
+		case reflect.String:
+			raw := data.(string)
+			if raw == "" {
+				return map[string]string{}, nil
+			}
+
+			out, err := parseWithFlagSet(func(fs *pflag.FlagSet, target *map[string]string) {
+				fs.StringToStringVar(target, "value", nil, "")
+			}, normalizePFlagCollectionString(raw))
+			if err != nil {
+				return nil, fmt.Errorf("invalid string for map[string]string '%s': %w", raw, err)
+			}
+
+			return out, nil
+		case reflect.Map:
+			return convertMapInput(data, convertToString)
+		default:
+			return data, nil
+		}
+	}
+}
+
+func StringToIntMapHookFunc() mapstructure.DecodeHookFunc {
+	targetType := reflect.TypeOf(map[string]int(nil))
+
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if t == nil {
+			return data, nil
+		}
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		if t != targetType {
+			return data, nil
+		}
+		switch f.Kind() {
+		case reflect.String:
+			raw := data.(string)
+			if raw == "" {
+				return map[string]int{}, nil
+			}
+
+			out, err := parseWithFlagSet(func(fs *pflag.FlagSet, target *map[string]int) {
+				fs.StringToIntVar(target, "value", nil, "")
+			}, normalizePFlagCollectionString(raw))
+			if err != nil {
+				return nil, fmt.Errorf("invalid string for map[string]int '%s': %w", raw, err)
+			}
+
+			return out, nil
+		case reflect.Map:
+			return convertMapInput(data, convertToInt)
+		default:
+			return data, nil
+		}
+	}
+}
+
+func StringToInt64MapHookFunc() mapstructure.DecodeHookFunc {
+	targetType := reflect.TypeOf(map[string]int64(nil))
+
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if t == nil {
+			return data, nil
+		}
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		if t != targetType {
+			return data, nil
+		}
+		switch f.Kind() {
+		case reflect.String:
+			raw := data.(string)
+			if raw == "" {
+				return map[string]int64{}, nil
+			}
+
+			out, err := parseWithFlagSet(func(fs *pflag.FlagSet, target *map[string]int64) {
+				fs.StringToInt64Var(target, "value", nil, "")
+			}, normalizePFlagCollectionString(raw))
+			if err != nil {
+				return nil, fmt.Errorf("invalid string for map[string]int64 '%s': %w", raw, err)
+			}
+
+			return out, nil
+		case reflect.Map:
+			return convertMapInput(data, convertToInt64)
 		default:
 			return data, nil
 		}

@@ -526,6 +526,9 @@ See [full example](examples/full/cli/cli.go) for more details.
 | `zapcore.Level` | Zap logging levels              | `debug`, `info`, `warn`, `error`, `dpanic`, `panic`, `fatal` | Enum validation                     |
 | `slog.Level`    | Standard library logging levels | `debug`, `info`, `warn`, `error`, `error+2`, ...             | Level offsets: `ERROR+2`, `INFO-4` |
 | `time.Duration` | Time durations                  | `30s`, `5m`, `2h`, `1h30m`                                   | Go duration parsing                 |
+| `[]time.Duration` | Duration slices               | `30s,5m`, `1s,2m30s`                                         | Comma-separated / repeated flags    |
+| `[]bool`        | Boolean slices                  | `true,false,true`                                            | Comma-separated / repeated flags    |
+| `[]uint`        | Unsigned integer slices         | `1,2,3,42`                                                   | Comma-separated / repeated flags    |
 | `[]byte`        | Raw textual bytes               | `hello`, `abc123`                                            | Raw textual input                   |
 | `structcli.Hex` | Hex-decoded textual input       | `68656c6c6f`, `48656c6c6f`                                   | Hex decoding                        |
 | `structcli.Base64` | Base64-decoded textual input | `aGVsbG8=`, `YWJjMTIz`                                       | Base64 decoding                     |
@@ -535,6 +538,9 @@ See [full example](examples/full/cli/cli.go) for more details.
 | `[]net.IP`      | IP slices                       | `10.0.0.1,10.0.0.2`                                          | Comma-separated / repeated flags    |
 | `[]string`      | String slices                   | `item1,item2,item3`                                          | Comma-separated                     |
 | `[]int`         | Integer slices                  | `1,2,3,42`                                                   | Comma-separated                     |
+| `map[string]string` | String maps                | `env=prod,team=platform`                                     | `key=value` pairs                   |
+| `map[string]int` | Integer maps                   | `cpu=2,memory=4`                                             | `key=value` pairs with int parsing  |
+| `map[string]int64` | 64-bit integer maps         | `ok=1,fail=2`                                                | `key=value` pairs with int64 parsing |
 
 Note on JSON output: `net.IPMask` is a byte slice under the hood, so Go's `encoding/json`
 renders it as base64 (for example `255.255.255.0` appears as `////AA==`). This is expected.
@@ -545,6 +551,42 @@ All built-in types support:
 - Environment variables with automatic binding
 - Configuration files (YAML, JSON, TOML)
 - Type validation with helpful error messages
+
+Slices and maps use the same contract across flags, env vars, and config.
+
+See [examples/collections/main.go](examples/collections/main.go) for a runnable version of this example.
+
+```go
+type AdvancedOptions struct {
+	Retries   []uint          `flag:"retries" flagenv:"true"`
+	Backoffs  []time.Duration `flag:"backoffs" flagenv:"true"`
+	FeatureOn []bool          `flag:"feature-on" flagenv:"true"`
+	Labels    map[string]string `flag:"labels" flagenv:"true"`
+	Limits    map[string]int    `flag:"limits" flagenv:"true"`
+	Counts    map[string]int64  `flag:"counts" flagenv:"true"`
+}
+```
+
+```bash
+❯ myapp --retries 1,2,3 --backoffs 1s,5s --feature-on true,false --labels env=prod,team=platform --limits cpu=8,memory=16 --counts ok=10,fail=3
+❯ MYAPP_RETRIES=1,2,3 MYAPP_BACKOFFS=1s,5s MYAPP_FEATURE_ON=true,false MYAPP_LABELS=env=prod,team=platform MYAPP_LIMITS=cpu=8,memory=16 MYAPP_COUNTS=ok=10,fail=3 myapp
+❯ go run examples/collections/main.go --config examples/collections/config.yaml
+```
+
+```yaml
+retries: "1,2,3"
+backoffs:
+  - 1s
+  - 5s
+feature-on: "true,false"
+labels:
+  env: prod
+  team: platform
+limits:
+  cpu: 8
+  memory: 16
+counts: "ok=10,fail=3"
+```
 
 ### 🎨 Beautiful, Organized Help Output
 
