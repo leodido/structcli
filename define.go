@@ -328,20 +328,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			continue
 		}
 
-		// TODO: complete type switch with missing types for:
-		// c.Flags().StringArrayVarP()
-		// c.Flags().IPSliceVarP()
-		// c.Flags().DurationSliceVarP()
-		// c.Flags().BoolSliceVarP()
-		// c.Flags().UintSliceVarP()
-		// c.Flags().BytesBase64VarP()
-		// c.Flags().BytesHexVarP()
-		// c.Flags().IPMaskVarP()
-		// c.Flags().IPNetVarP()
-		// c.Flags().IPVarP()
-		// c.Flags().StringToStringVarP()
-		// c.Flags().StringToInt64VarP()
-		// c.Flags().StringToIntVarP()
+		// Built-in special cases are handled through the define/decode hook registries.
+		// The remaining gaps are the still-open slice/map/CSV items tracked in TODO.md,
+		// not the shipped byte/net/IP families.
 		switch kind {
 		case reflect.Struct:
 			// NOTE > field.Interface() doesn't work because it actually returns a copy of the object wrapping the interface

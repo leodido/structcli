@@ -526,6 +526,9 @@ See [full example](examples/full/cli/cli.go) for more details.
 | `zapcore.Level` | Zap logging levels              | `debug`, `info`, `warn`, `error`, `dpanic`, `panic`, `fatal` | Enum validation                     |
 | `slog.Level`    | Standard library logging levels | `debug`, `info`, `warn`, `error`, `error+2`, ...             | Level offsets: `ERROR+2`, `INFO-4` |
 | `time.Duration` | Time durations                  | `30s`, `5m`, `2h`, `1h30m`                                   | Go duration parsing                 |
+| `[]byte`        | Raw textual bytes               | `hello`, `abc123`                                            | Raw textual input                   |
+| `structcli.Hex` | Hex-decoded textual input       | `68656c6c6f`, `48656c6c6f`                                   | Hex decoding                        |
+| `structcli.Base64` | Base64-decoded textual input | `aGVsbG8=`, `YWJjMTIz`                                       | Base64 decoding                     |
 | `net.IP`        | IP address                      | `127.0.0.1`, `10.42.0.10`, `2001:db8::1`                     | IP parsing                          |
 | `net.IPMask`    | IPv4 mask                       | `255.255.255.0`, `ffffff00`                                  | Dotted or hex mask parsing          |
 | `net.IPNet`     | CIDR subnet                     | `10.42.0.0/24`, `2001:db8::/64`                              | CIDR parsing                        |
