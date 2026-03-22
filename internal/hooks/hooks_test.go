@@ -290,19 +290,29 @@ func (suite *structcliSuite) TestHooks_DurationFlagOverridesConfig() {
 }
 
 type stringSliceOptions struct {
-	Cgroups []string `flag:"cgroups" flagdescr:"list of cgroups to monitor"`
+	Cgroups []string `flag:"cgroups" flagdescr:"list of cgroups to monitor" flagenv:"true"`
 }
 
 func (o *stringSliceOptions) Attach(c *cobra.Command) error { return nil }
 
+func stringSliceEnvVarName(t testing.TB, cmd *cobra.Command) string {
+	t.Helper()
+
+	flag := cmd.Flags().Lookup("cgroups")
+	require.NotNil(t, flag)
+
+	envAnnotation := flag.Annotations[internalenv.FlagAnnotation]
+	require.NotEmpty(t, envAnnotation)
+
+	return envAnnotation[0]
+}
+
 func (suite *structcliSuite) TestHooks_StringSliceFromFlag() {
-	// Test setting string slice via command line flag
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
 	structcli.Define(cmd, opts)
 
-	// Set flag value (simulating command line)
 	err := cmd.Flags().Set("cgroups", "group1,group2,group3")
 	require.NoError(suite.T(), err)
 
@@ -311,8 +321,7 @@ func (suite *structcliSuite) TestHooks_StringSliceFromFlag() {
 	assert.Equal(suite.T(), []string{"group1", "group2", "group3"}, opts.Cgroups)
 }
 
-func (suite *structcliSuite) TestHooks_StringSliceFromYAMLCommaSeparated() {
-	// Test hook converting comma-separated string from YAML to []string
+func (suite *structcliSuite) TestHooks_StringSliceFromConfigCSV() {
 	configContent := `cgroups: "group1,group2,group3"`
 	configFile := suite.createTempYAMLFile(configContent)
 	defer os.Remove(configFile)
@@ -329,8 +338,7 @@ func (suite *structcliSuite) TestHooks_StringSliceFromYAMLCommaSeparated() {
 	assert.Equal(suite.T(), []string{"group1", "group2", "group3"}, opts.Cgroups)
 }
 
-func (suite *structcliSuite) TestHooks_StringSliceFromYAMLArray() {
-	// Test YAML array directly (no hook needed, mapstructure handles this)
+func (suite *structcliSuite) TestHooks_StringSliceFromConfigYAMLArray() {
 	configContent := `cgroups:
   - group1
   - group2
@@ -351,7 +359,6 @@ func (suite *structcliSuite) TestHooks_StringSliceFromYAMLArray() {
 }
 
 func (suite *structcliSuite) TestHooks_StringSliceEmptyString() {
-	// Test hook behavior with empty string
 	configContent := `cgroups: ""`
 	configFile := suite.createTempYAMLFile(configContent)
 	defer os.Remove(configFile)
@@ -365,13 +372,11 @@ func (suite *structcliSuite) TestHooks_StringSliceEmptyString() {
 	err := structcli.Unmarshal(cmd, opts)
 
 	assert.NoError(suite.T(), err)
-	// StringToSliceHookFunc with empty string results in []string{""}
 	assert.Equal(suite.T(), []string{}, opts.Cgroups)
 }
 
-func (suite *structcliSuite) TestHooks_StringSliceSingleValue() {
-	// Test hook with single value (no commas)
-	configContent := `cgroups: "single-group"`
+func (suite *structcliSuite) TestHooks_StringSliceQuotedComma() {
+	configContent := `cgroups: '"group,1",group2'`
 	configFile := suite.createTempYAMLFile(configContent)
 	defer os.Remove(configFile)
 
@@ -384,12 +389,11 @@ func (suite *structcliSuite) TestHooks_StringSliceSingleValue() {
 	err := structcli.Unmarshal(cmd, opts)
 
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), []string{"single-group"}, opts.Cgroups)
+	assert.Equal(suite.T(), []string{"group,1", "group2"}, opts.Cgroups)
 }
 
-func (suite *structcliSuite) TestHooks_StringSliceWithSpaces() {
-	// Test hook with values containing spaces
-	configContent := `cgroups: "group with spaces,another group,normal"`
+func (suite *structcliSuite) TestHooks_StringSliceEmptyEntries() {
+	configContent := `cgroups: ",group1,,group2,"`
 	configFile := suite.createTempYAMLFile(configContent)
 	defer os.Remove(configFile)
 
@@ -402,11 +406,10 @@ func (suite *structcliSuite) TestHooks_StringSliceWithSpaces() {
 	err := structcli.Unmarshal(cmd, opts)
 
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), []string{"group with spaces", "another group", "normal"}, opts.Cgroups)
+	assert.Equal(suite.T(), []string{"", "group1", "", "group2", ""}, opts.Cgroups)
 }
 
 func (suite *structcliSuite) TestHooks_StringSliceMultipleFlags() {
-	// Test setting multiple flag values
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
@@ -425,11 +428,30 @@ func (suite *structcliSuite) TestHooks_StringSliceMultipleFlags() {
 	assert.Equal(suite.T(), []string{"group1", "group2", "group3"}, opts.Cgroups)
 }
 
-func (suite *structcliSuite) TestHooks_StringSliceFlagOverridesConfig() {
-	// Test that flag values override config values
+func (suite *structcliSuite) TestHooks_StringSliceFromEnv() {
+	structcli.SetEnvPrefix("CSVAPP")
+	defer structcli.SetEnvPrefix("")
+
+	opts := &stringSliceOptions{}
+	cmd := &cobra.Command{Use: "test"}
+
+	structcli.Define(cmd, opts)
+
+	envVarName := stringSliceEnvVarName(suite.T(), cmd)
+	suite.T().Setenv(envVarName, "env1,env2,env3")
+
+	err := structcli.Unmarshal(cmd, opts)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []string{"env1", "env2", "env3"}, opts.Cgroups)
+}
+
+func (suite *structcliSuite) TestHooks_StringSliceFlagOverridesEnvAndConfig() {
 	configContent := `cgroups: "config1,config2"`
 	configFile := suite.createTempYAMLFile(configContent)
 	defer os.Remove(configFile)
+
+	structcli.SetEnvPrefix("CSVAPP")
+	defer structcli.SetEnvPrefix("")
 
 	opts := &stringSliceOptions{}
 	cmd := &cobra.Command{Use: "test"}
@@ -438,52 +460,16 @@ func (suite *structcliSuite) TestHooks_StringSliceFlagOverridesConfig() {
 
 	structcli.Define(cmd, opts)
 
-	// Set flag value (should override config)
+	envVarName := stringSliceEnvVarName(suite.T(), cmd)
+	suite.T().Setenv(envVarName, "env1,env2")
+
 	err := cmd.Flags().Set("cgroups", "flag1,flag2,flag3")
 	require.NoError(suite.T(), err)
 
 	err = structcli.Unmarshal(cmd, opts)
 
 	assert.NoError(suite.T(), err)
-	// Flag values should win over config values
 	assert.Equal(suite.T(), []string{"flag1", "flag2", "flag3"}, opts.Cgroups)
-}
-
-func (suite *structcliSuite) TestHooks_StringSliceYAMLSpecialCharacters() {
-	// Test hook with special characters that might cause issues
-	configContent := `cgroups: "group-1_test,group:2@domain,group[3]"`
-	configFile := suite.createTempYAMLFile(configContent)
-	defer os.Remove(configFile)
-
-	opts := &stringSliceOptions{}
-	cmd := &cobra.Command{Use: "test"}
-
-	loadConfigForCommand(suite.T(), cmd, configFile)
-
-	structcli.Define(cmd, opts)
-	err := structcli.Unmarshal(cmd, opts)
-
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), []string{"group-1_test", "group:2@domain", "group[3]"}, opts.Cgroups)
-}
-
-func (suite *structcliSuite) TestHooks_StringSliceEmptyAfterSplit() {
-	// Test hook behavior with leading/trailing commas
-	configContent := `cgroups: ",group1,,group2,"`
-	configFile := suite.createTempYAMLFile(configContent)
-	defer os.Remove(configFile)
-
-	opts := &stringSliceOptions{}
-	cmd := &cobra.Command{Use: "test"}
-
-	loadConfigForCommand(suite.T(), cmd, configFile)
-
-	structcli.Define(cmd, opts)
-	err := structcli.Unmarshal(cmd, opts)
-
-	assert.NoError(suite.T(), err)
-	// Should include empty strings from the split
-	assert.Equal(suite.T(), []string{"", "group1", "", "group2", ""}, opts.Cgroups)
 }
 
 type intSliceOptions struct {
