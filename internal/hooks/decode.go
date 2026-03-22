@@ -58,8 +58,8 @@ var DecodeHookRegistry = map[string]decodingAnnotation{
 		StringToSlogLevelHookFunc(),
 	},
 	"[]string": {
-		"StringToSliceHookFunc",
-		mapstructure.StringToSliceHookFunc(","),
+		"StringToCSVStringSliceHookFunc",
+		StringToCSVStringSliceHookFunc(),
 	},
 	"[]int": {
 		"StringToIntSliceHookFunc",
@@ -309,6 +309,33 @@ func readAsCSV(raw string) ([]string, error) {
 	reader := csv.NewReader(strings.NewReader(raw))
 
 	return reader.Read()
+}
+
+// StringToCSVStringSliceHookFunc converts textual input into []string using CSV semantics.
+func StringToCSVStringSliceHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data any,
+	) (any, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		if t != reflect.TypeOf([]string(nil)) {
+			return data, nil
+		}
+
+		raw := data.(string)
+		vals, err := readAsCSV(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid string for []string '%s': %w", raw, err)
+		}
+
+		return vals, nil
+	}
 }
 
 func parseIPSlice(raw string) ([]net.IP, error) {
