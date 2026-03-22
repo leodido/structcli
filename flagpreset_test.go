@@ -20,6 +20,12 @@ type flagPresetOptions struct {
 
 func (o *flagPresetOptions) Attach(c *cobra.Command) error { return nil }
 
+type commaSeparatedFlagPresetOptions struct {
+	LogLevel int `flag:"loglevel" flagpreset:"logeverything=5,logquiet=0"`
+}
+
+func (o *commaSeparatedFlagPresetOptions) Attach(c *cobra.Command) error { return nil }
+
 type requiredFlagPresetOptions struct {
 	LogLevel int `flag:"loglevel" flagrequired:"true" flagpreset:"logeverything=5"`
 }
@@ -125,6 +131,18 @@ func TestUnmarshal_FlagPresetAlias_FlagOrderDefinesWinner(t *testing.T) {
 
 		assert.Equal(t, 5, opts.LogLevel)
 	})
+}
+
+func TestUnmarshal_FlagPresetAlias_CommaSeparatedEntriesWorkEndToEnd(t *testing.T) {
+	resetFlagPresetTestState()
+
+	opts := &commaSeparatedFlagPresetOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{"--logquiet"}))
+
+	require.NoError(t, Unmarshal(cmd, opts))
+	assert.Equal(t, 0, opts.LogLevel)
 }
 
 func TestUnmarshal_FlagPresetAlias_HasFlagPrecedenceOverEnvAndConfig(t *testing.T) {
