@@ -30,6 +30,9 @@ type DefineHookFunc func(name, short, descr string, structField reflect.StructFi
 var DefineHookRegistry = map[string]DefineHookFunc{
 	"zapcore.Level":    DefineZapcoreLevelHookFunc(),
 	"time.Duration":    DefineTimeDurationHookFunc(),
+	"[]time.Duration":  DefineDurationSliceHookFunc(),
+	"[]bool":           DefineBoolSliceHookFunc(),
+	"[]uint":           DefineUintSliceHookFunc(),
 	"net.IP":           DefineIPHookFunc(),
 	"net.IPMask":       DefineIPMaskHookFunc(),
 	"net.IPNet":        DefineIPNetHookFunc(),
@@ -51,9 +54,38 @@ func defineByteSliceValueHookFunc(newValue func(val []byte, ref *[]byte) pflag.V
 	}
 }
 
+func defineFlagSetValueHookFunc[T any](register func(fs *pflag.FlagSet, ref *T, name, short string, val T, usage string)) DefineHookFunc {
+	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+		val := fieldValue.Interface().(T)
+		ref := (*T)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		fs := pflag.NewFlagSet(name, pflag.ContinueOnError)
+		register(fs, ref, name, short, val, descr)
+
+		return fs.Lookup(name).Value, descr
+	}
+}
+
 func DefineRawBytesHookFunc() DefineHookFunc {
 	return defineByteSliceValueHookFunc(func(val []byte, ref *[]byte) pflag.Value {
 		return structclivalues.NewRawBytes(val, ref)
+	})
+}
+
+func DefineDurationSliceHookFunc() DefineHookFunc {
+	return defineFlagSetValueHookFunc(func(fs *pflag.FlagSet, ref *[]time.Duration, name, short string, val []time.Duration, usage string) {
+		fs.DurationSliceVarP(ref, name, short, val, usage)
+	})
+}
+
+func DefineBoolSliceHookFunc() DefineHookFunc {
+	return defineFlagSetValueHookFunc(func(fs *pflag.FlagSet, ref *[]bool, name, short string, val []bool, usage string) {
+		fs.BoolSliceVarP(ref, name, short, val, usage)
+	})
+}
+
+func DefineUintSliceHookFunc() DefineHookFunc {
+	return defineFlagSetValueHookFunc(func(fs *pflag.FlagSet, ref *[]uint, name, short string, val []uint, usage string) {
+		fs.UintSliceVarP(ref, name, short, val, usage)
 	})
 }
 

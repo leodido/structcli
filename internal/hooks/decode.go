@@ -5,15 +5,18 @@ import (
 	"encoding/csv"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-viper/mapstructure/v2"
 	internalscope "github.com/leodido/structcli/internal/scope"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -32,6 +35,18 @@ var DecodeHookRegistry = map[string]decodingAnnotation{
 	"time.Duration": {
 		"StringToTimeDurationHookFunc",
 		mapstructure.StringToTimeDurationHookFunc(),
+	},
+	"[]time.Duration": {
+		"StringToDurationSliceHookFunc",
+		StringToDurationSliceHookFunc(),
+	},
+	"[]bool": {
+		"StringToBoolSliceHookFunc",
+		StringToBoolSliceHookFunc(),
+	},
+	"[]uint": {
+		"StringToUintSliceHookFunc",
+		StringToUintSliceHookFunc(),
 	},
 	"net.IP": {
 		"StringToIPHookFunc",
@@ -178,6 +193,236 @@ func StringToIntSliceHookFunc(sep string) mapstructure.DecodeHookFunc {
 		}
 
 		return result, nil
+	}
+}
+
+func parseWithFlagSet[T any](register func(fs *pflag.FlagSet, target *T), raw string) (T, error) {
+	var out T
+	fs := pflag.NewFlagSet("structcli-decode", pflag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	register(fs, &out)
+	if err := fs.Set("value", raw); err != nil {
+		return out, err
+	}
+
+	return out, nil
+}
+
+func StringToDurationSliceHookFunc() mapstructure.DecodeHookFunc {
+	targetType := reflect.TypeOf([]time.Duration(nil))
+
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if t == nil {
+			return data, nil
+		}
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		if t != targetType {
+			return data, nil
+		}
+
+		switch f.Kind() {
+		case reflect.String:
+			raw := data.(string)
+			if raw == "" {
+				return []time.Duration{}, nil
+			}
+
+			out, err := parseWithFlagSet(func(fs *pflag.FlagSet, target *[]time.Duration) {
+				fs.DurationSliceVar(target, "value", nil, "")
+			}, raw)
+			if err != nil {
+				return nil, fmt.Errorf("invalid string for []time.Duration '%s': %w", raw, err)
+			}
+
+			return out, nil
+		case reflect.Slice, reflect.Array:
+			rv := reflect.ValueOf(data)
+			out := make([]time.Duration, rv.Len())
+			for i := range rv.Len() {
+				item := rv.Index(i).Interface()
+				switch v := item.(type) {
+				case string:
+					d, err := time.ParseDuration(strings.TrimSpace(v))
+					if err != nil {
+						return nil, fmt.Errorf("invalid duration '%s' at position %d: %w", v, i, err)
+					}
+					out[i] = d
+				case time.Duration:
+					out[i] = v
+				case int:
+					out[i] = time.Duration(v)
+				case int8:
+					out[i] = time.Duration(v)
+				case int16:
+					out[i] = time.Duration(v)
+				case int32:
+					out[i] = time.Duration(v)
+				case int64:
+					out[i] = time.Duration(v)
+				case uint:
+					out[i] = time.Duration(v)
+				case uint8:
+					out[i] = time.Duration(v)
+				case uint16:
+					out[i] = time.Duration(v)
+				case uint32:
+					out[i] = time.Duration(v)
+				case uint64:
+					out[i] = time.Duration(v)
+				default:
+					return nil, fmt.Errorf("invalid element type %T at position %d for []time.Duration", item, i)
+				}
+			}
+
+			return out, nil
+		default:
+			return data, nil
+		}
+	}
+}
+
+func StringToBoolSliceHookFunc() mapstructure.DecodeHookFunc {
+	targetType := reflect.TypeOf([]bool(nil))
+
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if t == nil {
+			return data, nil
+		}
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		if t != targetType {
+			return data, nil
+		}
+
+		switch f.Kind() {
+		case reflect.String:
+			raw := data.(string)
+			if raw == "" {
+				return []bool{}, nil
+			}
+
+			out, err := parseWithFlagSet(func(fs *pflag.FlagSet, target *[]bool) {
+				fs.BoolSliceVar(target, "value", nil, "")
+			}, raw)
+			if err != nil {
+				return nil, fmt.Errorf("invalid string for []bool '%s': %w", raw, err)
+			}
+
+			return out, nil
+		case reflect.Slice, reflect.Array:
+			rv := reflect.ValueOf(data)
+			out := make([]bool, rv.Len())
+			for i := range rv.Len() {
+				item := rv.Index(i).Interface()
+				switch v := item.(type) {
+				case string:
+					b, err := strconv.ParseBool(strings.TrimSpace(v))
+					if err != nil {
+						return nil, fmt.Errorf("invalid bool '%s' at position %d: %w", v, i, err)
+					}
+					out[i] = b
+				case bool:
+					out[i] = v
+				default:
+					return nil, fmt.Errorf("invalid element type %T at position %d for []bool", item, i)
+				}
+			}
+
+			return out, nil
+		default:
+			return data, nil
+		}
+	}
+}
+
+func StringToUintSliceHookFunc() mapstructure.DecodeHookFunc {
+	targetType := reflect.TypeOf([]uint(nil))
+
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if t == nil {
+			return data, nil
+		}
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		if t != targetType {
+			return data, nil
+		}
+
+		switch f.Kind() {
+		case reflect.String:
+			raw := data.(string)
+			if raw == "" {
+				return []uint{}, nil
+			}
+
+			out, err := parseWithFlagSet(func(fs *pflag.FlagSet, target *[]uint) {
+				fs.UintSliceVar(target, "value", nil, "")
+			}, raw)
+			if err != nil {
+				return nil, fmt.Errorf("invalid string for []uint '%s': %w", raw, err)
+			}
+
+			return out, nil
+		case reflect.Slice, reflect.Array:
+			rv := reflect.ValueOf(data)
+			out := make([]uint, rv.Len())
+			for i := range rv.Len() {
+				item := rv.Index(i).Interface()
+				switch v := item.(type) {
+				case string:
+					u, err := strconv.ParseUint(strings.TrimSpace(v), 10, 0)
+					if err != nil {
+						return nil, fmt.Errorf("invalid uint '%s' at position %d: %w", v, i, err)
+					}
+					out[i] = uint(u)
+				case uint:
+					out[i] = v
+				case uint8:
+					out[i] = uint(v)
+				case uint16:
+					out[i] = uint(v)
+				case uint32:
+					out[i] = uint(v)
+				case uint64:
+					out[i] = uint(v)
+				case int:
+					if v < 0 {
+						return nil, fmt.Errorf("invalid negative uint %d at position %d", v, i)
+					}
+					out[i] = uint(v)
+				case int8:
+					if v < 0 {
+						return nil, fmt.Errorf("invalid negative uint %d at position %d", v, i)
+					}
+					out[i] = uint(v)
+				case int16:
+					if v < 0 {
+						return nil, fmt.Errorf("invalid negative uint %d at position %d", v, i)
+					}
+					out[i] = uint(v)
+				case int32:
+					if v < 0 {
+						return nil, fmt.Errorf("invalid negative uint %d at position %d", v, i)
+					}
+					out[i] = uint(v)
+				case int64:
+					if v < 0 {
+						return nil, fmt.Errorf("invalid negative uint %d at position %d", v, i)
+					}
+					out[i] = uint(v)
+				default:
+					return nil, fmt.Errorf("invalid element type %T at position %d for []uint", item, i)
+				}
+			}
+
+			return out, nil
+		default:
+			return data, nil
+		}
 	}
 }
 
