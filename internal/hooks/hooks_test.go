@@ -992,6 +992,239 @@ func (suite *structcliSuite) TestHooks_UintSliceRejectsNegativeArrayValue() {
 	assert.Contains(suite.T(), err.Error(), "position 1")
 }
 
+type mapOptions struct {
+	Labels map[string]string `flag:"labels" flagdescr:"labels" flagenv:"true" default:"env=dev,team=core"`
+	Limits map[string]int    `flag:"limits" flagdescr:"limits" flagenv:"true" default:"cpu=2,memory=4"`
+	Counts map[string]int64  `flag:"counts" flagdescr:"counts" flagenv:"true" default:"ok=1,fail=2"`
+}
+
+func (o *mapOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestHooks_MapFamiliesDefaults() {
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), map[string]string{"env": "dev", "team": "core"}, opts.Labels)
+	assert.Equal(suite.T(), map[string]int{"cpu": 2, "memory": 4}, opts.Limits)
+	assert.Equal(suite.T(), map[string]int64{"ok": 1, "fail": 2}, opts.Counts)
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesFromFlag() {
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	err = cmd.Flags().Set("labels", "env=prod,team=platform")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("limits", "cpu=8,memory=16")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("counts", "ok=10,fail=3")
+	require.NoError(suite.T(), err)
+
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), map[string]string{"env": "prod", "team": "platform"}, opts.Labels)
+	assert.Equal(suite.T(), map[string]int{"cpu": 8, "memory": 16}, opts.Limits)
+	assert.Equal(suite.T(), map[string]int64{"ok": 10, "fail": 3}, opts.Counts)
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesFromConfigString() {
+	configContent := `labels: "env=prod,team=platform"
+limits: "cpu=8,memory=16"
+counts: "ok=10,fail=3"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), map[string]string{"env": "prod", "team": "platform"}, opts.Labels)
+	assert.Equal(suite.T(), map[string]int{"cpu": 8, "memory": 16}, opts.Limits)
+	assert.Equal(suite.T(), map[string]int64{"ok": 10, "fail": 3}, opts.Counts)
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesFromConfigYAMLMap() {
+	configContent := `labels:
+  env: prod
+  team: platform
+limits:
+  cpu: 8
+  memory: 16
+counts:
+  ok: 10
+  fail: 3`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), map[string]string{"env": "prod", "team": "platform"}, opts.Labels)
+	assert.Equal(suite.T(), map[string]int{"cpu": 8, "memory": 16}, opts.Limits)
+	assert.Equal(suite.T(), map[string]int64{"ok": 10, "fail": 3}, opts.Counts)
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesFromEnv() {
+	structcli.SetEnvPrefix("MAPAPP")
+	defer structcli.SetEnvPrefix("")
+
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "labels"), "env=prod,team=platform")
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "limits"), "cpu=8,memory=16")
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "counts"), "ok=10,fail=3")
+
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), map[string]string{"env": "prod", "team": "platform"}, opts.Labels)
+	assert.Equal(suite.T(), map[string]int{"cpu": 8, "memory": 16}, opts.Limits)
+	assert.Equal(suite.T(), map[string]int64{"ok": 10, "fail": 3}, opts.Counts)
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesFlagOverridesEnvAndConfig() {
+	configContent := `labels: "env=dev,team=core"
+limits: "cpu=2,memory=4"
+counts: "ok=1,fail=2"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	structcli.SetEnvPrefix("MAPAPP")
+	defer structcli.SetEnvPrefix("")
+
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "labels"), "env=stage,team=api")
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "limits"), "cpu=4,memory=8")
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "counts"), "ok=6,fail=1")
+
+	err = cmd.Flags().Set("labels", "env=prod,team=platform")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("limits", "cpu=8,memory=16")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("counts", "ok=10,fail=3")
+	require.NoError(suite.T(), err)
+
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), map[string]string{"env": "prod", "team": "platform"}, opts.Labels)
+	assert.Equal(suite.T(), map[string]int{"cpu": 8, "memory": 16}, opts.Limits)
+	assert.Equal(suite.T(), map[string]int64{"ok": 10, "fail": 3}, opts.Counts)
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesEmptyString() {
+	configContent := `labels: ""
+limits: ""
+counts: ""`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), map[string]string{}, opts.Labels)
+	assert.Equal(suite.T(), map[string]int{}, opts.Limits)
+	assert.Equal(suite.T(), map[string]int64{}, opts.Counts)
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesInvalidStringValue() {
+	configContent := `limits: "cpu=fast,memory=16"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid string for map[string]int")
+	assert.Contains(suite.T(), err.Error(), "cpu=fast")
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesInvalidStringFormat() {
+	configContent := `labels: "env"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid string for map[string]string")
+	assert.Contains(suite.T(), err.Error(), "env")
+}
+
+func (suite *structcliSuite) TestHooks_MapFamiliesInvalidYAMLValue() {
+	configContent := `counts:
+  ok: nope`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &mapOptions{}
+	cmd := &cobra.Command{Use: "mapapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	require.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "couldn't unmarshal config to options:")
+	assert.Contains(suite.T(), err.Error(), "key \"ok\"")
+}
+
 type bytesOptions struct {
 	Raw    []byte           `flag:"raw" flagdescr:"raw bytes" flagenv:"true" default:"raw-default"`
 	Hex    structcli.Hex    `flag:"hex" flagdescr:"hex bytes" flagenv:"true" default:"68656c6c6f"`

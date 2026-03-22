@@ -1,0 +1,12 @@
+retries: "9,10"
+backoffs:
+  - 9s
+  - 10s
+feature-on: "true,true"
+labels:
+  env: cfg
+  team: docs
+limits:
+  cpu: 4
+  memory: 8
+counts: "ok=6,fail=1"
