@@ -295,10 +295,10 @@ type stringSliceOptions struct {
 
 func (o *stringSliceOptions) Attach(c *cobra.Command) error { return nil }
 
-func stringSliceEnvVarName(t testing.TB, cmd *cobra.Command) string {
+func flagEnvVarName(t testing.TB, cmd *cobra.Command, flagName string) string {
 	t.Helper()
 
-	flag := cmd.Flags().Lookup("cgroups")
+	flag := cmd.Flags().Lookup(flagName)
 	require.NotNil(t, flag)
 
 	envAnnotation := flag.Annotations[internalenv.FlagAnnotation]
@@ -437,7 +437,7 @@ func (suite *structcliSuite) TestHooks_StringSliceFromEnv() {
 
 	structcli.Define(cmd, opts)
 
-	envVarName := stringSliceEnvVarName(suite.T(), cmd)
+	envVarName := flagEnvVarName(suite.T(), cmd, "cgroups")
 	suite.T().Setenv(envVarName, "env1,env2,env3")
 
 	err := structcli.Unmarshal(cmd, opts)
@@ -460,7 +460,7 @@ func (suite *structcliSuite) TestHooks_StringSliceFlagOverridesEnvAndConfig() {
 
 	structcli.Define(cmd, opts)
 
-	envVarName := stringSliceEnvVarName(suite.T(), cmd)
+	envVarName := flagEnvVarName(suite.T(), cmd, "cgroups")
 	suite.T().Setenv(envVarName, "env1,env2")
 
 	err := cmd.Flags().Set("cgroups", "flag1,flag2,flag3")
@@ -707,6 +707,289 @@ func (suite *structcliSuite) TestHooks_IntSliceOutOfRange() {
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "invalid integer")
 	assert.Contains(suite.T(), err.Error(), "couldn't unmarshal config to options:")
+}
+
+type additionalSliceOptions struct {
+	Durations []time.Duration `flag:"durations" flagdescr:"durations" flagenv:"true" default:"1s,2m"`
+	Bools     []bool          `flag:"bools" flagdescr:"bools" flagenv:"true" default:"true,false"`
+	Uints     []uint          `flag:"uints" flagdescr:"uints" flagenv:"true" default:"1,2,3"`
+}
+
+func (o *additionalSliceOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestHooks_AdditionalSlicesDefaults() {
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []time.Duration{time.Second, 2 * time.Minute}, opts.Durations)
+	assert.Equal(suite.T(), []bool{true, false}, opts.Bools)
+	assert.Equal(suite.T(), []uint{1, 2, 3}, opts.Uints)
+}
+
+func (suite *structcliSuite) TestHooks_AdditionalSlicesFromFlag() {
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	err = cmd.Flags().Set("durations", "5s,1m30s")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("bools", "true,false,true")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("uints", "5,8,13")
+	require.NoError(suite.T(), err)
+
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []time.Duration{5 * time.Second, 90 * time.Second}, opts.Durations)
+	assert.Equal(suite.T(), []bool{true, false, true}, opts.Bools)
+	assert.Equal(suite.T(), []uint{5, 8, 13}, opts.Uints)
+}
+
+func (suite *structcliSuite) TestHooks_AdditionalSlicesMultipleFlags() {
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	err = cmd.Flags().Set("durations", "5s")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("durations", "1m")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("bools", "true")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("bools", "false")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("uints", "5")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("uints", "8")
+	require.NoError(suite.T(), err)
+
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []time.Duration{5 * time.Second, time.Minute}, opts.Durations)
+	assert.Equal(suite.T(), []bool{true, false}, opts.Bools)
+	assert.Equal(suite.T(), []uint{5, 8}, opts.Uints)
+}
+
+func (suite *structcliSuite) TestHooks_AdditionalSlicesFromConfigString() {
+	configContent := `durations: "5s,1m30s"
+bools: "true,false,true"
+uints: "5,8,13"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []time.Duration{5 * time.Second, 90 * time.Second}, opts.Durations)
+	assert.Equal(suite.T(), []bool{true, false, true}, opts.Bools)
+	assert.Equal(suite.T(), []uint{5, 8, 13}, opts.Uints)
+}
+
+func (suite *structcliSuite) TestHooks_AdditionalSlicesFromConfigYAMLArray() {
+	configContent := `durations:
+  - 5s
+  - 1m30s
+bools:
+  - true
+  - false
+  - true
+uints:
+  - 5
+  - 8
+  - 13`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []time.Duration{5 * time.Second, 90 * time.Second}, opts.Durations)
+	assert.Equal(suite.T(), []bool{true, false, true}, opts.Bools)
+	assert.Equal(suite.T(), []uint{5, 8, 13}, opts.Uints)
+}
+
+func (suite *structcliSuite) TestHooks_AdditionalSlicesFromEnv() {
+	structcli.SetEnvPrefix("SLICEAPP")
+	defer structcli.SetEnvPrefix("")
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "durations"), "5s,1m30s")
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "bools"), "true,false,true")
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "uints"), "5,8,13")
+
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []time.Duration{5 * time.Second, 90 * time.Second}, opts.Durations)
+	assert.Equal(suite.T(), []bool{true, false, true}, opts.Bools)
+	assert.Equal(suite.T(), []uint{5, 8, 13}, opts.Uints)
+}
+
+func (suite *structcliSuite) TestHooks_AdditionalSlicesFlagOverridesEnvAndConfig() {
+	configContent := `durations: "10s,20s"
+bools: "false,false"
+uints: "1,2"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	structcli.SetEnvPrefix("SLICEAPP")
+	defer structcli.SetEnvPrefix("")
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "durations"), "30s,40s")
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "bools"), "true,true")
+	suite.T().Setenv(flagEnvVarName(suite.T(), cmd, "uints"), "3,4")
+
+	err = cmd.Flags().Set("durations", "50s,1m")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("bools", "true,false,true")
+	require.NoError(suite.T(), err)
+	err = cmd.Flags().Set("uints", "5,6,7")
+	require.NoError(suite.T(), err)
+
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []time.Duration{50 * time.Second, time.Minute}, opts.Durations)
+	assert.Equal(suite.T(), []bool{true, false, true}, opts.Bools)
+	assert.Equal(suite.T(), []uint{5, 6, 7}, opts.Uints)
+}
+
+func (suite *structcliSuite) TestHooks_AdditionalSlicesEmptyString() {
+	configContent := `durations: ""
+bools: ""
+uints: ""`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), []time.Duration{}, opts.Durations)
+	assert.Equal(suite.T(), []bool{}, opts.Bools)
+	assert.Equal(suite.T(), []uint{}, opts.Uints)
+}
+
+func (suite *structcliSuite) TestHooks_DurationSliceInvalidValue() {
+	configContent := `durations: "5s,nope"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid string for []time.Duration")
+	assert.Contains(suite.T(), err.Error(), "nope")
+}
+
+func (suite *structcliSuite) TestHooks_BoolSliceInvalidValue() {
+	configContent := `bools: "true,maybe"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid string for []bool")
+	assert.Contains(suite.T(), err.Error(), "maybe")
+}
+
+func (suite *structcliSuite) TestHooks_UintSliceInvalidValue() {
+	configContent := `uints: "1,nope"`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid string for []uint")
+	assert.Contains(suite.T(), err.Error(), "nope")
+}
+
+func (suite *structcliSuite) TestHooks_UintSliceRejectsNegativeArrayValue() {
+	configContent := `uints:
+  - 1
+  - -2`
+	configFile := suite.createTempYAMLFile(configContent)
+	defer os.Remove(configFile)
+
+	opts := &additionalSliceOptions{}
+	cmd := &cobra.Command{Use: "sliceapp"}
+
+	loadConfigForCommand(suite.T(), cmd, configFile)
+
+	err := structcli.Define(cmd, opts)
+	require.NoError(suite.T(), err)
+	err = structcli.Unmarshal(cmd, opts)
+
+	require.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "invalid negative uint")
+	assert.Contains(suite.T(), err.Error(), "position 1")
 }
 
 type bytesOptions struct {
