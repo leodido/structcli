@@ -28,19 +28,22 @@ type DefineHookFunc func(name, short, descr string, structField reflect.StructFi
 
 // DefineHookRegistry keeps track of the built-in flag definition functions
 var DefineHookRegistry = map[string]DefineHookFunc{
-	"zapcore.Level":    DefineZapcoreLevelHookFunc(),
-	"time.Duration":    DefineTimeDurationHookFunc(),
-	"[]time.Duration":  DefineDurationSliceHookFunc(),
-	"[]bool":           DefineBoolSliceHookFunc(),
-	"[]uint":           DefineUintSliceHookFunc(),
-	"net.IP":           DefineIPHookFunc(),
-	"net.IPMask":       DefineIPMaskHookFunc(),
-	"net.IPNet":        DefineIPNetHookFunc(),
-	"[]net.IP":         DefineIPSliceHookFunc(),
-	"slog.Level":       DefineSlogLevelHookFunc(),
-	"[]uint8":          DefineRawBytesHookFunc(),
-	"structcli.Hex":    DefineHexBytesHookFunc(),
-	"structcli.Base64": DefineBase64BytesHookFunc(),
+	"zapcore.Level":     DefineZapcoreLevelHookFunc(),
+	"time.Duration":     DefineTimeDurationHookFunc(),
+	"[]time.Duration":   DefineDurationSliceHookFunc(),
+	"[]bool":            DefineBoolSliceHookFunc(),
+	"[]uint":            DefineUintSliceHookFunc(),
+	"map[string]string": DefineStringMapHookFunc(),
+	"map[string]int":    DefineIntMapHookFunc(),
+	"map[string]int64":  DefineInt64MapHookFunc(),
+	"net.IP":            DefineIPHookFunc(),
+	"net.IPMask":        DefineIPMaskHookFunc(),
+	"net.IPNet":         DefineIPNetHookFunc(),
+	"[]net.IP":          DefineIPSliceHookFunc(),
+	"slog.Level":        DefineSlogLevelHookFunc(),
+	"[]uint8":           DefineRawBytesHookFunc(),
+	"structcli.Hex":     DefineHexBytesHookFunc(),
+	"structcli.Base64":  DefineBase64BytesHookFunc(),
 }
 
 var byteSliceType = reflect.TypeOf([]byte(nil))
@@ -86,6 +89,24 @@ func DefineBoolSliceHookFunc() DefineHookFunc {
 func DefineUintSliceHookFunc() DefineHookFunc {
 	return defineFlagSetValueHookFunc(func(fs *pflag.FlagSet, ref *[]uint, name, short string, val []uint, usage string) {
 		fs.UintSliceVarP(ref, name, short, val, usage)
+	})
+}
+
+func DefineStringMapHookFunc() DefineHookFunc {
+	return defineFlagSetValueHookFunc(func(fs *pflag.FlagSet, ref *map[string]string, name, short string, val map[string]string, usage string) {
+		fs.StringToStringVarP(ref, name, short, val, usage)
+	})
+}
+
+func DefineIntMapHookFunc() DefineHookFunc {
+	return defineFlagSetValueHookFunc(func(fs *pflag.FlagSet, ref *map[string]int, name, short string, val map[string]int, usage string) {
+		fs.StringToIntVarP(ref, name, short, val, usage)
+	})
+}
+
+func DefineInt64MapHookFunc() DefineHookFunc {
+	return defineFlagSetValueHookFunc(func(fs *pflag.FlagSet, ref *map[string]int64, name, short string, val map[string]int64, usage string) {
+		fs.StringToInt64VarP(ref, name, short, val, usage)
 	})
 }
 

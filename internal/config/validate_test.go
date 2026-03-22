@@ -3,6 +3,7 @@ package internalconfig
 import (
 	"testing"
 
+	internalhooks "github.com/leodido/structcli/internal/hooks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,6 +15,12 @@ type validateDatabaseOptions struct {
 type validateServiceOptions struct {
 	Port     int `flag:"port"`
 	Database validateDatabaseOptions
+}
+
+type validateMapOptions struct {
+	Labels map[string]string `flag:"labels"`
+	Limits map[string]int    `flag:"limits"`
+	Counts map[string]int64  `flag:"counts"`
 }
 
 func TestValidateKeys_EmptyMap(t *testing.T) {
@@ -74,4 +81,57 @@ func TestValidateKeys_AcceptsNestedFieldNameKey(t *testing.T) {
 		},
 	}, &validateServiceOptions{})
 	require.NoError(t, err)
+}
+
+func TestValidateKeys_AcceptsSupportedMapFieldsFromMaps(t *testing.T) {
+	err := ValidateKeys(
+		map[string]any{
+			"labels": map[string]any{
+				"env":  "prod",
+				"team": "platform",
+			},
+			"limits": map[string]any{
+				"cpu":    8,
+				"memory": 16,
+			},
+			"counts": map[string]any{
+				"ok":   10,
+				"fail": 3,
+			},
+		},
+		&validateMapOptions{},
+		internalhooks.StringToStringMapHookFunc(),
+		internalhooks.StringToIntMapHookFunc(),
+		internalhooks.StringToInt64MapHookFunc(),
+	)
+	require.NoError(t, err)
+}
+
+func TestValidateKeys_AcceptsSupportedMapFieldsFromStrings(t *testing.T) {
+	err := ValidateKeys(
+		map[string]any{
+			"labels": "env=prod,team=platform",
+			"limits": "cpu=8,memory=16",
+			"counts": "ok=10,fail=3",
+		},
+		&validateMapOptions{},
+		internalhooks.StringToStringMapHookFunc(),
+		internalhooks.StringToIntMapHookFunc(),
+		internalhooks.StringToInt64MapHookFunc(),
+	)
+	require.NoError(t, err)
+}
+
+func TestValidateKeys_RejectsInvalidSupportedMapFieldString(t *testing.T) {
+	err := ValidateKeys(
+		map[string]any{
+			"limits": "cpu=fast",
+		},
+		&validateMapOptions{},
+		internalhooks.StringToStringMapHookFunc(),
+		internalhooks.StringToIntMapHookFunc(),
+		internalhooks.StringToInt64MapHookFunc(),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid string for map[string]int")
 }
