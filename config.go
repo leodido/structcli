@@ -24,7 +24,10 @@ var (
 	configRoot   *cobra.Command
 )
 
-const configValidateKeysAnnotation = "___leodido_structcli_config_validate_keys"
+const (
+	configValidateKeysAnnotation = "___leodido_structcli_config_validate_keys"
+	configFlagAnnotation         = "___leodido_structcli_configflagname"
+)
 
 func setConfigRoot(rootC *cobra.Command) {
 	configRootMu.Lock()
@@ -114,6 +117,7 @@ func SetupConfig(rootC *cobra.Command, cfgOpts config.Options) error {
 	if rootC.Annotations == nil {
 		rootC.Annotations = make(map[string]string)
 	}
+	rootC.Annotations[configFlagAnnotation] = cfgOpts.FlagName
 	if cfgOpts.ValidateKeys {
 		rootC.Annotations[configValidateKeysAnnotation] = "true"
 	} else {

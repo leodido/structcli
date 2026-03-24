@@ -228,6 +228,17 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				}
 			}
 
+			// Store preset metadata on the target flag for machine-readable discovery
+			if len(presets) > 0 {
+				presetData := make([]string, 0, len(presets))
+				for _, preset := range presets {
+					presetData = append(presetData, preset.Name+"="+preset.Value)
+				}
+				if err := c.Flags().SetAnnotation(name, flagPresetsAnnotation, presetData); err != nil {
+					return fmt.Errorf("couldn't set presets annotation for flag %s: %w", name, err)
+				}
+			}
+
 			return nil
 		}
 		finalizeFieldDefinition := func() error {
