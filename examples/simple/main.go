@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/leodido/structcli"
+	"github.com/leodido/structcli/jsonschema"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
 )
@@ -21,7 +22,12 @@ func (o *Options) Attach(c *cobra.Command) error {
 func main() {
 	log.SetFlags(0)
 	opts := &Options{}
-	cli := &cobra.Command{Use: "myapp"}
+	cli := &cobra.Command{Use: "myapp", Short: "A simple CLI example"}
+
+	// Enable --jsonschema flag for machine-readable self-description
+	if err := structcli.SetupJSONSchema(cli, jsonschema.Options{}); err != nil {
+		log.Fatalln(err)
+	}
 
 	// This single line creates all the options (flags, env vars)
 	if err := opts.Attach(cli); err != nil {

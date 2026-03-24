@@ -13,6 +13,7 @@ import (
 	"github.com/leodido/structcli"
 	"github.com/leodido/structcli/config"
 	"github.com/leodido/structcli/debug"
+	"github.com/leodido/structcli/jsonschema"
 	"github.com/leodido/structcli/values"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -400,6 +401,11 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 
 	// This single line enables the debugging global flag
 	if err := structcli.SetupDebug(rootC, debug.Options{Exit: exitOnDebug}); err != nil {
+		return nil, err
+	}
+
+	// Enable --jsonschema for machine-readable self-description (AI-native CLIs)
+	if err := structcli.SetupJSONSchema(rootC, jsonschema.Options{}); err != nil {
 		return nil, err
 	}
 
