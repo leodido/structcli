@@ -18,6 +18,7 @@ const (
 	flagPathAnnotation    = "___leodido_structcli_flagpath"
 	flagDefaultAnnotation = "___leodido_structcli_flagdefault"
 	flagPresetsAnnotation = "___leodido_structcli_flagpresets"
+	flagEnumAnnotation    = "___leodido_structcli_flagenum"
 )
 
 func remappingMetadataFromCommand(c *cobra.Command) (map[string]string, map[string]string) {

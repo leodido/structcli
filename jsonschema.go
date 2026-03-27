@@ -129,11 +129,16 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 			Default:   f.DefValue,
 		}
 
-		// Extract enum values from {val1,val2,...} pattern in usage string.
-		// By default, strip the pattern from the description to avoid duplication
-		// with the enum array. Use jsonschema.WithEnumInDescription() to preserve it.
+		// Extract enum values: prefer the machine-readable annotation set during
+		// Define(), falling back to regex extraction from the usage string for
+		// flags that were not created by structcli (e.g. manually added flags).
 		descr := f.Usage
-		if matches := enumPattern.FindStringSubmatch(descr); len(matches) > 1 {
+		if enumMetadata, ok := f.Annotations[flagEnumAnnotation]; ok && len(enumMetadata) > 0 {
+			fs.Enum = enumMetadata
+			if !cfg.EnumInDescription {
+				descr = strings.TrimSpace(enumPattern.ReplaceAllString(descr, ""))
+			}
+		} else if matches := enumPattern.FindStringSubmatch(descr); len(matches) > 1 {
 			vals := strings.Split(matches[1], ",")
 			for i := range vals {
 				vals[i] = strings.TrimSpace(vals[i])
