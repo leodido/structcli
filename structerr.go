@@ -32,8 +32,8 @@ var (
 	reDecodeFieldError = regexp.MustCompile(`'(\w+)' cannot parse value as '([\w.]+)'`)
 	// `'LogLevel' invalid string for zapcore.Level 'bogus': unrecognized level: "bogus"`
 	reDecodeFieldInvalid = regexp.MustCompile(`'(\w+)' (?:invalid (?:string|value) for [\w.]+ )'([^']*)'`)
-	// General: `'FieldName' ... 'badvalue'` — captures field name and the offending value
-	reDecodeFieldGeneric = regexp.MustCompile(`'(\w+)'[^']*'([^']*)'`)
+	// General: extract just the field name from `'FieldName' ...`
+	reDecodeFieldName = regexp.MustCompile(`'(\w+)'`)
 )
 
 // StructuredError is the JSON object written to stderr by HandleError.
@@ -419,9 +419,9 @@ func parseDecodeError(errMsg string) (fieldName, gotValue, expectedType string) 
 		return m[1], m[2], ""
 	}
 
-	// Pattern 3: generic 'FieldName' ... 'value' fallback
-	if m := reDecodeFieldGeneric.FindStringSubmatch(errMsg); m != nil {
-		return m[1], m[2], ""
+	// Pattern 3: at minimum, extract the field name from 'FieldName'
+	if m := reDecodeFieldName.FindStringSubmatch(errMsg); m != nil {
+		return m[1], "", ""
 	}
 
 	return "", "", ""

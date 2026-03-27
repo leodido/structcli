@@ -416,6 +416,150 @@ func TestParseQuotedList(t *testing.T) {
 	}
 }
 
+// TestHandleError_UnmarshalDecodeError_FieldPathAnnotation tests that findFlagForField
+// matches via the field path annotation when the Go field name (LogLevel) differs from
+// the flag name (level).
+func TestHandleError_UnmarshalDecodeError_FieldPathAnnotation(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "myapp"}
+	cmd.Flags().String("level", "info", "log level")
+	// Simulate structcli's field path annotation: flag "level" has path "loglevel"
+	_ = cmd.Flags().SetAnnotation("level", "___leodido_structcli_flagpath", []string{"loglevel"})
+	_ = cmd.Flags().SetAnnotation("level", "___leodido_structcli_flagenvs", []string{"MYAPP_LEVEL"})
+
+	t.Setenv("MYAPP_LEVEL", "bogus")
+
+	// mapstructure error uses Go field name "LogLevel", not flag name "level"
+	err := fmt.Errorf("couldn't unmarshal config to options: decoding failed due to the following error(s):\n\n'LogLevel' invalid string for zapcore.Level 'bogus': unrecognized level: \"bogus\"")
+	code := HandleError(cmd, err, &buf)
+
+	assert.Equal(t, exitcode.EnvInvalidValue, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "env_invalid_value", se.Error)
+	assert.Equal(t, "level", se.Flag) // Resolved to flag name, not Go field name
+	assert.Equal(t, "MYAPP_LEVEL", se.EnvVar)
+	assert.Equal(t, "bogus", se.Got)
+}
+
+// TestParseDecodeError tests the three regex patterns for mapstructure errors.
+func TestParseDecodeError(t *testing.T) {
+	tests := []struct {
+		name         string
+		errMsg       string
+		wantField    string
+		wantGot      string
+		wantExpected string
+	}{
+		{
+			name:         "pattern1_parse_value",
+			errMsg:       "'Port' cannot parse value as 'int': strconv.ParseInt: invalid syntax",
+			wantField:    "Port",
+			wantGot:      "",
+			wantExpected: "int",
+		},
+		{
+			name:         "pattern2_invalid_string",
+			errMsg:       "'LogLevel' invalid string for zapcore.Level 'bogus': unrecognized level: \"bogus\"",
+			wantField:    "LogLevel",
+			wantGot:      "bogus",
+			wantExpected: "",
+		},
+		{
+			name:         "pattern2_invalid_value",
+			errMsg:       "'MyField' invalid value for custom.Type 'bad': some error",
+			wantField:    "MyField",
+			wantGot:      "bad",
+			wantExpected: "",
+		},
+		{
+			name:         "pattern3_field_name_only",
+			errMsg:       "'Timeout' some completely unknown error format",
+			wantField:    "Timeout",
+			wantGot:      "",
+			wantExpected: "",
+		},
+		{
+			name:      "no_match",
+			errMsg:    "completely unparseable error with no quoted field",
+			wantField: "",
+			wantGot:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			field, got, expected := parseDecodeError(tt.errMsg)
+			assert.Equal(t, tt.wantField, field)
+			assert.Equal(t, tt.wantGot, got)
+			assert.Equal(t, tt.wantExpected, expected)
+		})
+	}
+}
+
+// TestHandleError_InvalidFlagValueFromEnvVar_CobraPath tests source attribution
+// when cobra itself catches an invalid flag value set from an env var.
+func TestHandleError_InvalidFlagValueFromEnvVar_CobraPath(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "myapp"}
+	cmd.Flags().IntP("port", "p", 0, "Server port")
+	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYAPP_PORT"})
+
+	// Flag NOT changed on CLI, env var IS set
+	t.Setenv("MYAPP_PORT", "not_a_number")
+
+	err := fmt.Errorf(`invalid argument "not_a_number" for "-p, --port" flag: strconv.ParseInt: parsing "not_a_number": invalid syntax`)
+	code := HandleError(cmd, err, &buf)
+
+	assert.Equal(t, exitcode.EnvInvalidValue, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "env_invalid_value", se.Error)
+	assert.Equal(t, "MYAPP_PORT", se.EnvVar)
+	assert.Equal(t, "not_a_number", se.Got)
+	assert.Equal(t, "int", se.Expected)
+	assert.Equal(t, "port", se.Flag)
+}
+
+// TestExtractLongFlagName_Fallback tests the fallback path with no -- prefix.
+func TestExtractLongFlagName_Fallback(t *testing.T) {
+	// Edge case: spec with only short flag (shouldn't happen in cobra, but test the fallback)
+	got := extractLongFlagName("-p")
+	assert.Equal(t, "p", got)
+}
+
+// TestFindFlagForField tests both direct name match and path annotation match.
+func TestFindFlagForField(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("level", "", "log level")
+	_ = cmd.Flags().SetAnnotation("level", "___leodido_structcli_flagpath", []string{"loglevel"})
+	cmd.Flags().Int("port", 0, "port")
+
+	// Direct match
+	assert.Equal(t, "port", findFlagForField(cmd, "Port"))
+	assert.Equal(t, "port", findFlagForField(cmd, "port"))
+
+	// Path annotation match
+	assert.Equal(t, "level", findFlagForField(cmd, "LogLevel"))
+	assert.Equal(t, "level", findFlagForField(cmd, "loglevel"))
+
+	// No match
+	assert.Equal(t, "", findFlagForField(cmd, "NonExistent"))
+}
+
+// TestFlagType tests the flagType helper.
+func TestFlagType(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().Int("port", 0, "port")
+	cmd.Flags().String("host", "", "host")
+
+	assert.Equal(t, "int", flagType(cmd, "port"))
+	assert.Equal(t, "string", flagType(cmd, "host"))
+	assert.Equal(t, "", flagType(cmd, "nonexistent"))
+}
+
 // TestHandleError_WrappedValidationError ensures errors.As works through wrapping.
 func TestHandleError_WrappedValidationError(t *testing.T) {
 	var buf bytes.Buffer
