@@ -10,6 +10,98 @@ You don't need much: just a few struct tags + **structcli**.
 
 Stop writing boilerplate. Start building features.
 
+## Build AI-Native CLIs
+
+structcli generates CLIs that machines can introspect and call correctly on the first try.
+
+### Machine-readable self-description
+
+One line gives your CLI a `--jsonschema` flag:
+
+```go
+structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
+```
+
+An LLM or agent runs `mycli srv --jsonschema` and gets a JSON Schema (draft 2020-12) describing every flag, its type, default, env var bindings, and allowed values:
+
+```console
+$ mycli srv --jsonschema
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mycli srv",
+  "type": "object",
+  "properties": {
+    "port": {
+      "type": "number",
+      "default": 3000,
+      "description": "Server port",
+      "x-structcli-env-vars": ["MYCLI_SRV_PORT"],
+      "x-structcli-shorthand": "p"
+    },
+    "log-level": {
+      "type": "string",
+      "default": "info",
+      "description": "Set log level",
+      "enum": ["debug", "info", "warn", "error", "dpanic", "panic", "fatal"]
+    }
+  },
+  "required": ["port"]
+}
+```
+
+No `--help` text parsing. The agent can construct valid invocations directly from the schema. Works at every level of the command tree.
+
+See `jsonschema.WithFullTree()` and `jsonschema.WithEnumInDescription()` for programmatic access and configuration.
+
+### Semantic exit codes
+
+The `exitcode` package defines fine-grained exit codes that tell agents what went wrong and what to do about it:
+
+```go
+import "github.com/leodido/structcli/exitcode"
+```
+
+| Range | Category | Agent strategy |
+|-------|----------|---------------|
+| 0 | Success | Proceed |
+| 1-9 | Runtime error | Report to human |
+| 10-19 | Input error | Self-correct from error details, retry |
+| 20-29 | Config/env error | Fix environment, then retry |
+
+**Input errors** — the agent gave bad input, it can self-correct:
+
+| Code | Constant | Meaning |
+|------|----------|---------|
+| 10 | `MissingRequiredFlag` | Required flag not provided |
+| 11 | `InvalidFlagValue` | Wrong type or format |
+| 12 | `UnknownFlag` | Flag doesn't exist |
+| 13 | `ValidationFailed` | Custom validation rule failed |
+| 14 | `UnknownCommand` | Subcommand doesn't exist |
+| 15 | `InvalidFlagEnum` | Value not in allowed enum set |
+
+**Config/environment errors** — the environment is wrong, not the command:
+
+| Code | Constant | Meaning |
+|------|----------|---------|
+| 20 | `ConfigParseError` | Config file is malformed |
+| 21 | `ConfigUnknownKey` | Unrecognized config key |
+| 22 | `ConfigInvalidValue` | Config value has wrong type |
+| 23 | `ConfigNotFound` | Config path doesn't exist |
+| 25 | `EnvInvalidValue` | Env var set but wrong format |
+| 26 | `EnvMissingRequired` | Required flag absent, env var not set |
+
+**Runtime errors** — not the agent's fault:
+
+| Code | Constant | Meaning |
+|------|----------|---------|
+| 0 | `OK` | Success |
+| 1 | `Error` | Unclassified runtime error |
+| 2 | `PermissionDenied` | Filesystem/network permission |
+| 3 | `Timeout` | Operation timed out |
+| 4 | `Interrupted` | SIGINT/SIGTERM |
+
+Helpers: `exitcode.Category(code)` returns `"ok"`, `"input"`, `"config"`, or `"runtime"`. `exitcode.IsRetryable(code)` tells the agent whether retrying makes sense.
+
 ## ⚡ Quick Start
 
 ```go
