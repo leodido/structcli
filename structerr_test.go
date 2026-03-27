@@ -298,6 +298,35 @@ func TestHandleError_EnvMissingRequired(t *testing.T) {
 	assert.Contains(t, se.Hint, "MYCLI_PORT")
 }
 
+// When an env var IS set but cobra still fires "required flag not set",
+// it's because cobra checks required flags before viper merges env vars.
+// The error is still "missing_required_flag" — the env var is fine, cobra just doesn't see it.
+func TestHandleError_MissingRequiredFlagWithEnvVarSet(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "mycli"}
+
+	cmd.Flags().IntP("port", "p", 0, "Server port")
+	_ = cmd.MarkFlagRequired("port")
+	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT"})
+
+	// Env var IS set with a valid value — cobra still complains because it doesn't check env vars
+	t.Setenv("MYCLI_PORT", "3000")
+
+	err := fmt.Errorf(`required flag(s) "port" not set`)
+	code := HandleError(cmd, err, &buf)
+
+	// Should still be missing_required_flag, NOT env_invalid_value
+	assert.Equal(t, exitcode.MissingRequiredFlag, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, "port", se.Flag)
+	assert.Contains(t, se.Hint, "MYCLI_PORT")
+	// NOT env_invalid_value — the env var value is fine
+	assert.NotEqual(t, "env_invalid_value", se.Error)
+}
+
 func TestHandleError_UnmarshalDecodeError_FromEnvVar(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "myapp"}
