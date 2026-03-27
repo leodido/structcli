@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/go-playground/validator/v10"
 )
 
 // ValidationError wraps multiple validation errors that occurred during ValidatableOptions unmarshalling.
@@ -30,6 +32,45 @@ func (e *ValidationError) Error() string {
 	}
 
 	return sb.String()
+}
+
+// ValidationDetail holds structured information extracted from a single validation error.
+type ValidationDetail struct {
+	Field   string `json:"field,omitempty"`
+	Rule    string `json:"rule,omitempty"`
+	Param   string `json:"param,omitempty"`
+	Value   any    `json:"value,omitempty"`
+	Message string `json:"message"`
+}
+
+// Details extracts structured information from each inner error.
+// For errors implementing validator.FieldError, it extracts Field, Rule (tag), Param, and Value.
+// For all other errors, it falls back to populating only the Message field.
+// Returns nil when Errors is nil or empty.
+func (e *ValidationError) Details() []ValidationDetail {
+	if len(e.Errors) == 0 {
+		return nil
+	}
+
+	details := make([]ValidationDetail, 0, len(e.Errors))
+	for _, err := range e.Errors {
+		var fe validator.FieldError
+		if errors.As(err, &fe) {
+			details = append(details, ValidationDetail{
+				Field:   fe.Field(),
+				Rule:    fe.Tag(),
+				Param:   fe.Param(),
+				Value:   fe.Value(),
+				Message: fe.Error(),
+			})
+		} else {
+			details = append(details, ValidationDetail{
+				Message: err.Error(),
+			})
+		}
+	}
+
+	return details
 }
 
 // UnderlyingErrors returns the slice of individual validation errors (immutable).
