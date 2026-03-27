@@ -238,31 +238,15 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 
 		// Check if this flag has env var bindings
 		if envVars := flagEnvVars(cmd, flagName); len(envVars) > 0 {
-			// The flag has env bindings — check if env vars are set
-			for _, ev := range envVars {
-				if val := os.Getenv(ev); val != "" {
-					// Env var IS set but the required flag was still not satisfied
-					// This means the env var value failed somehow (or wasn't picked up)
-					return &StructuredError{
-						Error:    "env_invalid_value",
-						ExitCode: exitcode.EnvInvalidValue,
-						EnvVar:   ev,
-						Flag:     flagName,
-						Got:      val,
-						Command:  cmdPath,
-						Message:  errMsg,
-					}
-				}
-			}
+			hint := fmt.Sprintf("use --%s <value> or set %s", flagName, envVars[0])
 
-			// No env vars set — missing required with env hint
 			return &StructuredError{
 				Error:    "missing_required_flag",
 				ExitCode: exitcode.MissingRequiredFlag,
 				Flag:     flagName,
 				Command:  cmdPath,
 				Message:  errMsg,
-				Hint:     fmt.Sprintf("use --%s <value> or set %s", flagName, envVars[0]),
+				Hint:     hint,
 			}
 		}
 
