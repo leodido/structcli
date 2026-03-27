@@ -3472,3 +3472,112 @@ func (suite *structcliSuite) TestFlagNameValidation() {
 		})
 	}
 }
+
+// --- Enum annotation tests ---
+
+type enumDescrOptions struct {
+	Mode string `flag:"mode" flagdescr:"Set mode {fast,slow,balanced}"`
+}
+
+func (o enumDescrOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_EnumAnnotation_FromFlagDescription() {
+	opts := &enumDescrOptions{}
+	cmd := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(cmd, opts))
+
+	f := cmd.Flags().Lookup("mode")
+	require.NotNil(suite.T(), f)
+
+	enumVals, ok := f.Annotations[flagEnumAnnotation]
+	require.True(suite.T(), ok, "enum annotation should be set")
+	assert.Equal(suite.T(), []string{"fast", "slow", "balanced"}, enumVals)
+}
+
+type noEnumDescrOptions struct {
+	Name string `flag:"name" flagdescr:"Set the user name"`
+}
+
+func (o noEnumDescrOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_EnumAnnotation_NotSetWithoutEnumPattern() {
+	opts := &noEnumDescrOptions{}
+	cmd := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(cmd, opts))
+
+	f := cmd.Flags().Lookup("name")
+	require.NotNil(suite.T(), f)
+
+	_, ok := f.Annotations[flagEnumAnnotation]
+	assert.False(suite.T(), ok, "enum annotation should not be set when no enum pattern in description")
+}
+
+func (suite *structcliSuite) TestDefine_EnumAnnotation_BuiltInZapcoreLevel() {
+	opts := &gotoBuiltInHookOptions{}
+	cmd := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(cmd, opts))
+
+	f := cmd.Flags().Lookup("log-level")
+	require.NotNil(suite.T(), f)
+
+	enumVals, ok := f.Annotations[flagEnumAnnotation]
+	require.True(suite.T(), ok, "enum annotation should be set for zapcore.Level built-in hook")
+	assert.Equal(suite.T(), []string{"debug", "info", "warn", "error", "dpanic", "panic", "fatal"}, enumVals)
+}
+
+type enumCustomHookOptions struct {
+	LogLevel zapcore.Level `flagcustom:"true" flagdescr:"log level"`
+}
+
+func (o *enumCustomHookOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_EnumAnnotation_CustomHookFallbackToBuiltIn() {
+	// When flagcustom:"true" is set but no DefineLogLevel method exists,
+	// the built-in zapcore.Level hook is used (which adds the enum pattern).
+	opts := &enumCustomHookOptions{}
+	cmd := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(cmd, opts))
+
+	f := cmd.Flags().Lookup("loglevel")
+	require.NotNil(suite.T(), f)
+
+	enumVals, ok := f.Annotations[flagEnumAnnotation]
+	require.True(suite.T(), ok, "enum annotation should be set for built-in hook via flagcustom fallback")
+	assert.Equal(suite.T(), []string{"debug", "info", "warn", "error", "dpanic", "panic", "fatal"}, enumVals)
+}
+
+type enumCustomDefineHookOptions struct {
+	ServerMode serverMode `flagcustom:"true" flag:"server-mode" flagshort:"m" flagdescr:"set server mode"`
+}
+
+func (o *enumCustomDefineHookOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *enumCustomDefineHookOptions) DefineServerMode(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	enhancedDesc := descr + fmt.Sprintf(" {%s,%s,%s}", string(development), string(staging), string(production))
+	fieldPtr := fieldValue.Addr().Interface().(*serverMode)
+	*fieldPtr = development
+
+	return values.NewString((*string)(fieldPtr)), enhancedDesc
+}
+
+func (o *enumCustomDefineHookOptions) DecodeServerMode(input any) (any, error) {
+	return serverMode(input.(string)), nil
+}
+
+func (suite *structcliSuite) TestDefine_EnumAnnotation_CustomDefineHookWithEnumPattern() {
+	opts := &enumCustomDefineHookOptions{}
+	cmd := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(cmd, opts))
+
+	f := cmd.Flags().Lookup("server-mode")
+	require.NotNil(suite.T(), f)
+
+	enumVals, ok := f.Annotations[flagEnumAnnotation]
+	require.True(suite.T(), ok, "enum annotation should be set when custom DefineFieldName hook uses enum pattern")
+	assert.Equal(suite.T(), []string{"dev", "staging", "prod"}, enumVals)
+}
