@@ -29,7 +29,11 @@ var (
 	// `unknown config keys: extra, bogus`
 	reConfigUnknownKeys = regexp.MustCompile(`^unknown config keys: (.+)$`)
 	// `'Port' cannot parse value as 'int': strconv.ParseInt: invalid syntax`
-	reDecodeFieldError = regexp.MustCompile(`'(\w+)' cannot parse value as '(\w+)'`)
+	reDecodeFieldError = regexp.MustCompile(`'(\w+)' cannot parse value as '([\w.]+)'`)
+	// `'LogLevel' invalid string for zapcore.Level 'bogus': unrecognized level: "bogus"`
+	reDecodeFieldInvalid = regexp.MustCompile(`'(\w+)' (?:invalid (?:string|value) for [\w.]+ )'([^']*)'`)
+	// General: `'FieldName' ... 'badvalue'` — captures field name and the offending value
+	reDecodeFieldGeneric = regexp.MustCompile(`'(\w+)'[^']*'([^']*)'`)
 )
 
 // StructuredError is the JSON object written to stderr by HandleError.
@@ -274,6 +278,7 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 func classifyInvalidArg(cmd *cobra.Command, cmdPath, gotValue, flagSpec, errMsg string) *StructuredError {
 	// flagSpec is like "-p, --port" or "--port" — extract the long name
 	flagName := extractLongFlagName(flagSpec)
+	expected := flagType(cmd, flagName)
 
 	// Source attribution: where did the bad value come from?
 
@@ -284,6 +289,7 @@ func classifyInvalidArg(cmd *cobra.Command, cmdPath, gotValue, flagSpec, errMsg 
 			ExitCode: exitcode.InvalidFlagValue,
 			Flag:     flagName,
 			Got:      gotValue,
+			Expected: expected,
 			Command:  cmdPath,
 			Message:  errMsg,
 		}
@@ -299,8 +305,9 @@ func classifyInvalidArg(cmd *cobra.Command, cmdPath, gotValue, flagSpec, errMsg 
 					EnvVar:   ev,
 					Flag:     flagName,
 					Got:      val,
+					Expected: expected,
 					Command:  cmdPath,
-					Message:  errMsg,
+					Message:  fmt.Sprintf("env var %s: invalid value %q for flag %q (expected %s)", ev, val, flagName, expected),
 				}
 			}
 		}
@@ -312,6 +319,7 @@ func classifyInvalidArg(cmd *cobra.Command, cmdPath, gotValue, flagSpec, errMsg 
 		ExitCode: exitcode.InvalidFlagValue,
 		Flag:     flagName,
 		Got:      gotValue,
+		Expected: expected,
 		Command:  cmdPath,
 		Message:  errMsg,
 	}
@@ -342,9 +350,9 @@ func classifyUnknownCommand(cmd *cobra.Command, got, cmdPath, errMsg string) *St
 // These typically happen when an env var or config value has the wrong type for a field.
 // It does source attribution to distinguish env var errors from config errors.
 func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *StructuredError {
-	// Try to extract field name and expected type from mapstructure error
-	m := reDecodeFieldError.FindStringSubmatch(errMsg)
-	if m == nil {
+	fieldName, gotValue, expectedType := parseDecodeError(errMsg)
+
+	if fieldName == "" {
 		// Can't parse the specific field — generic decode error
 		return &StructuredError{
 			Error:    "invalid_flag_value",
@@ -354,26 +362,32 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 		}
 	}
 
-	fieldName := m[1]
-	expectedType := m[2]
-
-	// Look for a flag matching this field name (case-insensitive)
+	// Look for a flag matching this field name
 	flagName := findFlagForField(cmd, fieldName)
+
+	// Enrich expected type from the flag if not already known
+	if expectedType == "" && flagName != "" {
+		expectedType = flagType(cmd, flagName)
+	}
 
 	// Source attribution: check if the bad value came from an env var
 	if flagName != "" {
 		if envVars := flagEnvVars(cmd, flagName); len(envVars) > 0 {
 			for _, ev := range envVars {
 				if val := os.Getenv(ev); val != "" {
+					if gotValue == "" {
+						gotValue = val
+					}
+
 					return &StructuredError{
 						Error:    "env_invalid_value",
 						ExitCode: exitcode.EnvInvalidValue,
 						EnvVar:   ev,
 						Flag:     flagName,
-						Got:      val,
+						Got:      gotValue,
 						Expected: expectedType,
 						Command:  cmdPath,
-						Message:  errMsg,
+						Message:  fmt.Sprintf("env var %s: invalid value %q for flag %q (expected %s)", ev, gotValue, flagName, expectedType),
 					}
 				}
 			}
@@ -385,19 +399,73 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 		Error:    "invalid_flag_value",
 		ExitCode: exitcode.InvalidFlagValue,
 		Flag:     flagName,
+		Got:      gotValue,
 		Expected: expectedType,
 		Command:  cmdPath,
 		Message:  errMsg,
 	}
 }
 
-// findFlagForField finds a flag name that matches a struct field name (case-insensitive).
+// parseDecodeError extracts field name, bad value, and expected type from mapstructure errors.
+// It tries multiple patterns since mapstructure produces different formats for different types.
+func parseDecodeError(errMsg string) (fieldName, gotValue, expectedType string) {
+	// Pattern 1: 'Port' cannot parse value as 'int': ...
+	if m := reDecodeFieldError.FindStringSubmatch(errMsg); m != nil {
+		return m[1], "", m[2]
+	}
+
+	// Pattern 2: 'LogLevel' invalid string for zapcore.Level 'bogus': ...
+	if m := reDecodeFieldInvalid.FindStringSubmatch(errMsg); m != nil {
+		return m[1], m[2], ""
+	}
+
+	// Pattern 3: generic 'FieldName' ... 'value' fallback
+	if m := reDecodeFieldGeneric.FindStringSubmatch(errMsg); m != nil {
+		return m[1], m[2], ""
+	}
+
+	return "", "", ""
+}
+
+// flagType returns the type string of a flag, or empty string if not found.
+func flagType(cmd *cobra.Command, flagName string) string {
+	f := cmd.Flags().Lookup(flagName)
+	if f == nil {
+		f = cmd.InheritedFlags().Lookup(flagName)
+	}
+	if f == nil {
+		return ""
+	}
+
+	return f.Value.Type()
+}
+
+// findFlagForField finds a flag name that matches a struct field name.
+// It checks: exact flag name match, then field path annotation match.
+// Field names from mapstructure errors are Go struct field names (eg. "LogLevel"),
+// while flag names are kebab-case (eg. "level" or "log-level").
 func findFlagForField(cmd *cobra.Command, fieldName string) string {
 	lowerField := strings.ToLower(fieldName)
 	var found string
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		if found == "" && strings.EqualFold(f.Name, lowerField) {
+		if found != "" {
+			return
+		}
+		// Direct match: flag name == field name (case-insensitive)
+		if strings.EqualFold(f.Name, lowerField) {
 			found = f.Name
+
+			return
+		}
+		// Path annotation match: structcli stores the lowercased field path
+		if f.Annotations != nil {
+			if paths, ok := f.Annotations[flagPathAnnotation]; ok && len(paths) > 0 {
+				if strings.EqualFold(paths[0], lowerField) {
+					found = f.Name
+
+					return
+				}
+			}
 		}
 	})
 
