@@ -3656,3 +3656,131 @@ func (suite *structcliSuite) TestDefine_EnumAnnotation_ZapcoreUsesEnumValuer() {
 	assert.Contains(suite.T(), enumVals, "info")
 	assert.Contains(suite.T(), enumVals, "warn")
 }
+
+// --- Validate / Mod annotation tests ---
+
+type validateAnnotationOptions struct {
+	Email string `flag:"email" flagdescr:"user email" validate:"required,email"`
+	Age   int    `flag:"age" flagdescr:"user age" validate:"min=18,max=120"`
+	Plain string `flag:"plain" flagdescr:"no validation"`
+}
+
+func (o *validateAnnotationOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_ValidateAnnotation_StoredWhenPresent() {
+	opts := &validateAnnotationOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	emailFlag := cmd.Flags().Lookup("email")
+	require.NotNil(suite.T(), emailFlag)
+	valAnnotation := emailFlag.Annotations[flagValidateAnnotation]
+	assert.Equal(suite.T(), []string{"required,email"}, valAnnotation, "validate annotation should store the tag value")
+
+	ageFlag := cmd.Flags().Lookup("age")
+	require.NotNil(suite.T(), ageFlag)
+	ageAnnotation := ageFlag.Annotations[flagValidateAnnotation]
+	assert.Equal(suite.T(), []string{"min=18,max=120"}, ageAnnotation, "validate annotation should store compound rules")
+}
+
+func (suite *structcliSuite) TestDefine_ValidateAnnotation_AbsentWhenNoTag() {
+	opts := &validateAnnotationOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	plainFlag := cmd.Flags().Lookup("plain")
+	require.NotNil(suite.T(), plainFlag)
+	valAnnotation := plainFlag.Annotations[flagValidateAnnotation]
+	assert.Nil(suite.T(), valAnnotation, "validate annotation should not be set when tag is absent")
+}
+
+type modAnnotationOptions struct {
+	Name  string `flag:"name" flagdescr:"user name" mod:"trim,title"`
+	Email string `flag:"email" flagdescr:"user email" mod:"trim,lcase"`
+	Plain string `flag:"plain" flagdescr:"no mod"`
+}
+
+func (o *modAnnotationOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_ModAnnotation_StoredWhenPresent() {
+	opts := &modAnnotationOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	nameFlag := cmd.Flags().Lookup("name")
+	require.NotNil(suite.T(), nameFlag)
+	modAnnotation := nameFlag.Annotations[flagModAnnotation]
+	assert.Equal(suite.T(), []string{"trim,title"}, modAnnotation, "mod annotation should store the tag value")
+
+	emailFlag := cmd.Flags().Lookup("email")
+	require.NotNil(suite.T(), emailFlag)
+	emailModAnnotation := emailFlag.Annotations[flagModAnnotation]
+	assert.Equal(suite.T(), []string{"trim,lcase"}, emailModAnnotation, "mod annotation should store the tag value")
+}
+
+func (suite *structcliSuite) TestDefine_ModAnnotation_AbsentWhenNoTag() {
+	opts := &modAnnotationOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	plainFlag := cmd.Flags().Lookup("plain")
+	require.NotNil(suite.T(), plainFlag)
+	modAnnotation := plainFlag.Annotations[flagModAnnotation]
+	assert.Nil(suite.T(), modAnnotation, "mod annotation should not be set when tag is absent")
+}
+
+type bothAnnotationsOptions struct {
+	Email string `flag:"email" flagdescr:"user email" validate:"required,email" mod:"trim,lcase"`
+}
+
+func (o *bothAnnotationsOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_BothAnnotations_StoredTogether() {
+	opts := &bothAnnotationsOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	emailFlag := cmd.Flags().Lookup("email")
+	require.NotNil(suite.T(), emailFlag)
+
+	valAnnotation := emailFlag.Annotations[flagValidateAnnotation]
+	assert.Equal(suite.T(), []string{"required,email"}, valAnnotation, "validate annotation should be present")
+
+	modAnnotation := emailFlag.Annotations[flagModAnnotation]
+	assert.Equal(suite.T(), []string{"trim,lcase"}, modAnnotation, "mod annotation should be present")
+}
+
+type nestedValidateAnnotationOptions struct {
+	Inner nestedValidateInner
+}
+
+type nestedValidateInner struct {
+	Host string `flag:"host" flagdescr:"hostname" validate:"required,hostname"`
+	Port int    `flag:"port" flagdescr:"port number" validate:"min=1,max=65535" mod:"abs"`
+}
+
+func (o *nestedValidateAnnotationOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_ValidateModAnnotations_NestedStructs() {
+	opts := &nestedValidateAnnotationOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	hostFlag := cmd.Flags().Lookup("host")
+	require.NotNil(suite.T(), hostFlag)
+	hostValAnnotation := hostFlag.Annotations[flagValidateAnnotation]
+	assert.Equal(suite.T(), []string{"required,hostname"}, hostValAnnotation, "nested validate annotation should be stored")
+
+	portFlag := cmd.Flags().Lookup("port")
+	require.NotNil(suite.T(), portFlag)
+	portValAnnotation := portFlag.Annotations[flagValidateAnnotation]
+	assert.Equal(suite.T(), []string{"min=1,max=65535"}, portValAnnotation, "nested validate annotation should be stored")
+	portModAnnotation := portFlag.Annotations[flagModAnnotation]
+	assert.Equal(suite.T(), []string{"abs"}, portModAnnotation, "nested mod annotation should be stored")
+}

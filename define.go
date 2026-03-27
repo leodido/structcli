@@ -212,6 +212,20 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				}
 			}
 
+			// Store validation struct tag so downstream consumers can inspect rules
+			if validateTag := f.Tag.Get("validate"); validateTag != "" {
+				if err := c.Flags().SetAnnotation(name, flagValidateAnnotation, []string{validateTag}); err != nil {
+					return fmt.Errorf("couldn't set validate annotation for flag %s: %w", name, err)
+				}
+			}
+
+			// Store transformation struct tag so downstream consumers can inspect rules
+			if modTag := f.Tag.Get("mod"); modTag != "" {
+				if err := c.Flags().SetAnnotation(name, flagModAnnotation, []string{modTag}); err != nil {
+					return fmt.Errorf("couldn't set mod annotation for flag %s: %w", name, err)
+				}
+			}
+
 			return nil
 		}
 		applyPresetAliases := func() error {

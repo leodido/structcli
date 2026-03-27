@@ -15,10 +15,12 @@ import (
 )
 
 const (
-	flagPathAnnotation    = "___leodido_structcli_flagpath"
-	flagDefaultAnnotation = "___leodido_structcli_flagdefault"
-	flagPresetsAnnotation = "___leodido_structcli_flagpresets"
-	flagEnumAnnotation    = "___leodido_structcli_flagenum"
+	flagPathAnnotation     = "___leodido_structcli_flagpath"
+	flagDefaultAnnotation  = "___leodido_structcli_flagdefault"
+	flagPresetsAnnotation  = "___leodido_structcli_flagpresets"
+	flagEnumAnnotation     = "___leodido_structcli_flagenum"
+	flagValidateAnnotation = "___leodido_structcli_flagvalidate"
+	flagModAnnotation      = "___leodido_structcli_flagmod"
 )
 
 func remappingMetadataFromCommand(c *cobra.Command) (map[string]string, map[string]string) {
