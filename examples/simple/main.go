@@ -22,7 +22,12 @@ func (o *Options) Attach(c *cobra.Command) error {
 func main() {
 	log.SetFlags(0)
 	opts := &Options{}
-	cli := &cobra.Command{Use: "myapp", Short: "A simple CLI example"}
+	cli := &cobra.Command{
+		Use:           "myapp",
+		Short:         "A simple CLI example",
+		SilenceErrors: true, // Let ExecuteOrExit handle errors as structured JSON
+		SilenceUsage:  true, // Don't print usage on error (machines don't need it)
+	}
 
 	// Enable --jsonschema flag for machine-readable self-description
 	if err := structcli.SetupJSONSchema(cli, jsonschema.Options{}); err != nil {
@@ -44,7 +49,6 @@ func main() {
 		return nil
 	}
 
-	if err := cli.Execute(); err != nil {
-		log.Fatalln(err)
-	}
+	// Structured errors: JSON to stderr + semantic exit code on failure
+	structcli.ExecuteOrExit(cli)
 }
