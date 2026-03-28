@@ -122,7 +122,20 @@ type Violation struct {
 
 // HandleError classifies err, writes a JSON StructuredError to w, and returns a semantic exit code.
 //
-// The caller is responsible for passing the error to this function and calling os.Exit.
+// The cmd parameter must be the command where the error originated — not the root command.
+// This is because HandleError looks up flag metadata (type, enum values, env var bindings)
+// from cmd's flag annotations to produce accurate error details. If the root command is
+// passed for a subcommand error, the metadata lookup yields empty results and the output
+// is degraded (no expected type, no enum check, no env var attribution).
+//
+// Use [ExecuteOrExit] to get this right automatically — it uses cobra's ExecuteC to obtain
+// the correct command. If calling HandleError directly, use [cobra.Command.ExecuteC]:
+//
+//	cmd, err := rootCmd.ExecuteC()
+//	if err != nil {
+//	    os.Exit(structcli.HandleError(cmd, err, os.Stderr))
+//	}
+//
 // HandleError is a pure function — no global state, no environment sniffing, no side effects
 // beyond writing to w.
 //
