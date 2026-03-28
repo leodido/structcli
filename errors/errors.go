@@ -509,10 +509,14 @@ func NewInputError(inputType, message string) error {
 // It carries structured metadata extracted at interception time, eliminating
 // the need for regex parsing at classification time.
 type FlagError struct {
-	FlagName string // the flag name (eg. "port", "level")
-	Value    string // the value that was provided (may be empty for unknown flags)
-	Kind     FlagErrorKind
-	Cause    error // the original pflag error
+	FlagName     string // the flag name (eg. "port", "level")
+	Value        string // the value that was provided (may be empty for unknown flags)
+	Kind         FlagErrorKind
+	Cause        error    // the original pflag error
+	CommandPath  string   // the full command path (eg. "myapp srv") for error context
+	ExpectedType string   // the flag's type (eg. "int", "string") for error context
+	EnumValues   []string // allowed enum values (nil if not an enum flag)
+	EnvVars      []string // bound env var names (nil if none)
 }
 
 // FlagErrorKind distinguishes between flag error types.
@@ -545,11 +549,12 @@ func (e *FlagError) Unwrap() error {
 }
 
 // NewFlagError creates a FlagError with the given metadata.
-func NewFlagError(kind FlagErrorKind, flagName, value string, cause error) *FlagError {
+func NewFlagError(kind FlagErrorKind, flagName, value, commandPath string, cause error) *FlagError {
 	return &FlagError{
-		FlagName: flagName,
-		Value:    value,
-		Kind:     kind,
-		Cause:    cause,
+		FlagName:    flagName,
+		Value:       value,
+		Kind:        kind,
+		CommandPath: commandPath,
+		Cause:       cause,
 	}
 }
