@@ -68,6 +68,7 @@ type StructuredError struct {
 type Violation struct {
 	Field   string `json:"field"`
 	Rule    string `json:"rule,omitempty"`
+	Param   string `json:"param,omitempty"`
 	Value   any    `json:"value,omitempty"`
 	Message string `json:"message"`
 }
@@ -122,7 +123,7 @@ func classify(cmd *cobra.Command, err error) *StructuredError {
 	// ValidationError from ValidatableOptions
 	var validationErr *structclierrors.ValidationError
 	if errors.As(err, &validationErr) {
-		return classifyValidation(cmdPath, validationErr)
+		return classifyValidation(cmd, cmdPath, validationErr)
 	}
 
 	// InputError from structcli
@@ -213,12 +214,47 @@ func classify(cmd *cobra.Command, err error) *StructuredError {
 }
 
 // classifyValidation builds a StructuredError from a ValidationError.
-func classifyValidation(cmdPath string, ve *structclierrors.ValidationError) *StructuredError {
-	violations := make([]Violation, 0, len(ve.Errors))
-	for _, e := range ve.Errors {
+// It uses Details() to extract structured field/rule/value information and
+// resolves Go struct field names to CLI flag names via the command's annotations.
+func classifyValidation(cmd *cobra.Command, cmdPath string, ve *structclierrors.ValidationError) *StructuredError {
+	details := ve.Details()
+	violations := make([]Violation, 0, len(details))
+	for _, d := range details {
+		field := d.Field
+		// Try to resolve Go struct field name to CLI flag name
+		if d.StructField != "" {
+			if flagName := findFlagForField(cmd, d.StructField); flagName != "" {
+				field = flagName
+			}
+		}
+		// Fall back to Field if StructField resolution failed
+		if field == "" && d.Field != "" {
+			if flagName := findFlagForField(cmd, d.Field); flagName != "" {
+				field = flagName
+			} else {
+				field = d.Field
+			}
+		}
+
 		violations = append(violations, Violation{
-			Message: e.Error(),
+			Field:   field,
+			Rule:    d.Rule,
+			Param:   d.Param,
+			Value:   d.Value,
+			Message: d.Message,
 		})
+	}
+
+	// Fallback: if Details() returned nothing but there are errors, use the raw error messages
+	if len(violations) == 0 {
+		for _, e := range ve.Errors {
+			if e == nil {
+				continue
+			}
+			violations = append(violations, Violation{
+				Message: e.Error(),
+			})
+		}
 	}
 
 	return &StructuredError{
@@ -240,28 +276,31 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 	if len(flagNames) == 1 {
 		flagName := flagNames[0]
 
-		// Check if this flag has env var bindings
+		// Build hint from env var bindings and validation rules
+		var hint string
 		if envVars := flagEnvVars(cmd, flagName); len(envVars) > 0 {
-			hint := fmt.Sprintf("use --%s <value> or set %s", flagName, envVars[0])
-
-			return &StructuredError{
-				Error:    "missing_required_flag",
-				ExitCode: exitcode.MissingRequiredFlag,
-				Flag:     flagName,
-				Command:  cmdPath,
-				Message:  errMsg,
-				Hint:     hint,
+			hint = fmt.Sprintf("use --%s <value> or set %s", flagName, envVars[0])
+		}
+		if rules := flagValidateRules(cmd, flagName); strings.Contains(rules, "required") {
+			if hint != "" {
+				hint += " (required by validation)"
+			} else {
+				hint = fmt.Sprintf("--%s is required by validation", flagName)
 			}
 		}
 
-		// No env var bindings at all
-		return &StructuredError{
+		se := &StructuredError{
 			Error:    "missing_required_flag",
 			ExitCode: exitcode.MissingRequiredFlag,
 			Flag:     flagName,
 			Command:  cmdPath,
 			Message:  errMsg,
 		}
+		if hint != "" {
+			se.Hint = hint
+		}
+
+		return se
 	}
 
 	// Multiple missing flags — no per-flag enrichment
@@ -279,6 +318,22 @@ func classifyInvalidArg(cmd *cobra.Command, cmdPath, gotValue, flagSpec, errMsg 
 	// flagSpec is like "-p, --port" or "--port" — extract the long name
 	flagName := extractLongFlagName(flagSpec)
 	expected := flagType(cmd, flagName)
+
+	// Check if the flag has enum annotations — if so, this might be an enum violation
+	if enumVals := flagEnumValues(cmd, flagName); len(enumVals) > 0 {
+		if !contains(enumVals, gotValue) {
+			return &StructuredError{
+				Error:     "invalid_flag_enum",
+				ExitCode:  exitcode.InvalidFlagEnum,
+				Flag:      flagName,
+				Got:       gotValue,
+				Expected:  strings.Join(enumVals, ", "),
+				Available: enumVals,
+				Command:   cmdPath,
+				Message:   errMsg,
+			}
+		}
+	}
 
 	// Source attribution: where did the bad value come from?
 
@@ -368,6 +423,24 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 	// Enrich expected type from the flag if not already known
 	if expectedType == "" && flagName != "" {
 		expectedType = flagType(cmd, flagName)
+	}
+
+	// Check if the flag has enum annotations — if so, this might be an enum violation
+	if flagName != "" && gotValue != "" {
+		if enumVals := flagEnumValues(cmd, flagName); len(enumVals) > 0 {
+			if !contains(enumVals, gotValue) {
+				return &StructuredError{
+					Error:     "invalid_flag_enum",
+					ExitCode:  exitcode.InvalidFlagEnum,
+					Flag:      flagName,
+					Got:       gotValue,
+					Expected:  strings.Join(enumVals, ", "),
+					Available: enumVals,
+					Command:   cmdPath,
+					Message:   errMsg,
+				}
+			}
+		}
 	}
 
 	// Source attribution: check if the bad value came from an env var
@@ -489,6 +562,53 @@ func flagEnvVars(cmd *cobra.Command, flagName string) []string {
 	}
 
 	return envs
+}
+
+// flagEnumValues returns the allowed enum values for a flag, or nil if none.
+func flagEnumValues(cmd *cobra.Command, flagName string) []string {
+	f := cmd.Flags().Lookup(flagName)
+	if f == nil {
+		f = cmd.InheritedFlags().Lookup(flagName)
+	}
+	if f == nil || f.Annotations == nil {
+		return nil
+	}
+
+	vals, ok := f.Annotations[flagEnumAnnotation]
+	if !ok || len(vals) == 0 {
+		return nil
+	}
+
+	return vals
+}
+
+// flagValidateRules returns the validation rules for a flag, or empty string if none.
+func flagValidateRules(cmd *cobra.Command, flagName string) string {
+	f := cmd.Flags().Lookup(flagName)
+	if f == nil {
+		f = cmd.InheritedFlags().Lookup(flagName)
+	}
+	if f == nil || f.Annotations == nil {
+		return ""
+	}
+
+	vals, ok := f.Annotations[flagValidateAnnotation]
+	if !ok || len(vals) == 0 {
+		return ""
+	}
+
+	return vals[0]
+}
+
+// contains checks if a string is in a slice.
+func contains(haystack []string, needle string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+
+	return false
 }
 
 // extractLongFlagName extracts the long flag name from cobra's flag spec.
