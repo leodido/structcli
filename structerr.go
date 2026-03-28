@@ -65,31 +65,21 @@ func SetupFlagErrors(rootC *cobra.Command) {
 			return nil
 		}
 		errMsg := err.Error()
-		cmdPath := cmd.CommandPath()
 
 		// Parse pflag's "invalid argument" format:
 		//   invalid argument "abc" for "-p, --port" flag: strconv.ParseInt: ...
 		if m := rePflagInvalidArg.FindStringSubmatch(errMsg); m != nil {
-			gotValue := m[1]
-			flagName := extractLongFlagName(m[2])
-
-			fe := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, flagName, gotValue, cmdPath, err)
-			// Enrich with metadata from the actual command (we have it here, HandleError won't)
-			fe.ExpectedType = flagType(cmd, flagName)
-			fe.EnumValues = flagEnumValues(cmd, flagName)
-			fe.EnvVars = flagEnvVars(cmd, flagName)
-
-			return fe
+			return structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, extractLongFlagName(m[2]), m[1], err)
 		}
 
 		// Parse pflag's "unknown flag" format:
 		//   unknown flag: --foo
 		if m := rePflagUnknownFlag.FindStringSubmatch(errMsg); m != nil {
-			return structclierrors.NewFlagError(structclierrors.FlagErrorUnknown, m[1], "", cmdPath, err)
+			return structclierrors.NewFlagError(structclierrors.FlagErrorUnknown, m[1], "", err)
 		}
 
-		// Unrecognized flag error — wrap with empty metadata so it's still typed
-		return structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "", "", cmdPath, err)
+		// Unrecognized flag error — wrap so it's still typed
+		return structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "", "", err)
 	})
 }
 
@@ -159,12 +149,19 @@ func HandleError(cmd *cobra.Command, err error, w io.Writer) int {
 // ExecuteOrExit runs cmd.Execute(). On error it writes structured JSON to stderr
 // and exits with a semantic exit code. On success it exits 0.
 //
+// It automatically sets SilenceErrors and SilenceUsage on the root command
+// so cobra doesn't print its own error messages or usage text — structcli
+// handles all error output as structured JSON.
+//
 // This is a convenience wrapper for the common main() pattern:
 //
 //	func main() {
 //	    structcli.ExecuteOrExit(buildMyCLI())
 //	}
 func ExecuteOrExit(cmd *cobra.Command) {
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+
 	// ExecuteC returns the actual subcommand that ran (or failed),
 	// giving HandleError the correct flag set for metadata lookups.
 	c, err := cmd.ExecuteC()
@@ -197,65 +194,21 @@ func classify(cmd *cobra.Command, err error) *StructuredError {
 		}
 	}
 
-	// 2. Typed flag errors from SetupFlagErrors (errors.As — no regex)
-	// All metadata was pre-populated at interception time — no regex needed.
+	// 2. Typed flag errors from SetupFlagErrors (errors.As — no regex needed)
+	// FlagError carries only the flag name, value, and kind. Metadata enrichment
+	// (expected type, enum values, env vars) happens here via the same code path
+	// as the regex fallback — using the correct command from ExecuteC().
 	var flagErr *structclierrors.FlagError
 	if errors.As(err, &flagErr) {
-		feCmdPath := flagErr.CommandPath
-		if feCmdPath == "" {
-			feCmdPath = cmdPath
-		}
-
 		switch flagErr.Kind {
 		case structclierrors.FlagErrorInvalidValue:
-			// Check enum violation first
-			if len(flagErr.EnumValues) > 0 && !contains(flagErr.EnumValues, flagErr.Value) {
-				return &StructuredError{
-					Error:     "invalid_flag_enum",
-					ExitCode:  exitcode.InvalidFlagEnum,
-					Flag:      flagErr.FlagName,
-					Got:       flagErr.Value,
-					Expected:  strings.Join(flagErr.EnumValues, ", "),
-					Available: flagErr.EnumValues,
-					Command:   feCmdPath,
-					Message:   errMsg,
-				}
-			}
-
-			// Check env var source
-			if flagErr.EnvVars != nil {
-				for _, ev := range flagErr.EnvVars {
-					if val := os.Getenv(ev); val != "" {
-						return &StructuredError{
-							Error:    "env_invalid_value",
-							ExitCode: exitcode.EnvInvalidValue,
-							EnvVar:   ev,
-							Flag:     flagErr.FlagName,
-							Got:      val,
-							Expected: flagErr.ExpectedType,
-							Command:  feCmdPath,
-							Message:  fmt.Sprintf("env var %s: invalid value %q for flag %q (expected %s)", ev, val, flagErr.FlagName, flagErr.ExpectedType),
-						}
-					}
-				}
-			}
-
-			return &StructuredError{
-				Error:    "invalid_flag_value",
-				ExitCode: exitcode.InvalidFlagValue,
-				Flag:     flagErr.FlagName,
-				Got:      flagErr.Value,
-				Expected: flagErr.ExpectedType,
-				Command:  feCmdPath,
-				Message:  errMsg,
-			}
-
+			return classifyInvalidArg(cmd, cmdPath, flagErr.Value, flagErr.FlagName, errMsg)
 		case structclierrors.FlagErrorUnknown:
 			return &StructuredError{
 				Error:    "unknown_flag",
 				ExitCode: exitcode.UnknownFlag,
 				Flag:     flagErr.FlagName,
-				Command:  feCmdPath,
+				Command:  cmdPath,
 				Message:  errMsg,
 			}
 		}
