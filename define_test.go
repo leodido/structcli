@@ -3784,3 +3784,32 @@ func (suite *structcliSuite) TestDefine_ValidateModAnnotations_NestedStructs() {
 	portModAnnotation := portFlag.Annotations[flagModAnnotation]
 	assert.Equal(suite.T(), []string{"abs"}, portModAnnotation, "nested mod annotation should be stored")
 }
+
+type flagCustomWithValidateOptions struct {
+	Token string `flagcustom:"true" flag:"token" flagdescr:"auth token" validate:"required"`
+}
+
+func (o *flagCustomWithValidateOptions) DefineToken(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	fieldPtr := fieldValue.Addr().Interface().(*string)
+	*fieldPtr = ""
+
+	return values.NewString(fieldPtr), descr
+}
+
+func (o *flagCustomWithValidateOptions) DecodeToken(input any) (any, error) {
+	return input, nil
+}
+
+func (o *flagCustomWithValidateOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_ValidateAnnotation_FlagCustomWithValidate() {
+	opts := &flagCustomWithValidateOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	tokenFlag := cmd.Flags().Lookup("token")
+	require.NotNil(suite.T(), tokenFlag)
+	valAnnotation := tokenFlag.Annotations[flagValidateAnnotation]
+	assert.Equal(suite.T(), []string{"required"}, valAnnotation, "flagcustom field with validate tag should have the validate annotation stored")
+}
