@@ -198,7 +198,7 @@ func DefineZapcoreLevelHookFunc() DefineHookFunc {
 		fieldPtr := (*zapcore.Level)(unsafe.Pointer(fieldValue.UnsafeAddr()))
 		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), logLevels, enumflag.EnumCaseInsensitive)
 
-		return enumFlag, enhancedDescr
+		return WrapWithEnumValues(enumFlag, values), enhancedDescr
 	}
 }
 
@@ -230,7 +230,7 @@ func DefineSlogLevelHookFunc() DefineHookFunc {
 		fieldPtr := (*slog.Level)(unsafe.Pointer(fieldValue.UnsafeAddr()))
 		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), logLevels, enumflag.EnumCaseInsensitive)
 
-		return enumFlag, enhancedDescr
+		return WrapWithEnumValues(enumFlag, values), enhancedDescr
 	}
 }
 

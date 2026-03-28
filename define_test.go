@@ -3581,3 +3581,78 @@ func (suite *structcliSuite) TestDefine_EnumAnnotation_CustomDefineHookWithEnumP
 	require.True(suite.T(), ok, "enum annotation should be set when custom DefineFieldName hook uses enum pattern")
 	assert.Equal(suite.T(), []string{"dev", "staging", "prod"}, enumVals)
 }
+
+// enumValuerFlag is a pflag.Value that also implements EnumValuer.
+// Its EnumValues() returns different values than what the description contains,
+// proving the interface takes precedence over regex parsing.
+type enumValuerFlag struct {
+	val string
+}
+
+func (f *enumValuerFlag) String() string   { return f.val }
+func (f *enumValuerFlag) Set(s string) error { f.val = s; return nil }
+func (f *enumValuerFlag) Type() string     { return "string" }
+func (f *enumValuerFlag) EnumValues() []string {
+	// These are the REAL allowed values — intentionally different from the description
+	return []string{"alpha", "beta", "gamma"}
+}
+
+type enumValuerHookOptions struct {
+	Priority string `flagcustom:"true" flag:"priority" flagdescr:"Set priority {x,y,z}"`
+}
+
+func (o enumValuerHookOptions) Attach(c *cobra.Command) error { return nil }
+
+func (o *enumValuerHookOptions) DefinePriority(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	ref := fieldValue.Addr().Interface().(*string)
+	// Return a pflag.Value that implements EnumValuer with [alpha, beta, gamma]
+	// but the description says {x,y,z}
+	return &enumValuerFlag{val: *ref}, descr
+}
+
+func (o *enumValuerHookOptions) DecodePriority(input any) (any, error) {
+	return input.(string), nil
+}
+
+func (suite *structcliSuite) TestDefine_EnumAnnotation_EnumValuerTakesPrecedenceOverRegex() {
+	opts := &enumValuerHookOptions{}
+	cmd := &cobra.Command{Use: "test"}
+
+	require.NoError(suite.T(), Define(cmd, opts))
+
+	f := cmd.Flags().Lookup("priority")
+	require.NotNil(suite.T(), f)
+
+	// The flag's description says {x,y,z} but EnumValuer returns [alpha, beta, gamma]
+	// EnumValuer MUST take precedence
+	enumVals, ok := f.Annotations[flagEnumAnnotation]
+	require.True(suite.T(), ok, "enum annotation should be set via EnumValuer")
+	assert.Equal(suite.T(), []string{"alpha", "beta", "gamma"}, enumVals, "EnumValuer values should take precedence over description regex")
+}
+
+type zapcoreEnumValuerOpts struct {
+	Level zapcore.Level `flag:"level" flagdescr:"Set log level"`
+}
+
+func (o zapcoreEnumValuerOpts) Attach(c *cobra.Command) error { return nil }
+
+// Test that the built-in zapcore.Level hook now uses EnumValuer (not just description parsing)
+func (suite *structcliSuite) TestDefine_EnumAnnotation_ZapcoreUsesEnumValuer() {
+	o := &zapcoreEnumValuerOpts{}
+	cmd := &cobra.Command{Use: "test"}
+	require.NoError(suite.T(), Define(cmd, o))
+
+	f := cmd.Flags().Lookup("level")
+	require.NotNil(suite.T(), f)
+
+	// Verify the Value implements EnumValuer
+	_, isEnumValuer := f.Value.(EnumValuer)
+	assert.True(suite.T(), isEnumValuer, "zapcore.Level flag value should implement EnumValuer")
+
+	// Verify annotation is set correctly
+	enumVals, ok := f.Annotations[flagEnumAnnotation]
+	require.True(suite.T(), ok)
+	assert.Contains(suite.T(), enumVals, "debug")
+	assert.Contains(suite.T(), enumVals, "info")
+	assert.Contains(suite.T(), enumVals, "warn")
+}
