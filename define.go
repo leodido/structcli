@@ -23,13 +23,36 @@ type DefineOption func(*defineContext)
 
 // defineContext holds context for the definition of the options
 type defineContext struct {
-	exclusions map[string]string
-	comm       *cobra.Command
+	exclusions      map[string]string
+	comm            *cobra.Command
+	validateTagName string // struct tag name for validation rules (default: "validate")
+	modTagName      string // struct tag name for transformation rules (default: "mod")
 }
 
 // WithExclusions sets flags to exclude from definition based on flag names or paths.
 //
 // Exclusions are case-insensitive and apply only to the specific command.
+// WithValidateTagName sets the struct tag name used to read validation rules.
+//
+// Defaults to "validate" (the go-playground/validator default).
+// Use this when your validator is configured with a custom tag name
+// (eg. validator.New().SetTagName("binding")).
+func WithValidateTagName(name string) DefineOption {
+	return func(cfg *defineContext) {
+		cfg.validateTagName = name
+	}
+}
+
+// WithModTagName sets the struct tag name used to read transformation rules.
+//
+// Defaults to "mod" (the go-playground/mold default).
+// Use this when your mold instance is configured with a custom tag name.
+func WithModTagName(name string) DefineOption {
+	return func(cfg *defineContext) {
+		cfg.modTagName = name
+	}
+}
+
 func WithExclusions(exclusions ...string) DefineOption {
 	return func(cfg *defineContext) {
 		if cfg.exclusions == nil {
@@ -56,6 +79,14 @@ func Define(c *cobra.Command, o Options, defineOpts ...DefineOption) error {
 		opt(ctx)
 	}
 
+	// Apply defaults for tag names
+	if ctx.validateTagName == "" {
+		ctx.validateTagName = "validate"
+	}
+	if ctx.modTagName == "" {
+		ctx.modTagName = "mod"
+	}
+
 	// Run input validation (on by default)
 	if err := internalvalidation.Struct(c, o); err != nil {
 		return err
@@ -64,7 +95,7 @@ func Define(c *cobra.Command, o Options, defineOpts ...DefineOption) error {
 	v := GetViper(c)
 
 	// Define the flags from struct
-	if err := define(c, o, "", "", ctx.exclusions, false, false); err != nil {
+	if err := define(c, o, "", "", ctx.exclusions, false, false, ctx.validateTagName, ctx.modTagName); err != nil {
 		return err
 	}
 	// Bind flag values to struct field values
@@ -79,7 +110,7 @@ func Define(c *cobra.Command, o Options, defineOpts ...DefineOption) error {
 	return nil
 }
 
-func define(c *cobra.Command, o any, startingGroup string, structPath string, exclusions map[string]string, defineEnv bool, mandatory bool) error {
+func define(c *cobra.Command, o any, startingGroup string, structPath string, exclusions map[string]string, defineEnv bool, mandatory bool, validateTagName string, modTagName string) error {
 	// Assuming validation already caught untyped nils...
 	val := internalreflect.GetValue(o)
 	if !val.IsValid() {
@@ -213,14 +244,14 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			}
 
 			// Store validation struct tag so downstream consumers can inspect rules
-			if validateTag := f.Tag.Get("validate"); validateTag != "" {
+			if validateTag := f.Tag.Get(validateTagName); validateTag != "" {
 				if err := c.Flags().SetAnnotation(name, flagValidateAnnotation, []string{validateTag}); err != nil {
 					return fmt.Errorf("couldn't set validate annotation for flag %s: %w", name, err)
 				}
 			}
 
 			// Store transformation struct tag so downstream consumers can inspect rules
-			if modTag := f.Tag.Get("mod"); modTag != "" {
+			if modTag := f.Tag.Get(modTagName); modTag != "" {
 				if err := c.Flags().SetAnnotation(name, flagModAnnotation, []string{modTag}); err != nil {
 					return fmt.Errorf("couldn't set mod annotation for flag %s: %w", name, err)
 				}
@@ -380,7 +411,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		switch kind {
 		case reflect.Struct:
 			// NOTE > field.Interface() doesn't work because it actually returns a copy of the object wrapping the interface
-			if err := define(c, field.Addr().Interface(), group, path, exclusions, defineEnv, mandatory); err != nil {
+			if err := define(c, field.Addr().Interface(), group, path, exclusions, defineEnv, mandatory, validateTagName, modTagName); err != nil {
 				return err
 			}
 

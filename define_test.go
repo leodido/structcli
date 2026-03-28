@@ -3813,3 +3813,64 @@ func (suite *structcliSuite) TestDefine_ValidateAnnotation_FlagCustomWithValidat
 	valAnnotation := tokenFlag.Annotations[flagValidateAnnotation]
 	assert.Equal(suite.T(), []string{"required"}, valAnnotation, "flagcustom field with validate tag should have the validate annotation stored")
 }
+
+// customTagOptions uses non-default struct tag names for validation and transformation.
+type customTagOptions struct {
+	Email string `flag:"email" flagdescr:"User email" binding:"required,email"`
+	Name  string `flag:"name" flagdescr:"User name" transform:"trim,title"`
+	Both  string `flag:"both" flagdescr:"Both tags" binding:"min=3" transform:"lcase"`
+	Plain string `flag:"plain" flagdescr:"No custom tags"`
+}
+
+func (o customTagOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_ValidateAnnotation_CustomTagNames() {
+	opts := &customTagOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts, WithValidateTagName("binding"), WithModTagName("transform"))
+	require.NoError(suite.T(), err)
+
+	// "binding" tag should be stored as validate annotation
+	emailFlag := cmd.Flags().Lookup("email")
+	require.NotNil(suite.T(), emailFlag)
+	valAnnotation := emailFlag.Annotations[flagValidateAnnotation]
+	assert.Equal(suite.T(), []string{"required,email"}, valAnnotation)
+
+	// "transform" tag should be stored as mod annotation
+	nameFlag := cmd.Flags().Lookup("name")
+	require.NotNil(suite.T(), nameFlag)
+	modAnnotation := nameFlag.Annotations[flagModAnnotation]
+	assert.Equal(suite.T(), []string{"trim,title"}, modAnnotation)
+
+	// Both custom tags on same field
+	bothFlag := cmd.Flags().Lookup("both")
+	require.NotNil(suite.T(), bothFlag)
+	assert.Equal(suite.T(), []string{"min=3"}, bothFlag.Annotations[flagValidateAnnotation])
+	assert.Equal(suite.T(), []string{"lcase"}, bothFlag.Annotations[flagModAnnotation])
+
+	// No custom tags — annotations should not be present
+	plainFlag := cmd.Flags().Lookup("plain")
+	require.NotNil(suite.T(), plainFlag)
+	_, hasVal := plainFlag.Annotations[flagValidateAnnotation]
+	_, hasMod := plainFlag.Annotations[flagModAnnotation]
+	assert.False(suite.T(), hasVal, "plain flag should not have validate annotation")
+	assert.False(suite.T(), hasMod, "plain flag should not have mod annotation")
+}
+
+func (suite *structcliSuite) TestDefine_ValidateAnnotation_DefaultTagNameIgnoresCustom() {
+	// When using default tag names, custom tags like "binding" should be ignored
+	opts := &customTagOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts) // no WithValidateTagName, no WithModTagName
+	require.NoError(suite.T(), err)
+
+	emailFlag := cmd.Flags().Lookup("email")
+	require.NotNil(suite.T(), emailFlag)
+	_, hasVal := emailFlag.Annotations[flagValidateAnnotation]
+	assert.False(suite.T(), hasVal, "default tag name 'validate' should not match 'binding' tag")
+
+	nameFlag := cmd.Flags().Lookup("name")
+	require.NotNil(suite.T(), nameFlag)
+	_, hasMod := nameFlag.Annotations[flagModAnnotation]
+	assert.False(suite.T(), hasMod, "default tag name 'mod' should not match 'transform' tag")
+}
