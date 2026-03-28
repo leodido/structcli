@@ -2,6 +2,7 @@ package errors
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/go-playground/validator/v10"
@@ -187,4 +188,15 @@ func TestDetails_PreservesExistingMethods(t *testing.T) {
 	// Details() also works
 	details := ve.Details()
 	assert.Len(t, details, len(valErrs))
+}
+
+func TestDetails_NilErrorInSlice(t *testing.T) {
+	ve := &ValidationError{
+		Errors: []error{nil, fmt.Errorf("real error")},
+	}
+
+	// Should not panic; should skip nil and return 1 detail
+	details := ve.Details()
+	require.Len(t, details, 1)
+	assert.Equal(t, "real error", details[0].Message)
 }

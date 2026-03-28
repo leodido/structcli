@@ -27,6 +27,9 @@ func (e *ValidationError) Error() string {
 	}
 
 	for _, err := range e.Errors {
+		if err == nil {
+			continue
+		}
 		sb.WriteString("\n       ")
 		sb.WriteString(err.Error())
 	}
@@ -54,6 +57,9 @@ func (e *ValidationError) Details() []ValidationDetail {
 
 	details := make([]ValidationDetail, 0, len(e.Errors))
 	for _, err := range e.Errors {
+		if err == nil {
+			continue
+		}
 		var fe validator.FieldError
 		if errors.As(err, &fe) {
 			details = append(details, ValidationDetail{
