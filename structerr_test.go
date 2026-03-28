@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/go-playground/validator/v10"
 	structclierrors "github.com/leodido/structcli/errors"
 	"github.com/leodido/structcli/exitcode"
 	"github.com/spf13/cobra"
@@ -653,4 +654,246 @@ func TestHandleError_Integration_InvalidValue(t *testing.T) {
 	assert.Equal(t, "invalid_flag_value", se.Error)
 	assert.Equal(t, "port", se.Flag)
 	assert.Equal(t, "abc", se.Got)
+}
+
+// --- Validation Details tests ---
+
+type validationDetailsTestStruct struct {
+	Email string `validate:"required,email"`
+	Age   int    `validate:"min=18"`
+}
+
+// TestHandleError_ValidationFailed_WithDetails tests that real validator errors
+// produce Violations with Field (as flag name), Rule, Param, and Value populated.
+func TestHandleError_ValidationFailed_WithDetails(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "mycli"}
+	cmd.Flags().String("email", "", "user email")
+	cmd.Flags().Int("age", 0, "user age")
+
+	// Create real validation errors via go-playground/validator
+	v := validator.New()
+	err := v.Struct(&validationDetailsTestStruct{
+		Email: "not-an-email",
+		Age:   10,
+	})
+	require.Error(t, err)
+
+	var valErrs validator.ValidationErrors
+	require.ErrorAs(t, err, &valErrs)
+
+	// Wrap them in a structcli ValidationError
+	errs := make([]error, len(valErrs))
+	for i, fe := range valErrs {
+		errs[i] = fe
+	}
+	ve := &structclierrors.ValidationError{
+		ContextName: "test",
+		Errors:      errs,
+	}
+	code := HandleError(cmd, ve, &buf)
+	assert.Equal(t, exitcode.ValidationFailed, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "validation_failed", se.Error)
+	require.Len(t, se.Violations, 2)
+
+	// Find violations by field name
+	violationsByField := map[string]Violation{}
+	for _, v := range se.Violations {
+		violationsByField[v.Field] = v
+	}
+
+	// Email violation: field resolved to flag name "email", rule "email"
+	emailV, ok := violationsByField["email"]
+	require.True(t, ok, "should have violation for field 'email', got fields: %v", keys(violationsByField))
+	assert.Equal(t, "email", emailV.Rule)
+	assert.NotEmpty(t, emailV.Message)
+
+	// Age violation: field resolved to flag name "age", rule "min", param "18"
+	ageV, ok := violationsByField["age"]
+	require.True(t, ok, "should have violation for field 'age', got fields: %v", keys(violationsByField))
+	assert.Equal(t, "min", ageV.Rule)
+	assert.Equal(t, "18", ageV.Param)
+	assert.NotEmpty(t, ageV.Message)
+}
+
+// TestHandleError_ValidationFailed_FieldToFlagMapping tests that
+// ValidationDetail.StructField "LogLevel" maps to flag "level" via path annotation.
+func TestHandleError_ValidationFailed_FieldToFlagMapping(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "mycli"}
+	cmd.Flags().String("level", "info", "log level")
+	// structcli stores lowercase field path in annotation
+	_ = cmd.Flags().SetAnnotation("level", flagPathAnnotation, []string{"loglevel"})
+
+	// Create a validation error with StructField="LogLevel" using real validator
+	type logOptions struct {
+		LogLevel string `validate:"required"`
+	}
+	v := validator.New()
+	err := v.Struct(&logOptions{LogLevel: ""})
+	require.Error(t, err)
+
+	var valErrs validator.ValidationErrors
+	require.ErrorAs(t, err, &valErrs)
+
+	errs := make([]error, len(valErrs))
+	for i, fe := range valErrs {
+		errs[i] = fe
+	}
+	ve := &structclierrors.ValidationError{
+		ContextName: "log",
+		Errors:      errs,
+	}
+	code := HandleError(cmd, ve, &buf)
+	assert.Equal(t, exitcode.ValidationFailed, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	require.Len(t, se.Violations, 1)
+	// StructField "LogLevel" should resolve to flag name "level" via path annotation
+	assert.Equal(t, "level", se.Violations[0].Field)
+	assert.Equal(t, "required", se.Violations[0].Rule)
+}
+
+// --- Enum violation tests ---
+
+// TestHandleError_InvalidFlagEnum tests that a flag with enum annotation and a bad value
+// produces exit code 15 (InvalidFlagEnum) with the available values array.
+func TestHandleError_InvalidFlagEnum(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "mycli"}
+	cmd.Flags().String("mode", "fast", "Set mode {fast,slow,balanced}")
+	_ = cmd.Flags().SetAnnotation("mode", flagEnumAnnotation, []string{"fast", "slow", "balanced"})
+
+	// Cobra error for invalid argument
+	err := fmt.Errorf(`invalid argument "turbo" for "--mode" flag: invalid value`)
+	code := HandleError(cmd, err, &buf)
+
+	assert.Equal(t, exitcode.InvalidFlagEnum, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "invalid_flag_enum", se.Error)
+	assert.Equal(t, exitcode.InvalidFlagEnum, se.ExitCode)
+	assert.Equal(t, "mode", se.Flag)
+	assert.Equal(t, "turbo", se.Got)
+	assert.Equal(t, "fast, slow, balanced", se.Expected)
+	assert.Equal(t, []string{"fast", "slow", "balanced"}, se.Available)
+	assert.Equal(t, "mycli", se.Command)
+}
+
+// TestHandleError_InvalidFlagEnum_ValidValue tests that when a flag has enum annotation
+// but the value IS valid (and the error is a type error), it still goes through as invalid_flag_value.
+func TestHandleError_InvalidFlagEnum_ValidValue(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "mycli"}
+	cmd.Flags().Int("priority", 1, "Priority level {1,2,3}")
+	_ = cmd.Flags().SetAnnotation("priority", flagEnumAnnotation, []string{"1", "2", "3"})
+
+	// Cobra error for invalid argument where "abc" is NOT in enum set
+	// This tests: value not in enum AND type error — enum takes precedence
+	err := fmt.Errorf(`invalid argument "abc" for "--priority" flag: strconv.ParseInt: parsing "abc": invalid syntax`)
+	code := HandleError(cmd, err, &buf)
+
+	// "abc" is not in the enum set, so it should be invalid_flag_enum
+	assert.Equal(t, exitcode.InvalidFlagEnum, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "invalid_flag_enum", se.Error)
+}
+
+// TestHandleError_InvalidFlagEnum_UnmarshalPath tests enum detection through the unmarshal error path.
+func TestHandleError_InvalidFlagEnum_UnmarshalPath(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "myapp"}
+	cmd.Flags().String("level", "info", "log level")
+	_ = cmd.Flags().SetAnnotation("level", flagPathAnnotation, []string{"loglevel"})
+	_ = cmd.Flags().SetAnnotation("level", flagEnumAnnotation, []string{"debug", "info", "warn", "error"})
+
+	// mapstructure decode error with invalid value for enum field
+	err := fmt.Errorf("couldn't unmarshal config to options: decoding failed due to the following error(s):\n\n'LogLevel' invalid string for zapcore.Level 'bogus': unrecognized level: \"bogus\"")
+	code := HandleError(cmd, err, &buf)
+
+	assert.Equal(t, exitcode.InvalidFlagEnum, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "invalid_flag_enum", se.Error)
+	assert.Equal(t, "level", se.Flag)
+	assert.Equal(t, "bogus", se.Got)
+	assert.Contains(t, se.Available, "debug")
+	assert.Contains(t, se.Available, "info")
+	assert.Contains(t, se.Available, "warn")
+	assert.Contains(t, se.Available, "error")
+}
+
+// TestHandleError_MissingRequiredFlagWithValidateHint tests that when a flag has
+// a validation annotation with "required", the hint includes this information.
+func TestHandleError_MissingRequiredFlagWithValidateHint(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "mycli"}
+	cmd.Flags().String("email", "", "user email")
+	_ = cmd.MarkFlagRequired("email")
+	_ = cmd.Flags().SetAnnotation("email", "___leodido_structcli_flagenvs", []string{"MYCLI_EMAIL"})
+	_ = cmd.Flags().SetAnnotation("email", flagValidateAnnotation, []string{"required,email"})
+
+	os.Unsetenv("MYCLI_EMAIL")
+
+	err := fmt.Errorf(`required flag(s) "email" not set`)
+	code := HandleError(cmd, err, &buf)
+
+	assert.Equal(t, exitcode.MissingRequiredFlag, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, "email", se.Flag)
+	assert.Contains(t, se.Hint, "MYCLI_EMAIL")
+	assert.Contains(t, se.Hint, "required by validation")
+}
+
+// TestFlagEnumValues tests the flagEnumValues helper.
+func TestFlagEnumValues(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("mode", "", "mode")
+	_ = cmd.Flags().SetAnnotation("mode", flagEnumAnnotation, []string{"fast", "slow"})
+	cmd.Flags().String("name", "", "name")
+
+	assert.Equal(t, []string{"fast", "slow"}, flagEnumValues(cmd, "mode"))
+	assert.Nil(t, flagEnumValues(cmd, "name"))
+	assert.Nil(t, flagEnumValues(cmd, "nonexistent"))
+}
+
+// TestFlagValidateRules tests the flagValidateRules helper.
+func TestFlagValidateRules(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("email", "", "email")
+	_ = cmd.Flags().SetAnnotation("email", flagValidateAnnotation, []string{"required,email"})
+	cmd.Flags().String("plain", "", "plain")
+
+	assert.Equal(t, "required,email", flagValidateRules(cmd, "email"))
+	assert.Equal(t, "", flagValidateRules(cmd, "plain"))
+	assert.Equal(t, "", flagValidateRules(cmd, "nonexistent"))
+}
+
+// TestContains tests the contains helper.
+func TestContains(t *testing.T) {
+	assert.True(t, contains([]string{"a", "b", "c"}, "b"))
+	assert.False(t, contains([]string{"a", "b", "c"}, "d"))
+	assert.False(t, contains(nil, "a"))
+	assert.False(t, contains([]string{}, "a"))
+}
+
+// keys is a test helper that returns map keys.
+func keys(m map[string]Violation) []string {
+	result := make([]string, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+
+	return result
 }
