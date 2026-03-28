@@ -5,9 +5,16 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-
-	"github.com/go-playground/validator/v10"
 )
+
+// fieldErrorInfo is satisfied by validator.FieldError from go-playground/validator
+// and any other validation library that provides structured field error information.
+type fieldErrorInfo interface {
+	Field() string
+	Tag() string
+	Param() string
+	Value() interface{}
+}
 
 // ValidationError wraps multiple validation errors that occurred during ValidatableOptions unmarshalling.
 type ValidationError struct {
@@ -47,7 +54,7 @@ type ValidationDetail struct {
 }
 
 // Details extracts structured information from each inner error.
-// For errors implementing validator.FieldError, it extracts Field, Rule (tag), Param, and Value.
+// For errors implementing fieldErrorInfo (e.g., validator.FieldError), it extracts Field, Rule (tag), Param, and Value.
 // For all other errors, it falls back to populating only the Message field.
 // Returns nil when Errors is nil or empty.
 func (e *ValidationError) Details() []ValidationDetail {
@@ -60,14 +67,14 @@ func (e *ValidationError) Details() []ValidationDetail {
 		if err == nil {
 			continue
 		}
-		var fe validator.FieldError
+		var fe fieldErrorInfo
 		if errors.As(err, &fe) {
 			details = append(details, ValidationDetail{
 				Field:   fe.Field(),
 				Rule:    fe.Tag(),
 				Param:   fe.Param(),
 				Value:   fe.Value(),
-				Message: fe.Error(),
+				Message: err.Error(),
 			})
 		} else {
 			details = append(details, ValidationDetail{
