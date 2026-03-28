@@ -231,3 +231,44 @@ func TestDetails_WrappedFieldError(t *testing.T) {
 	assert.Equal(t, "not-an-email", d.Value)
 	assert.NotEmpty(t, d.Message)
 }
+
+func TestDetails_StructFieldPopulated(t *testing.T) {
+	v := validator.New()
+	err := v.Struct(&testStruct{
+		Email: "not-an-email",
+		Age:   10,
+		Name:  "Alice",
+	})
+	require.Error(t, err)
+
+	var valErrs validator.ValidationErrors
+	require.ErrorAs(t, err, &valErrs)
+
+	errs := make([]error, len(valErrs))
+	for i, fe := range valErrs {
+		errs[i] = fe
+	}
+	ve := &ValidationError{Errors: errs}
+
+	details := ve.Details()
+	require.Len(t, details, 2)
+
+	structFields := make(map[string]string)
+	for _, d := range details {
+		structFields[d.Field] = d.StructField
+	}
+
+	// StructField should be the Go struct field name (same as Field for non-aliased fields)
+	assert.Equal(t, "Email", structFields["Email"])
+	assert.Equal(t, "Age", structFields["Age"])
+}
+
+func TestDetails_StructFieldEmptyForNonFieldErrors(t *testing.T) {
+	ve := &ValidationError{
+		Errors: []error{fmt.Errorf("plain error")},
+	}
+
+	details := ve.Details()
+	require.Len(t, details, 1)
+	assert.Equal(t, "", details[0].StructField)
+}

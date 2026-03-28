@@ -11,6 +11,7 @@ import (
 // and any other validation library that provides structured field error information.
 type fieldErrorInfo interface {
 	Field() string
+	StructField() string
 	Tag() string
 	Param() string
 	Value() interface{}
@@ -46,11 +47,12 @@ func (e *ValidationError) Error() string {
 
 // ValidationDetail holds structured information extracted from a single validation error.
 type ValidationDetail struct {
-	Field   string `json:"field,omitempty"`
-	Rule    string `json:"rule,omitempty"`
-	Param   string `json:"param,omitempty"`
-	Value   any    `json:"value,omitempty"`
-	Message string `json:"message"`
+	Field       string `json:"field,omitempty"`
+	StructField string `json:"structField,omitempty"`
+	Rule        string `json:"rule,omitempty"`
+	Param       string `json:"param,omitempty"`
+	Value       any    `json:"value,omitempty"`
+	Message     string `json:"message"`
 }
 
 // Details extracts structured information from each inner error.
@@ -70,11 +72,12 @@ func (e *ValidationError) Details() []ValidationDetail {
 		var fe fieldErrorInfo
 		if errors.As(err, &fe) {
 			details = append(details, ValidationDetail{
-				Field:   fe.Field(),
-				Rule:    fe.Tag(),
-				Param:   fe.Param(),
-				Value:   fe.Value(),
-				Message: err.Error(),
+				Field:       fe.Field(),
+				StructField: fe.StructField(),
+				Rule:        fe.Tag(),
+				Param:       fe.Param(),
+				Value:       fe.Value(),
+				Message:     err.Error(),
 			})
 		} else {
 			details = append(details, ValidationDetail{
