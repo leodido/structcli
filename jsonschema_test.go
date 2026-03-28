@@ -338,6 +338,27 @@ func TestJSONSchema_AnnotationPrecedenceOverRegex(t *testing.T) {
 	assert.NotContains(t, formatFlag.Enum, "z")
 }
 
+func TestJSONSchema_ManualFlagRegexFallback(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+
+	cmd := &cobra.Command{Use: "app"}
+	// Manually added flag (not via Define) — no enum annotation set
+	cmd.Flags().String("mode", "", "Output mode {json,yaml,text}")
+
+	schemas, err := JSONSchema(cmd)
+	require.NoError(t, err)
+	schema := schemas[0]
+
+	modeFlag, ok := schema.Flags["mode"]
+	require.True(t, ok, "mode flag should exist")
+
+	// Regex fallback should extract enum values from the usage string
+	assert.Equal(t, []string{"json", "yaml", "text"}, modeFlag.Enum)
+	// Description should have the enum pattern stripped
+	assert.Equal(t, "Output mode", modeFlag.Description)
+}
+
 func TestToJSONSchema_TypeMapping(t *testing.T) {
 	tests := []struct {
 		pflagType    string
