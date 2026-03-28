@@ -17,6 +17,10 @@ import (
 )
 
 // Regex patterns for matching cobra's untyped error strings.
+// These are ONLY used as fallbacks when SetupFlagErrors has not been called
+// (ie. the CLI author did not opt into typed flag error interception).
+// When SetupFlagErrors is active, flag errors are intercepted as typed FlagError
+// via errors.As — no regex needed for those paths.
 var (
 	// "required flag(s) "port" not set" or "required flag(s) "port", "host" not set"
 	reRequiredFlags = regexp.MustCompile(`^required flag\(s\) (.+) not set$`)
@@ -34,7 +38,53 @@ var (
 	reDecodeFieldInvalid = regexp.MustCompile(`'(\w+)' (?:invalid (?:string|value) for [\w.]+ )'([^']*)'`)
 	// General: extract just the field name from `'FieldName' ...`
 	reDecodeFieldName = regexp.MustCompile(`'(\w+)'`)
+
+	// Used by SetupFlagErrors to parse pflag error strings at interception time.
+	// These patterns match the exact formats pflag produces in flag.go:
+	//   fmt.Errorf("invalid argument %q for %q flag: %v", value, flagName, err)
+	//   f.failf("unknown flag: --%s", name)
+	rePflagInvalidArg = regexp.MustCompile(`^invalid argument "([^"]*)" for "([^"]*)" flag`)
+	rePflagUnknownFlag = regexp.MustCompile(`^unknown flag: --(.+)$`)
 )
+
+// SetupFlagErrors installs a flag error interceptor on the root command.
+//
+// When active, cobra's flag parsing errors (invalid values, unknown flags) are
+// wrapped in typed [structclierrors.FlagError] values. [HandleError] then uses
+// errors.As to classify them — no regex parsing at classification time.
+//
+// Call this on the root command before Execute():
+//
+//	structcli.SetupFlagErrors(rootCmd)
+//
+// This is optional. If not called, HandleError falls back to regex-based
+// classification of cobra's string errors.
+func SetupFlagErrors(rootC *cobra.Command) {
+	rootC.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		if err == nil {
+			return nil
+		}
+		errMsg := err.Error()
+
+		// Parse pflag's "invalid argument" format:
+		//   invalid argument "abc" for "-p, --port" flag: strconv.ParseInt: ...
+		if m := rePflagInvalidArg.FindStringSubmatch(errMsg); m != nil {
+			gotValue := m[1]
+			flagName := extractLongFlagName(m[2])
+
+			return structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, flagName, gotValue, err)
+		}
+
+		// Parse pflag's "unknown flag" format:
+		//   unknown flag: --foo
+		if m := rePflagUnknownFlag.FindStringSubmatch(errMsg); m != nil {
+			return structclierrors.NewFlagError(structclierrors.FlagErrorUnknown, m[1], "", err)
+		}
+
+		// Unrecognized flag error — wrap with empty metadata so it's still typed
+		return structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "", "", err)
+	})
+}
 
 // StructuredError is the JSON object written to stderr by HandleError.
 //
@@ -137,7 +187,24 @@ func classify(cmd *cobra.Command, err error) *StructuredError {
 		}
 	}
 
-	// 2. Cobra string-pattern errors
+	// 2. Typed flag errors from SetupFlagErrors (errors.As — no regex)
+	var flagErr *structclierrors.FlagError
+	if errors.As(err, &flagErr) {
+		switch flagErr.Kind {
+		case structclierrors.FlagErrorInvalidValue:
+			return classifyInvalidArg(cmd, cmdPath, flagErr.Value, flagErr.FlagName, errMsg)
+		case structclierrors.FlagErrorUnknown:
+			return &StructuredError{
+				Error:    "unknown_flag",
+				ExitCode: exitcode.UnknownFlag,
+				Flag:     flagErr.FlagName,
+				Command:  cmdPath,
+				Message:  errMsg,
+			}
+		}
+	}
+
+	// 3. Cobra string-pattern errors (fallback when SetupFlagErrors is not active)
 
 	// Required flag(s) not set
 	if m := reRequiredFlags.FindStringSubmatch(errMsg); m != nil {
@@ -160,7 +227,7 @@ func classify(cmd *cobra.Command, err error) *StructuredError {
 		}
 	}
 
-	// Unknown command
+	// Unknown command (no typed error possible — cobra creates these inline)
 	if m := reUnknownCommand.FindStringSubmatch(errMsg); m != nil {
 		return classifyUnknownCommand(cmd, m[1], cmdPath, errMsg)
 	}

@@ -3,6 +3,7 @@ package structcli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -896,4 +897,133 @@ func keys(m map[string]Violation) []string {
 	}
 
 	return result
+}
+
+// --- Tests for SetupFlagErrors (typed FlagError path, no regex at classification time) ---
+
+func TestSetupFlagErrors_InvalidValue(t *testing.T) {
+	cmd := &cobra.Command{Use: "test", RunE: func(c *cobra.Command, args []string) error { return nil }}
+	cmd.Flags().IntP("port", "p", 3000, "Server port")
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	SetupFlagErrors(cmd)
+
+	cmd.SetArgs([]string{"--port", "abc"})
+	err := cmd.Execute()
+	require.Error(t, err)
+
+	// Verify the error is a typed FlagError
+	var flagErr *structclierrors.FlagError
+	require.True(t, errors.As(err, &flagErr), "error should be a FlagError")
+	assert.Equal(t, structclierrors.FlagErrorInvalidValue, flagErr.Kind)
+	assert.Equal(t, "port", flagErr.FlagName)
+	assert.Equal(t, "abc", flagErr.Value)
+
+	// Verify HandleError classifies it correctly via errors.As (not regex)
+	var buf bytes.Buffer
+	code := HandleError(cmd, err, &buf)
+	assert.Equal(t, exitcode.InvalidFlagValue, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "invalid_flag_value", se.Error)
+	assert.Equal(t, "port", se.Flag)
+	assert.Equal(t, "abc", se.Got)
+	assert.Equal(t, "int", se.Expected)
+}
+
+func TestSetupFlagErrors_UnknownFlag(t *testing.T) {
+	cmd := &cobra.Command{Use: "test", RunE: func(c *cobra.Command, args []string) error { return nil }}
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	SetupFlagErrors(cmd)
+
+	cmd.SetArgs([]string{"--nonexistent"})
+	err := cmd.Execute()
+	require.Error(t, err)
+
+	// Verify the error is a typed FlagError
+	var flagErr *structclierrors.FlagError
+	require.True(t, errors.As(err, &flagErr), "error should be a FlagError")
+	assert.Equal(t, structclierrors.FlagErrorUnknown, flagErr.Kind)
+	assert.Equal(t, "nonexistent", flagErr.FlagName)
+
+	// Verify HandleError classifies it correctly
+	var buf bytes.Buffer
+	code := HandleError(cmd, err, &buf)
+	assert.Equal(t, exitcode.UnknownFlag, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "unknown_flag", se.Error)
+	assert.Equal(t, "nonexistent", se.Flag)
+}
+
+func TestSetupFlagErrors_InvalidValueWithShortFlag(t *testing.T) {
+	cmd := &cobra.Command{Use: "test", RunE: func(c *cobra.Command, args []string) error { return nil }}
+	cmd.Flags().IntP("port", "p", 3000, "Server port")
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	SetupFlagErrors(cmd)
+
+	cmd.SetArgs([]string{"-p", "xyz"})
+	err := cmd.Execute()
+	require.Error(t, err)
+
+	var flagErr *structclierrors.FlagError
+	require.True(t, errors.As(err, &flagErr))
+	assert.Equal(t, "port", flagErr.FlagName, "should extract long flag name even from short flag usage")
+	assert.Equal(t, "xyz", flagErr.Value)
+}
+
+func TestSetupFlagErrors_EnumViolation(t *testing.T) {
+	cmd := &cobra.Command{Use: "test", RunE: func(c *cobra.Command, args []string) error { return nil }}
+	cmd.Flags().String("mode", "fast", "Set mode {fast,slow}")
+	// Simulate enum annotation (normally set by Define)
+	cmd.Flags().SetAnnotation("mode", flagEnumAnnotation, []string{"fast", "slow"})
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	SetupFlagErrors(cmd)
+
+	// Create a FlagError for an invalid enum value
+	flagErr := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "mode", "turbo", fmt.Errorf("invalid argument"))
+
+	var buf bytes.Buffer
+	code := HandleError(cmd, flagErr, &buf)
+	assert.Equal(t, exitcode.InvalidFlagEnum, code, "enum violation should use InvalidFlagEnum exit code")
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "invalid_flag_enum", se.Error)
+	assert.Equal(t, "mode", se.Flag)
+	assert.Equal(t, "turbo", se.Got)
+	assert.Equal(t, []string{"fast", "slow"}, se.Available)
+}
+
+func TestSetupFlagErrors_FallbackWithoutSetup(t *testing.T) {
+	// When SetupFlagErrors is NOT called, regex fallback still works
+	cmd := &cobra.Command{Use: "test", RunE: func(c *cobra.Command, args []string) error { return nil }}
+	cmd.Flags().IntP("port", "p", 3000, "Server port")
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	// Intentionally NOT calling SetupFlagErrors
+
+	cmd.SetArgs([]string{"--port", "abc"})
+	err := cmd.Execute()
+	require.Error(t, err)
+
+	// Error should NOT be a FlagError
+	var flagErr *structclierrors.FlagError
+	assert.False(t, errors.As(err, &flagErr), "without SetupFlagErrors, error should not be typed")
+
+	// But HandleError should still classify it via regex
+	var buf bytes.Buffer
+	code := HandleError(cmd, err, &buf)
+	assert.Equal(t, exitcode.InvalidFlagValue, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "invalid_flag_value", se.Error)
+	assert.Equal(t, "port", se.Flag)
+	assert.Equal(t, "abc", se.Got)
 }

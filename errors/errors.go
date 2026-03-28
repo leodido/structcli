@@ -497,10 +497,59 @@ func (e *InputError) Unwrap() error {
 	return ErrInputValue
 }
 
-// Add this constructor function after the existing constructor functions
+// NewInputError creates an InputError.
 func NewInputError(inputType, message string) error {
 	return &InputError{
 		InputType: inputType,
 		Message:   message,
+	}
+}
+
+// FlagError represents a flag parsing error intercepted by SetFlagErrorFunc.
+// It carries structured metadata extracted at interception time, eliminating
+// the need for regex parsing at classification time.
+type FlagError struct {
+	FlagName string // the flag name (eg. "port", "level")
+	Value    string // the value that was provided (may be empty for unknown flags)
+	Kind     FlagErrorKind
+	Cause    error // the original pflag error
+}
+
+// FlagErrorKind distinguishes between flag error types.
+type FlagErrorKind int
+
+const (
+	// FlagErrorInvalidValue indicates a flag received a value of the wrong type/format.
+	FlagErrorInvalidValue FlagErrorKind = iota
+	// FlagErrorUnknown indicates the flag does not exist on the command.
+	FlagErrorUnknown
+)
+
+func (e *FlagError) Error() string {
+	if e.Cause != nil {
+		return e.Cause.Error()
+	}
+
+	switch e.Kind {
+	case FlagErrorUnknown:
+		return fmt.Sprintf("unknown flag: --%s", e.FlagName)
+	case FlagErrorInvalidValue:
+		return fmt.Sprintf("invalid value %q for flag --%s", e.Value, e.FlagName)
+	default:
+		return fmt.Sprintf("flag error: --%s", e.FlagName)
+	}
+}
+
+func (e *FlagError) Unwrap() error {
+	return e.Cause
+}
+
+// NewFlagError creates a FlagError with the given metadata.
+func NewFlagError(kind FlagErrorKind, flagName, value string, cause error) *FlagError {
+	return &FlagError{
+		FlagName: flagName,
+		Value:    value,
+		Kind:     kind,
+		Cause:    cause,
 	}
 }
