@@ -315,6 +315,29 @@ func TestToJSONSchema_Presets(t *testing.T) {
 	assert.Len(t, presets, 2)
 }
 
+func TestJSONSchema_AnnotationPrecedenceOverRegex(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+
+	cmd := &cobra.Command{Use: "app"}
+	// Add a flag whose usage contains {x,y,z} but whose annotation says ["alpha","beta"]
+	cmd.Flags().String("format", "", "Pick a format {x,y,z}")
+	require.NoError(t, cmd.Flags().SetAnnotation("format", flagEnumAnnotation, []string{"alpha", "beta"}))
+
+	schemas, err := JSONSchema(cmd)
+	require.NoError(t, err)
+	schema := schemas[0]
+
+	formatFlag, ok := schema.Flags["format"]
+	require.True(t, ok, "format flag should exist")
+
+	// The annotation values must win over the regex-extracted values
+	assert.Equal(t, []string{"alpha", "beta"}, formatFlag.Enum)
+	assert.NotContains(t, formatFlag.Enum, "x")
+	assert.NotContains(t, formatFlag.Enum, "y")
+	assert.NotContains(t, formatFlag.Enum, "z")
+}
+
 func TestToJSONSchema_TypeMapping(t *testing.T) {
 	tests := []struct {
 		pflagType    string
