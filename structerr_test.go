@@ -986,8 +986,7 @@ func TestSetupFlagErrors_EnumViolation(t *testing.T) {
 	SetupFlagErrors(cmd)
 
 	// Create a FlagError for an invalid enum value
-	flagErr := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "mode", "turbo", "test", fmt.Errorf("invalid argument"))
-	flagErr.EnumValues = []string{"fast", "slow"}
+	flagErr := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "mode", "turbo", fmt.Errorf("invalid argument"))
 
 	var buf bytes.Buffer
 	code := HandleError(cmd, flagErr, &buf)
@@ -1034,12 +1033,11 @@ func TestSetupFlagErrors_FallbackWithoutSetup(t *testing.T) {
 func TestSetupFlagErrors_EnvVarSourceAttribution(t *testing.T) {
 	cmd := &cobra.Command{Use: "test", RunE: func(c *cobra.Command, args []string) error { return nil }}
 	cmd.Flags().IntP("port", "p", 3000, "Server port")
+	cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"TEST_PORT"})
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
 
-	flagErr := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "port", "abc", "test", fmt.Errorf("invalid argument"))
-	flagErr.ExpectedType = "int"
-	flagErr.EnvVars = []string{"TEST_PORT"}
+	flagErr := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "port", "abc", fmt.Errorf("invalid argument"))
 
 	t.Setenv("TEST_PORT", "abc")
 
@@ -1094,24 +1092,26 @@ func TestHandleError_InvalidFlagValue_FromEnvVarRegexFallback(t *testing.T) {
 	assert.Equal(t, "TEST_PORT", se.EnvVar)
 }
 
-func TestHandleError_FlagError_CommandPathFromFlagError(t *testing.T) {
-	cmd := &cobra.Command{Use: "root"}
-	fe := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "port", "abc", "root srv", fmt.Errorf("bad"))
-	fe.ExpectedType = "int"
+func TestHandleError_FlagError_UsesCommandPath(t *testing.T) {
+	// FlagError no longer carries CommandPath — HandleError uses cmd.CommandPath()
+	root := &cobra.Command{Use: "myapp"}
+	srv := &cobra.Command{Use: "srv", RunE: func(c *cobra.Command, args []string) error { return nil }}
+	root.AddCommand(srv)
+
+	fe := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "port", "abc", fmt.Errorf("bad"))
 
 	var buf bytes.Buffer
-	HandleError(cmd, fe, &buf)
+	// Pass the subcommand (as ExecuteC would)
+	HandleError(srv, fe, &buf)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "root srv", se.Command, "should use FlagError.CommandPath")
+	assert.Equal(t, "myapp srv", se.Command, "should use cmd.CommandPath() from the subcommand")
 }
 
 func TestHandleError_FlagError_ValidEnumValue(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
-	fe := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "mode", "fast", "test", fmt.Errorf("bad"))
-	fe.EnumValues = []string{"fast", "slow"}
-	fe.ExpectedType = "string"
+	fe := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "mode", "fast", fmt.Errorf("bad"))
 
 	var buf bytes.Buffer
 	code := HandleError(cmd, fe, &buf)

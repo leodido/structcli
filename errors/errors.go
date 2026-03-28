@@ -505,18 +505,17 @@ func NewInputError(inputType, message string) error {
 	}
 }
 
-// FlagError represents a flag parsing error intercepted by SetFlagErrorFunc.
-// It carries structured metadata extracted at interception time, eliminating
-// the need for regex parsing at classification time.
+// FlagError represents a flag parsing error intercepted by [SetupFlagErrors].
+//
+// It carries only what's needed to identify the error — flag name, bad value,
+// and error kind. Metadata enrichment (expected type, enum values, env vars)
+// happens at classification time in [HandleError], which receives the correct
+// subcommand from [ExecuteC].
 type FlagError struct {
-	FlagName     string // the flag name (eg. "port", "level")
-	Value        string // the value that was provided (may be empty for unknown flags)
-	Kind         FlagErrorKind
-	Cause        error    // the original pflag error
-	CommandPath  string   // the full command path (eg. "myapp srv") for error context
-	ExpectedType string   // the flag's type (eg. "int", "string") for error context
-	EnumValues   []string // allowed enum values (nil if not an enum flag)
-	EnvVars      []string // bound env var names (nil if none)
+	FlagName string        // the flag name (eg. "port", "level")
+	Value    string        // the value that was provided (may be empty for unknown flags)
+	Kind     FlagErrorKind // what kind of flag error
+	Cause    error         // the original pflag error
 }
 
 // FlagErrorKind distinguishes between flag error types.
@@ -548,13 +547,12 @@ func (e *FlagError) Unwrap() error {
 	return e.Cause
 }
 
-// NewFlagError creates a FlagError with the given metadata.
-func NewFlagError(kind FlagErrorKind, flagName, value, commandPath string, cause error) *FlagError {
+// NewFlagError creates a FlagError.
+func NewFlagError(kind FlagErrorKind, flagName, value string, cause error) *FlagError {
 	return &FlagError{
-		FlagName:    flagName,
-		Value:       value,
-		Kind:        kind,
-		CommandPath: commandPath,
-		Cause:       cause,
+		FlagName: flagName,
+		Value:    value,
+		Kind:     kind,
+		Cause:    cause,
 	}
 }

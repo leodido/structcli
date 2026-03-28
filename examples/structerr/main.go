@@ -103,10 +103,9 @@ func main() {
 	log.SetFlags(0)
 
 	rootCmd := &cobra.Command{
-		Use:          "myapp",
-		Short:        "Structured error demo",
-		SilenceUsage:  true,
-		SilenceErrors: true,
+		Use:   "myapp",
+		Short: "Structured error demo",
+		// No need for SilenceErrors/SilenceUsage — ExecuteOrExit sets them automatically
 	}
 
 	// AI-native features: JSON Schema + typed flag errors
