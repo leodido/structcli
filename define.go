@@ -191,15 +191,22 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				}
 			}
 
-			// Extract enum values from {val1,val2,...} pattern in the flag's usage string
-			// and store them as a machine-readable annotation for downstream consumers.
+			// Store enum values as a machine-readable annotation for downstream consumers.
+			// Prefer EnumValuer interface (authoritative, type-level) over description parsing (fragile).
 			if fl := c.Flags().Lookup(name); fl != nil {
-				if matches := enumPattern.FindStringSubmatch(fl.Usage); len(matches) > 1 {
+				var enumVals []string
+				if ev, ok := fl.Value.(EnumValuer); ok {
+					enumVals = ev.EnumValues()
+				} else if matches := enumPattern.FindStringSubmatch(fl.Usage); len(matches) > 1 {
+					// Fallback: parse {val1,val2,...} from the description for non-EnumValuer flags
 					vals := strings.Split(matches[1], ",")
 					for i := range vals {
 						vals[i] = strings.TrimSpace(vals[i])
 					}
-					if err := c.Flags().SetAnnotation(name, flagEnumAnnotation, vals); err != nil {
+					enumVals = vals
+				}
+				if len(enumVals) > 0 {
+					if err := c.Flags().SetAnnotation(name, flagEnumAnnotation, enumVals); err != nil {
 						return fmt.Errorf("couldn't set enum annotation for flag %s: %w", name, err)
 					}
 				}

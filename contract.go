@@ -29,6 +29,24 @@ type TransformableOptions interface {
 	Transform(context.Context) error
 }
 
+// EnumValuer is an optional interface that pflag.Value implementations can satisfy
+// to declare their allowed values at the type level.
+//
+// When a pflag.Value returned by a DefineHookFunc (built-in or custom) implements
+// EnumValuer, structcli stores the allowed values as a flag annotation during Define().
+// This is the authoritative source of enum values — no description string parsing needed.
+//
+// Example:
+//
+//	type myEnumFlag struct {
+//	    pflag.Value          // embed the underlying pflag.Value
+//	    allowed []string
+//	}
+//	func (f *myEnumFlag) EnumValues() []string { return f.allowed }
+type EnumValuer interface {
+	EnumValues() []string
+}
+
 // ContextOptions extends Options with context manipulation capabilities.
 //
 // The Context method is called automatically during Unmarshal() to modify the command context.
