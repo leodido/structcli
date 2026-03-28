@@ -986,7 +986,8 @@ func TestSetupFlagErrors_EnumViolation(t *testing.T) {
 	SetupFlagErrors(cmd)
 
 	// Create a FlagError for an invalid enum value
-	flagErr := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "mode", "turbo", fmt.Errorf("invalid argument"))
+	flagErr := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "mode", "turbo", "test", fmt.Errorf("invalid argument"))
+	flagErr.EnumValues = []string{"fast", "slow"}
 
 	var buf bytes.Buffer
 	code := HandleError(cmd, flagErr, &buf)
@@ -1026,4 +1027,93 @@ func TestSetupFlagErrors_FallbackWithoutSetup(t *testing.T) {
 	assert.Equal(t, "invalid_flag_value", se.Error)
 	assert.Equal(t, "port", se.Flag)
 	assert.Equal(t, "abc", se.Got)
+}
+
+// --- Coverage gap tests ---
+
+func TestSetupFlagErrors_EnvVarSourceAttribution(t *testing.T) {
+	cmd := &cobra.Command{Use: "test", RunE: func(c *cobra.Command, args []string) error { return nil }}
+	cmd.Flags().IntP("port", "p", 3000, "Server port")
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+
+	flagErr := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "port", "abc", "test", fmt.Errorf("invalid argument"))
+	flagErr.ExpectedType = "int"
+	flagErr.EnvVars = []string{"TEST_PORT"}
+
+	t.Setenv("TEST_PORT", "abc")
+
+	var buf bytes.Buffer
+	code := HandleError(cmd, flagErr, &buf)
+	assert.Equal(t, exitcode.EnvInvalidValue, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "env_invalid_value", se.Error)
+	assert.Equal(t, "TEST_PORT", se.EnvVar)
+	assert.Equal(t, "port", se.Flag)
+	assert.Equal(t, "abc", se.Got)
+	assert.Equal(t, "int", se.Expected)
+}
+
+func TestHandleError_ValidationFailed_EmptyDetailsWithErrors(t *testing.T) {
+	ve := &structclierrors.ValidationError{
+		ContextName: "test",
+		Errors:      []error{fmt.Errorf("custom validation: field X is bad"), nil, fmt.Errorf("another problem")},
+	}
+
+	cmd := &cobra.Command{Use: "test"}
+	var buf bytes.Buffer
+	code := HandleError(cmd, ve, &buf)
+	assert.Equal(t, exitcode.ValidationFailed, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "validation_failed", se.Error)
+	assert.Len(t, se.Violations, 2)
+	assert.Equal(t, "custom validation: field X is bad", se.Violations[0].Message)
+	assert.Equal(t, "another problem", se.Violations[1].Message)
+}
+
+func TestHandleError_InvalidFlagValue_FromEnvVarRegexFallback(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().IntP("port", "p", 3000, "Server port")
+	cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"TEST_PORT"})
+
+	t.Setenv("TEST_PORT", "abc")
+
+	err := fmt.Errorf(`invalid argument "abc" for "-p, --port" flag: strconv.ParseInt: parsing "abc": invalid syntax`)
+
+	var buf bytes.Buffer
+	code := HandleError(cmd, err, &buf)
+	assert.Equal(t, exitcode.EnvInvalidValue, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "env_invalid_value", se.Error)
+	assert.Equal(t, "TEST_PORT", se.EnvVar)
+}
+
+func TestHandleError_FlagError_CommandPathFromFlagError(t *testing.T) {
+	cmd := &cobra.Command{Use: "root"}
+	fe := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "port", "abc", "root srv", fmt.Errorf("bad"))
+	fe.ExpectedType = "int"
+
+	var buf bytes.Buffer
+	HandleError(cmd, fe, &buf)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "root srv", se.Command, "should use FlagError.CommandPath")
+}
+
+func TestHandleError_FlagError_ValidEnumValue(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	fe := structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "mode", "fast", "test", fmt.Errorf("bad"))
+	fe.EnumValues = []string{"fast", "slow"}
+	fe.ExpectedType = "string"
+
+	var buf bytes.Buffer
+	code := HandleError(cmd, fe, &buf)
+	assert.Equal(t, exitcode.InvalidFlagValue, code, "valid enum value should not be classified as enum violation")
 }
