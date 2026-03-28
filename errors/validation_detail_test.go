@@ -200,3 +200,34 @@ func TestDetails_NilErrorInSlice(t *testing.T) {
 	require.Len(t, details, 1)
 	assert.Equal(t, "real error", details[0].Message)
 }
+
+func TestDetails_WrappedFieldError(t *testing.T) {
+	v := validator.New()
+	err := v.Struct(&testStruct{
+		Email: "not-an-email",
+		Age:   25,
+		Name:  "Alice",
+	})
+	require.Error(t, err)
+
+	var valErrs validator.ValidationErrors
+	require.ErrorAs(t, err, &valErrs)
+	require.Len(t, valErrs, 1) // only Email fails
+
+	// Wrap the FieldError with fmt.Errorf %w
+	wrappedErr := fmt.Errorf("context: %w", valErrs[0])
+
+	ve := &ValidationError{
+		Errors: []error{wrappedErr},
+	}
+
+	details := ve.Details()
+	require.Len(t, details, 1)
+
+	d := details[0]
+	assert.Equal(t, "Email", d.Field)
+	assert.Equal(t, "email", d.Rule)
+	assert.Equal(t, "", d.Param)
+	assert.Equal(t, "not-an-email", d.Value)
+	assert.NotEmpty(t, d.Message)
+}
