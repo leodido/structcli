@@ -336,6 +336,29 @@ func TestHandleError_MissingRequiredFlagWithEnvVarSet(t *testing.T) {
 	assert.NotEqual(t, "env_invalid_value", se.Error)
 }
 
+func TestHandleError_MissingRequiredFlagWithEmptyEnvVarSet_HidesEnvHint(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "mycli"}
+
+	cmd.Flags().IntP("port", "p", 0, "Server port")
+	_ = cmd.MarkFlagRequired("port")
+	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT"})
+
+	t.Setenv("MYCLI_PORT", "")
+
+	err := fmt.Errorf(`required flag(s) "port" not set`)
+	code := HandleError(cmd, err, &buf)
+
+	assert.Equal(t, exitcode.MissingRequiredFlag, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, "port", se.Flag)
+	assert.Empty(t, se.EnvVar)
+	assert.Empty(t, se.Hint)
+}
+
 func TestHandleError_UnmarshalDecodeError_FromEnvVar(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "myapp"}
@@ -355,6 +378,28 @@ func TestHandleError_UnmarshalDecodeError_FromEnvVar(t *testing.T) {
 	assert.Equal(t, "MYAPP_PORT", se.EnvVar)
 	assert.Equal(t, "port", se.Flag)
 	assert.Equal(t, "xyz", se.Got)
+	assert.Equal(t, "int", se.Expected)
+}
+
+func TestHandleError_UnmarshalDecodeError_FromEmptyEnvVar(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := &cobra.Command{Use: "myapp"}
+	cmd.Flags().IntP("port", "p", 0, "Server port")
+	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYAPP_PORT"})
+
+	t.Setenv("MYAPP_PORT", "")
+
+	err := fmt.Errorf("couldn't unmarshal config to options: decoding failed due to the following error(s):\n\n'Port' cannot parse value as 'int': strconv.ParseInt: invalid syntax")
+	code := HandleError(cmd, err, &buf)
+
+	assert.Equal(t, exitcode.EnvInvalidValue, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "env_invalid_value", se.Error)
+	assert.Equal(t, "MYAPP_PORT", se.EnvVar)
+	assert.Equal(t, "port", se.Flag)
+	assert.Equal(t, "", se.Got)
 	assert.Equal(t, "int", se.Expected)
 }
 
@@ -1103,6 +1148,27 @@ func TestHandleError_InvalidFlagValue_FromEnvVarRegexFallback(t *testing.T) {
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
 	assert.Equal(t, "env_invalid_value", se.Error)
 	assert.Equal(t, "TEST_PORT", se.EnvVar)
+}
+
+func TestHandleError_InvalidFlagValue_FromEmptyEnvVarRegexFallback(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().IntP("port", "p", 3000, "Server port")
+	cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"TEST_PORT"})
+
+	t.Setenv("TEST_PORT", "")
+
+	err := fmt.Errorf(`invalid argument "" for "-p, --port" flag: strconv.ParseInt: parsing "": invalid syntax`)
+
+	var buf bytes.Buffer
+	code := HandleError(cmd, err, &buf)
+	assert.Equal(t, exitcode.EnvInvalidValue, code)
+
+	var se StructuredError
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
+	assert.Equal(t, "env_invalid_value", se.Error)
+	assert.Equal(t, "TEST_PORT", se.EnvVar)
+	assert.Equal(t, "", se.Got)
+	assert.Equal(t, "int", se.Expected)
 }
 
 func TestHandleError_FlagError_UsesCommandPath(t *testing.T) {

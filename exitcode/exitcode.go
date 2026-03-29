@@ -31,8 +31,9 @@ const (
 
 // Input errors (10–19): the agent provided bad input — self-correct and retry.
 const (
-	// MissingRequiredFlag indicates a required flag was not provided
-	// and no env var or config value satisfied it.
+	// MissingRequiredFlag indicates a required input was missing at command
+	// execution time. Structured errors may include hints about env fallbacks,
+	// but the primary classification remains a missing required flag/input.
 	MissingRequiredFlag = 10
 
 	// InvalidFlagValue indicates a flag value has the wrong type or format
@@ -75,8 +76,9 @@ const (
 	// wrong format or type for its target flag.
 	EnvInvalidValue = 25
 
-	// EnvMissingRequired indicates a required flag was not provided on the
-	// CLI and its bound environment variable is not set.
+	// Deprecated: reserved for compatibility. HandleError currently reports
+	// missing required inputs as MissingRequiredFlag and may include env
+	// fallback hints in the structured error payload instead.
 	EnvMissingRequired = 26
 )
 

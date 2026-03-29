@@ -88,7 +88,9 @@ import "github.com/leodido/structcli/exitcode"
 | 22 | `ConfigInvalidValue` | Config value has wrong type |
 | 23 | `ConfigNotFound` | Config path doesn't exist |
 | 25 | `EnvInvalidValue` | Env var set but wrong format |
-| 26 | `EnvMissingRequired` | Required flag absent, env var not set |
+
+Required values that are still missing at execution time are reported as `MissingRequiredFlag`.
+If a bound env fallback exists and is unset, the structured JSON may include a hint mentioning it.
 
 **Runtime errors** — not the agent's fault:
 
