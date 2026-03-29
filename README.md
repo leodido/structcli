@@ -2,110 +2,17 @@
 
 > CLI generation from Go structs
 
-Transform your Go structs into fully-featured command-line interfaces with configuration files, environment variables, flags, validation, and beautiful help output.
+Declare your CLI contract once in Go structs. `structcli` turns it into flags, env vars, config-file loading, validation, organized help, and machine-readable contracts for agents.
 
-> Declare your options in a struct, and let structcli do the rest
+- Less Cobra/Viper boilerplate
+- Better CLIs for humans
+- Better contracts for automation and LLMs
 
-You don't need much: just a few struct tags + **structcli**.
-
-Stop writing boilerplate. Start building features.
-
-## Build AI-Native CLIs
-
-structcli generates CLIs that machines can introspect and call correctly on the first try.
-
-### Machine-readable self-description
-
-One line gives your CLI a `--jsonschema` flag:
-
-```go
-structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
-```
-
-An LLM or agent runs `mycli srv --jsonschema` and gets a JSON Schema (draft 2020-12) describing every flag, its type, default, env var bindings, and allowed values:
-
-```console
-$ mycli srv --jsonschema
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "mycli srv",
-  "type": "object",
-  "properties": {
-    "port": {
-      "type": "integer",
-      "default": 3000,
-      "description": "Server port",
-      "x-structcli-env-vars": ["MYCLI_SRV_PORT"],
-      "x-structcli-shorthand": "p"
-    },
-    "log-level": {
-      "type": "string",
-      "default": "info",
-      "description": "Set log level",
-      "enum": ["debug", "info", "warn", "error", "dpanic", "panic", "fatal"]
-    }
-  },
-  "required": ["port"]
-}
-```
-
-No `--help` text parsing. The agent can construct valid invocations directly from the schema. Works at every level of the command tree.
-
-See `jsonschema.WithFullTree()` and `jsonschema.WithEnumInDescription()` for programmatic access and configuration. The same schema options can be passed through `SetupJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
-
-### Semantic exit codes
-
-The `exitcode` package defines fine-grained exit codes that tell agents what went wrong and what to do about it:
-
-```go
-import "github.com/leodido/structcli/exitcode"
-```
-
-| Range | Category | Agent strategy |
-|-------|----------|---------------|
-| 0 | Success | Proceed |
-| 1-9 | Runtime error | Report to human |
-| 10-19 | Input error | Self-correct from error details, retry |
-| 20-29 | Config/env error | Fix environment, then retry |
-
-**Input errors** — the agent gave bad input, it can self-correct:
-
-| Code | Constant | Meaning |
-|------|----------|---------|
-| 10 | `MissingRequiredFlag` | Required flag not provided |
-| 11 | `InvalidFlagValue` | Wrong type or format |
-| 12 | `UnknownFlag` | Flag doesn't exist |
-| 13 | `ValidationFailed` | Custom validation rule failed |
-| 14 | `UnknownCommand` | Subcommand doesn't exist |
-| 15 | `InvalidFlagEnum` | Value not in allowed enum set |
-
-**Config/environment errors** — the environment is wrong, not the command:
-
-| Code | Constant | Meaning |
-|------|----------|---------|
-| 20 | `ConfigParseError` | Config file is malformed |
-| 21 | `ConfigUnknownKey` | Unrecognized config key |
-| 22 | `ConfigInvalidValue` | Config value has wrong type |
-| 23 | `ConfigNotFound` | Config path doesn't exist |
-| 25 | `EnvInvalidValue` | Env var set but wrong format |
-
-Required values that are still missing at execution time are reported as `MissingRequiredFlag`.
-For single-flag missing-required errors, if a bound env fallback exists and is unset, the structured JSON includes a hint mentioning it.
-`EnvMissingRequired` (`26`) is reserved for future env-only required inputs.
-
-**Runtime errors** — not the agent's fault:
-
-| Code | Constant | Meaning |
-|------|----------|---------|
-| 0 | `OK` | Success |
-| 1 | `Error` | Unclassified runtime error |
-| 2 | `PermissionDenied` | Filesystem/network permission |
-| 3 | `Timeout` | Operation timed out |
-| 4 | `Interrupted` | SIGINT/SIGTERM |
-
-Helpers: `exitcode.Category(code)` returns `"ok"`, `"input"`, `"config"`, or `"runtime"`. `exitcode.IsRetryable(code)` tells the agent whether retrying makes sense.
+Stop writing plumbing. Start shipping commands.
 
 ## ⚡ Quick Start
+
+Start with a plain Go struct:
 
 ```go
 package main
@@ -124,22 +31,16 @@ type Options struct {
 	Port     int
 }
 
-func (o *Options) Attach(c *cobra.Command) error {
-	return structcli.Define(c, o) // This is it
-}
-
 func main() {
-	log.SetFlags(0)
 	opts := &Options{}
 	cli := &cobra.Command{Use: "myapp"}
 
-	// This single line creates all the options (flags, env vars, config keys)
-	if err := opts.Attach(cli); err != nil {
+	if err := structcli.Define(cli, opts); err != nil {
 		log.Fatalln(err)
 	}
 
 	cli.PreRunE = func(c *cobra.Command, args []string) error {
-		return structcli.Unmarshal(c, opts) // Populates struct from config keys, env variables, flags
+		return structcli.Unmarshal(c, opts)
 	}
 
 	cli.RunE = func(c *cobra.Command, args []string) error {
@@ -154,7 +55,7 @@ func main() {
 }
 ```
 
-**That's it**!
+That single `Define` call creates the CLI surface from your struct, and `Unmarshal` hydrates it back from flags, env vars, config, and defaults.
 
 ```bash
 ❯ go run examples/minimal/main.go --help
@@ -166,9 +67,7 @@ func main() {
 #       --port int
 ```
 
-Want automatic environment variables, aliases, shorthand, flag description in usage?
-
-Just annotate your struct with `structcli` tags.
+Add tags when you want aliases, env vars, shorthand, defaults, and descriptions:
 
 ```go
 type Options struct {
@@ -176,8 +75,6 @@ type Options struct {
 	Port     int           `flagshort:"p" flagdescr:"Server port" flagenv:"true" default:"3000"`
 }
 ```
-
-Here it is.
 
 ```bash
 ❯ go run examples/simple/main.go -h
@@ -189,40 +86,17 @@ Here it is.
 #   -p, --port int              Server port (default 3000)
 ```
 
-You got your environment variables.
-
 ```bash
 ❯ MYAPP_LOGLEVEL=debug go run examples/simple/main.go
 # &{debug 3000}
 ```
 
 ```bash
-❯ MYAPP_LEVEL=warn go run examples/simple/main.go
-# &{warn 3000}
-```
-
-Flags override environment variables, of course.
-
-```bash
 ❯ MYAPP_LOGLEVEL=error MYAPP_PORT=9000 go run examples/simple/main.go --level dpanic
 # &{dpanic 9000}
 ```
 
-Built-in custom types like `zapcore.LogLevel` comes with automatic validation.
-
-```bash
-❯ MYAPP_LOGLEVEL=debug MYAPP_PORT=9000 go run examples/simple/main.go --level what
-# Error: invalid argument "what" for "--level" flag: must be 'debug', 'dpanic', 'error', 'fatal', 'info', 'panic', 'warn'
-# Usage:
-#   myapp [flags]
-#
-# Flags:
-#       --level zapcore.Level   Set logging level {debug,info,warn,error,dpanic,panic,fatal} (default info)
-#   -p, --port int              Server port (default 3000)
-#
-# invalid argument "what" for "--level" flag: must be 'debug', 'dpanic', 'error', 'fatal', 'info', 'panic', 'warn'
-# exit status 1
-```
+Built-in types like `zapcore.Level` are validated automatically too.
 
 Your CLI now supports:
 
@@ -231,6 +105,43 @@ Your CLI now supports:
 - 💦 Options precedence (flags > env vars > config file > defaults)
 - ✅ Automatic validation and type conversion
 - 📚 Beautiful help output with proper grouping
+
+## Build AI-Native CLIs
+
+`structcli` does not just generate flags for humans. It can make your CLI legible to agents too.
+
+Instead of scraping `--help` and guessing, an agent can discover the contract, call the command correctly, and recover from structured failures.
+
+```go
+structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
+structcli.SetupFlagErrors(rootCmd)
+structcli.ExecuteOrExit(rootCmd)
+```
+
+With that wiring:
+
+- `--jsonschema` exposes flags, defaults, required inputs, enums, and env bindings across the command tree
+- `HandleError` / `ExecuteOrExit` emit structured JSON errors instead of forcing callers to parse human-oriented output
+- semantic exit codes tell the caller whether it should fix input, fix config, retry, or escalate to a human
+
+The same contract spans flags, env vars, config, validation, and enum constraints.
+
+```console
+$ mycli srv --jsonschema
+{
+  "properties": {
+    "port": {
+      "type": "integer",
+      "default": 3000,
+      "x-structcli-env-vars": ["MYCLI_SRV_PORT"]
+    }
+  }
+}
+```
+
+No `--help` parsing. No guessing what failed. Just a CLI that can explain itself and fail in machine-actionable ways.
+
+Use `exitcode.Category(code)` and `exitcode.IsRetryable(code)` to decide what to do next. See `jsonschema.WithFullTree()` and `jsonschema.WithEnumInDescription()` for schema customization, and pass the same schema options through `SetupJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
 
 ## ⬇️ Install
 
