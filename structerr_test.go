@@ -44,7 +44,7 @@ func TestHandleError_MissingRequiredFlag(t *testing.T) {
 	assert.Contains(t, se.Message, "port")
 }
 
-func TestHandleError_MissingRequiredFlagWithEnvHint(t *testing.T) {
+func TestHandleError_MissingRequiredFlagDoesNotClassifyEnvAsMissing(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "mycli"}
 
@@ -56,15 +56,15 @@ func TestHandleError_MissingRequiredFlagWithEnvHint(t *testing.T) {
 	err := fmt.Errorf(`required flag(s) "port" not set`)
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.EnvMissingRequired, code)
+	assert.Equal(t, exitcode.MissingRequiredFlag, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "env_missing_required", se.Error)
-	assert.Equal(t, exitcode.EnvMissingRequired, se.ExitCode)
+	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, exitcode.MissingRequiredFlag, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
-	assert.Equal(t, "MYCLI_PORT", se.EnvVar)
-	assert.Contains(t, se.Hint, "MYCLI_PORT")
+	assert.Empty(t, se.EnvVar)
+	assert.Empty(t, se.Hint)
 }
 
 func TestHandleError_MissingRequiredMultipleFlags(t *testing.T) {
@@ -278,7 +278,7 @@ func TestHandleError_OutputIsValidJSON(t *testing.T) {
 	}
 }
 
-func TestHandleError_EnvMissingRequired(t *testing.T) {
+func TestHandleError_MissingRequiredFlagIgnoresUnsetEnvBindings(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "mycli"}
 
@@ -294,20 +294,20 @@ func TestHandleError_EnvMissingRequired(t *testing.T) {
 	err := fmt.Errorf(`required flag(s) "port" not set`)
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.EnvMissingRequired, code)
+	assert.Equal(t, exitcode.MissingRequiredFlag, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "env_missing_required", se.Error)
-	assert.Equal(t, exitcode.EnvMissingRequired, se.ExitCode)
+	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, exitcode.MissingRequiredFlag, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
-	assert.Equal(t, "MYCLI_PORT", se.EnvVar)
-	assert.Contains(t, se.Hint, "MYCLI_PORT")
+	assert.Empty(t, se.EnvVar)
+	assert.Empty(t, se.Hint)
 }
 
 // When an env var IS set but cobra still fires "required flag not set",
 // it's because cobra checks required flags before viper merges env vars.
-// The error is still "missing_required_flag" — the env var is fine, cobra just doesn't see it.
+// The error remains about the missing required flag, not the env binding.
 func TestHandleError_MissingRequiredFlagWithEnvVarSet(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "mycli"}
@@ -329,7 +329,8 @@ func TestHandleError_MissingRequiredFlagWithEnvVarSet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
 	assert.Equal(t, "missing_required_flag", se.Error)
 	assert.Equal(t, "port", se.Flag)
-	assert.Contains(t, se.Hint, "MYCLI_PORT")
+	assert.Empty(t, se.EnvVar)
+	assert.Empty(t, se.Hint)
 	// NOT env_invalid_value — the env var value is fine
 	assert.NotEqual(t, "env_invalid_value", se.Error)
 }
@@ -618,15 +619,15 @@ func TestHandleError_Integration_RealCommand(t *testing.T) {
 	var buf bytes.Buffer
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.EnvMissingRequired, code)
+	assert.Equal(t, exitcode.MissingRequiredFlag, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "env_missing_required", se.Error)
-	assert.Equal(t, exitcode.EnvMissingRequired, se.ExitCode)
+	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, exitcode.MissingRequiredFlag, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
-	assert.Equal(t, "MYAPP_PORT", se.EnvVar)
-	assert.Contains(t, se.Hint, "MYAPP_PORT")
+	assert.Empty(t, se.EnvVar)
+	assert.Empty(t, se.Hint)
 }
 
 type integrationValueOpts struct {
@@ -856,15 +857,14 @@ func TestHandleError_MissingRequiredFlagWithValidateHint(t *testing.T) {
 	err := fmt.Errorf(`required flag(s) "email" not set`)
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.EnvMissingRequired, code)
+	assert.Equal(t, exitcode.MissingRequiredFlag, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "env_missing_required", se.Error)
-	assert.Equal(t, exitcode.EnvMissingRequired, se.ExitCode)
+	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, exitcode.MissingRequiredFlag, se.ExitCode)
 	assert.Equal(t, "email", se.Flag)
-	assert.Equal(t, "MYCLI_EMAIL", se.EnvVar)
-	assert.Contains(t, se.Hint, "MYCLI_EMAIL")
+	assert.Empty(t, se.EnvVar)
 	assert.Contains(t, se.Hint, "required by validation")
 }
 
