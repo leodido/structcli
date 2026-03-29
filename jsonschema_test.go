@@ -426,3 +426,87 @@ func TestToJSONSchema_TypedArrayDefaults(t *testing.T) {
 	assert.Equal(t, "array", features["type"])
 	assert.Equal(t, []any{true, false}, features["default"])
 }
+
+func TestSetupJSONSchema_PreservesPersistentPreRunE(t *testing.T) {
+	calls := 0
+	root := &cobra.Command{
+		Use: "app",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			calls++
+
+			return nil
+		},
+	}
+
+	sub := &cobra.Command{
+		Use: "serve",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	require.NoError(t, Define(sub, &jsonSchemaBasicOptions{}))
+	root.AddCommand(sub)
+
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+
+	root.SetArgs([]string{"serve", "--port", "8080"})
+	require.NoError(t, root.Execute())
+
+	assert.Equal(t, 1, calls)
+}
+
+func TestRenderJSONSchemaIfRequested_Subcommand(t *testing.T) {
+	root := &cobra.Command{Use: "app"}
+	sub := &cobra.Command{
+		Use:   "serve",
+		Short: "start server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	require.NoError(t, Define(sub, &jsonSchemaBasicOptions{}))
+	root.AddCommand(sub)
+
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+	require.NoError(t, root.PersistentFlags().Set("jsonschema", "true"))
+
+	handled, output, err := renderJSONSchemaIfRequested(sub, "jsonschema", jsonschema.Apply())
+	require.NoError(t, err)
+	assert.True(t, handled)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(output, &parsed))
+	assert.Equal(t, "app serve", parsed["title"])
+	props := parsed["properties"].(map[string]any)
+	assert.Contains(t, props, "port")
+}
+
+func TestSetupJSONSchema_PassesThroughSchemaOptions(t *testing.T) {
+	root := &cobra.Command{Use: "app"}
+	sub := &cobra.Command{
+		Use:   "serve",
+		Short: "start server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	require.NoError(t, Define(sub, &jsonSchemaBasicOptions{}))
+	root.AddCommand(sub)
+
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{
+		SchemaOpts: []jsonschema.Opt{
+			jsonschema.WithFullTree(),
+			jsonschema.WithEnumInDescription(),
+		},
+	}))
+	require.NoError(t, root.PersistentFlags().Set("jsonschema", "true"))
+
+	handled, output, err := renderJSONSchemaIfRequested(root, "jsonschema", jsonschema.Apply(jsonschema.WithFullTree(), jsonschema.WithEnumInDescription()))
+	require.NoError(t, err)
+	assert.True(t, handled)
+
+	var docs []json.RawMessage
+	require.NoError(t, json.Unmarshal(output, &docs))
+	require.Len(t, docs, 2)
+	assert.Contains(t, string(output), "{debug,info,warn,error,dpanic,panic,fatal}")
+}

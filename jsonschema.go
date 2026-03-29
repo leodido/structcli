@@ -444,6 +444,8 @@ func SetupJSONSchema(rootC *cobra.Command, opts jsonschema.Options) error {
 	if flagName == "" {
 		flagName = "jsonschema"
 	}
+	schemaOpts := opts.SchemaOpts
+	cfg := jsonschema.Apply(schemaOpts...)
 
 	rootC.PersistentFlags().Bool(flagName, false, "output JSON Schema for this command and exit")
 
@@ -453,10 +455,9 @@ func SetupJSONSchema(rootC *cobra.Command, opts jsonschema.Options) error {
 	}
 	rootC.Annotations[jsonSchemaFlagAnnotation] = flagName
 
-	// Wrap all commands to check for the flag
-	cobra.OnInitialize(func() {
-		wrapForJSONSchema(rootC, flagName)
-	})
+	// Wrap the root persistent pre-run so it can render schema output before the
+	// command's normal execution path. This preserves any pre-existing handler.
+	wrapForJSONSchema(rootC, flagName, cfg)
 
 	// Regenerate usage templates
 	SetupUsage(rootC)
@@ -466,20 +467,90 @@ func SetupJSONSchema(rootC *cobra.Command, opts jsonschema.Options) error {
 
 const jsonSchemaFlagAnnotation = "___leodido_structcli_jsonschemaflagname"
 
+// renderJSONSchemaIfRequested renders schema output when the setup flag is set.
+// It returns handled=true when the schema was rendered and the caller should stop.
+func renderJSONSchemaIfRequested(c *cobra.Command, flagName string, cfg *jsonschema.Config) (bool, []byte, error) {
+	flagSets := []*pflag.FlagSet{
+		c.Flags(),
+		c.InheritedFlags(),
+		c.Root().PersistentFlags(),
+	}
+
+	flagChanged := false
+	for _, fs := range flagSets {
+		if fs == nil {
+			continue
+		}
+		if flag := fs.Lookup(flagName); flag != nil && flag.Changed {
+			flagChanged = true
+			break
+		}
+	}
+
+	if !flagChanged {
+		return false, nil, nil
+	}
+
+	schemas, err := JSONSchema(c, schemaOptsFromConfig(cfg)...)
+	if err != nil {
+		return true, nil, fmt.Errorf("couldn't generate JSON Schema: %w", err)
+	}
+
+	if len(schemas) == 0 {
+		return true, nil, fmt.Errorf("couldn't generate JSON Schema: no schemas produced")
+	}
+
+	if len(schemas) == 1 {
+		output, err := schemas[0].ToJSONSchema()
+		if err != nil {
+			return true, nil, fmt.Errorf("couldn't generate JSON Schema: %w", err)
+		}
+
+		return true, output, nil
+	}
+
+	outputs := make([]json.RawMessage, 0, len(schemas))
+	for _, schema := range schemas {
+		output, err := schema.ToJSONSchema()
+		if err != nil {
+			return true, nil, fmt.Errorf("couldn't generate JSON Schema: %w", err)
+		}
+		outputs = append(outputs, json.RawMessage(output))
+	}
+
+	output, err := json.MarshalIndent(outputs, "", "  ")
+	if err != nil {
+		return true, nil, fmt.Errorf("couldn't generate JSON Schema: %w", err)
+	}
+
+	return true, output, nil
+}
+
+func schemaOptsFromConfig(cfg *jsonschema.Config) []jsonschema.Opt {
+	if cfg == nil {
+		return nil
+	}
+
+	var opts []jsonschema.Opt
+	if cfg.FullTree {
+		opts = append(opts, jsonschema.WithFullTree())
+	}
+	if cfg.EnumInDescription {
+		opts = append(opts, jsonschema.WithEnumInDescription())
+	}
+
+	return opts
+}
+
 // wrapForJSONSchema recursively wraps commands to intercept --jsonschema.
-func wrapForJSONSchema(c *cobra.Command, flagName string) {
+func wrapForJSONSchema(c *cobra.Command, flagName string, cfg *jsonschema.Config) {
 	originalPreRun := c.PersistentPreRunE
 	c.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		flag := cmd.Flags().Lookup(flagName)
-		if flag != nil && flag.Changed {
-			schema, err := jsonSchemaOne(cmd, jsonschema.Apply())
-			if err != nil {
-				return fmt.Errorf("couldn't generate JSON Schema: %w", err)
-			}
-			output, err := schema.ToJSONSchema()
-			if err != nil {
-				return fmt.Errorf("couldn't generate JSON Schema: %w", err)
-			}
+		handled, output, err := renderJSONSchemaIfRequested(cmd, flagName, cfg)
+		if err != nil {
+			return err
+		}
+		if handled {
 			fmt.Fprintln(os.Stdout, string(output))
 			os.Exit(0)
 		}
