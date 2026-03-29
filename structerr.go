@@ -358,19 +358,35 @@ func classifyValidation(cmd *cobra.Command, cmdPath string, ve *structclierrors.
 
 // classifyMissingRequired handles the "required flag(s) ... not set" cobra error.
 // It keeps the primary classification focused on the missing required flag while
-// optionally enriching the hint with validation context.
+// optionally enriching the hint with env fallback or validation context.
 func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg string) *StructuredError {
 	// Parse flag names from: "port" or "port", "host"
 	flagNames := parseQuotedList(flagList)
 
-	// For single-flag errors, provide enriched output with validation hints.
+	// For single-flag errors, provide enriched output with remedy hints.
 	if len(flagNames) == 1 {
 		flagName := flagNames[0]
 
-		// Build hint from validation rules.
+		// Build hint from env fallbacks and validation rules without changing the
+		// top-level classification away from the missing required flag.
 		var hint string
+		envVars := flagEnvVars(cmd, flagName)
+		envSet := false
+		for _, ev := range envVars {
+			if os.Getenv(ev) != "" {
+				envSet = true
+				break
+			}
+		}
+		if len(envVars) > 0 && !envSet {
+			hint = fmt.Sprintf("use --%s <value> or set %s", flagName, envVars[0])
+		}
 		if rules := flagValidateRules(cmd, flagName); strings.Contains(rules, "required") {
-			hint = fmt.Sprintf("--%s is required by validation", flagName)
+			if hint != "" {
+				hint += " (required by validation)"
+			} else {
+				hint = fmt.Sprintf("--%s is required by validation", flagName)
+			}
 		}
 
 		se := &StructuredError{

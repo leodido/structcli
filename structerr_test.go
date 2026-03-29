@@ -44,7 +44,7 @@ func TestHandleError_MissingRequiredFlag(t *testing.T) {
 	assert.Contains(t, se.Message, "port")
 }
 
-func TestHandleError_MissingRequiredFlagDoesNotClassifyEnvAsMissing(t *testing.T) {
+func TestHandleError_MissingRequiredFlagUsesUnsetEnvAsHintOnly(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "mycli"}
 
@@ -64,7 +64,7 @@ func TestHandleError_MissingRequiredFlagDoesNotClassifyEnvAsMissing(t *testing.T
 	assert.Equal(t, exitcode.MissingRequiredFlag, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
 	assert.Empty(t, se.EnvVar)
-	assert.Empty(t, se.Hint)
+	assert.Contains(t, se.Hint, "MYCLI_PORT")
 }
 
 func TestHandleError_MissingRequiredMultipleFlags(t *testing.T) {
@@ -278,7 +278,7 @@ func TestHandleError_OutputIsValidJSON(t *testing.T) {
 	}
 }
 
-func TestHandleError_MissingRequiredFlagIgnoresUnsetEnvBindings(t *testing.T) {
+func TestHandleError_MissingRequiredFlagUsesFirstUnsetEnvBindingInHint(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "mycli"}
 
@@ -302,7 +302,8 @@ func TestHandleError_MissingRequiredFlagIgnoresUnsetEnvBindings(t *testing.T) {
 	assert.Equal(t, exitcode.MissingRequiredFlag, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
 	assert.Empty(t, se.EnvVar)
-	assert.Empty(t, se.Hint)
+	assert.Contains(t, se.Hint, "MYCLI_PORT")
+	assert.NotContains(t, se.Hint, "MYCLI_PORT_ALT")
 }
 
 // When an env var IS set but cobra still fires "required flag not set",
@@ -627,7 +628,7 @@ func TestHandleError_Integration_RealCommand(t *testing.T) {
 	assert.Equal(t, exitcode.MissingRequiredFlag, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
 	assert.Empty(t, se.EnvVar)
-	assert.Empty(t, se.Hint)
+	assert.Contains(t, se.Hint, "MYAPP_PORT")
 }
 
 type integrationValueOpts struct {
@@ -865,6 +866,7 @@ func TestHandleError_MissingRequiredFlagWithValidateHint(t *testing.T) {
 	assert.Equal(t, exitcode.MissingRequiredFlag, se.ExitCode)
 	assert.Equal(t, "email", se.Flag)
 	assert.Empty(t, se.EnvVar)
+	assert.Contains(t, se.Hint, "MYCLI_EMAIL")
 	assert.Contains(t, se.Hint, "required by validation")
 }
 
