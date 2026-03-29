@@ -230,8 +230,8 @@ func TestMemoryCleanup(t *testing.T) {
 	// Use TotalAlloc (cumulative) instead of Alloc (current) for more stable measurement
 	memoryAllocatedMB := float64(finalMemStats.TotalAlloc-initialMemStats.TotalAlloc) / 1024 / 1024
 
-	// Use HeapSys to check if heap grew significantly
-	heapGrowthMB := float64(finalMemStats.HeapSys-initialMemStats.HeapSys) / 1024 / 1024
+	// Compute HeapSys growth using float deltas so heap shrinkage doesn't underflow uint64.
+	heapGrowthMB := float64(finalMemStats.HeapSys)/1024/1024 - float64(initialMemStats.HeapSys)/1024/1024
 
 	t.Logf("Total memory allocated during test: %.2f MB", memoryAllocatedMB)
 	t.Logf("Heap growth: %.2f MB", heapGrowthMB)
