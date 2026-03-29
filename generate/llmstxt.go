@@ -3,7 +3,6 @@ package generate
 import (
 	"bytes"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/leodido/structcli"
@@ -31,6 +30,9 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 
 	var buf bytes.Buffer
 
+	// Sort for deterministic output
+	schemas = sortedSchemas(schemas)
+
 	rootSchema := schemas[0]
 	cliName := rootSchema.Name
 
@@ -45,69 +47,65 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 		fmt.Fprintf(&buf, "\n> %s\n", rootSchema.Description)
 	}
 
-	// Collect leaf commands (commands with flags and no subcommands, or commands with RunE)
+	// Collect leaf commands using shared logic
 	type leafCommand struct {
-		schema      *structcli.CommandSchema
-		cmd         *cobra.Command
-		commandPath string
+		schema *structcli.CommandSchema
+		cmd    *cobra.Command
 	}
 	var leaves []leafCommand
 
-	// Sort schemas by command path
-	sortedSchemas := make([]*structcli.CommandSchema, len(schemas))
-	copy(sortedSchemas, schemas)
-	sort.Slice(sortedSchemas, func(i, j int) bool {
-		return sortedSchemas[i].CommandPath < sortedSchemas[j].CommandPath
-	})
-
-	// Build a map of command path -> cobra.Command for RunE detection
 	cmdMap := buildCommandMap(rootCmd)
 
-	for _, s := range sortedSchemas {
+	for _, s := range schemas {
 		cmd := cmdMap[s.CommandPath]
-		isLeaf := len(s.Subcommands) == 0 && (len(s.Flags) > 0 || (cmd != nil && cmd.RunE != nil))
-		if isLeaf {
-			leaves = append(leaves, leafCommand{schema: s, cmd: cmd, commandPath: s.CommandPath})
+		if isLeafCommand(s, cmd) {
+			leaves = append(leaves, leafCommand{schema: s, cmd: cmd})
 		}
 	}
 
-	// Commands index section
+	// Commands index section — use CommandPath for unique anchors
 	if len(leaves) > 0 {
 		fmt.Fprintf(&buf, "\n## Commands\n\n")
 		for _, leaf := range leaves {
-			anchor := toAnchor(leaf.schema.Name)
+			anchor := toKebab(leaf.schema.CommandPath)
 			description := leaf.schema.Description
 			if description == "" {
-				description = leaf.schema.Name
+				description = "-"
 			}
-			fmt.Fprintf(&buf, "- [%s](#%s): %s\n", leaf.commandPath, anchor, description)
+			fmt.Fprintf(&buf, "- [%s](#%s): %s\n", leaf.schema.CommandPath, anchor, description)
 		}
 	}
 
 	// Per-command sections
 	for _, leaf := range leaves {
-		fmt.Fprintf(&buf, "\n## %s\n", leaf.schema.Name)
+		// Use CommandPath as heading for uniqueness
+		fmt.Fprintf(&buf, "\n## %s\n", leaf.schema.CommandPath)
 
 		if leaf.schema.Description != "" {
 			fmt.Fprintf(&buf, "\n%s\n", leaf.schema.Description)
 		}
 
-		// Flags section (sorted alphabetically)
-		if len(leaf.schema.Flags) > 0 {
+		// Build sorted flags once for this command
+		flagNames := sortedFlagNames(leaf.schema.Flags)
+
+		// Flags section
+		if len(flagNames) > 0 {
 			fmt.Fprintf(&buf, "\n### Flags\n\n")
-			flagNames := make([]string, 0, len(leaf.schema.Flags))
-			for name := range leaf.schema.Flags {
-				flagNames = append(flagNames, name)
-			}
-			sort.Strings(flagNames)
 
 			for _, name := range flagNames {
 				f := leaf.schema.Flags[name]
-				defaultStr := ""
+				parts := []string{f.Type}
 				if f.Default != "" {
-					defaultStr = fmt.Sprintf(", default: %s", f.Default)
+					parts = append(parts, fmt.Sprintf("default: %s", f.Default))
 				}
-				fmt.Fprintf(&buf, "- `--%s` (%s%s): %s\n", f.Name, f.Type, defaultStr, f.Description)
+				if f.Required {
+					parts = append(parts, "required")
+				}
+				descr := f.Description
+				if descr == "" {
+					descr = "-"
+				}
+				fmt.Fprintf(&buf, "- `--%s` (%s): %s\n", f.Name, strings.Join(parts, ", "), descr)
 			}
 		}
 
@@ -116,11 +114,6 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 			envVar   string
 			flagName string
 		}
-		flagNames := make([]string, 0, len(leaf.schema.Flags))
-		for name := range leaf.schema.Flags {
-			flagNames = append(flagNames, name)
-		}
-		sort.Strings(flagNames)
 		for _, name := range flagNames {
 			f := leaf.schema.Flags[name]
 			for _, envVar := range f.EnvVars {
@@ -155,10 +148,3 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
-
-// toAnchor converts a command name to a kebab-case anchor.
-// For example, "usr add" becomes "usr-add", "srv" becomes "srv".
-func toAnchor(name string) string {
-	return strings.ReplaceAll(strings.ToLower(name), " ", "-")
-}
-

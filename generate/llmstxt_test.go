@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/leodido/structcli/generate"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,4 +114,60 @@ func TestLLMsTxt_FlagsSorted(t *testing.T) {
 	require.Greater(t, hostIdx, 0, "should contain --host")
 	require.Greater(t, portIdx, 0, "should contain --port")
 	assert.Less(t, hostIdx, portIdx, "host should come before port alphabetically")
+}
+
+func TestLLMsTxt_RequiredFlagMarked(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Port is required — should say so
+	assert.Contains(t, content, "required")
+}
+
+func TestLLMsTxt_DuplicateNamesUniqueAnchors(t *testing.T) {
+	root := buildDuplicateNameTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Should use CommandPath-based anchors, not Name-based
+	assert.Contains(t, content, "#mycli-db-add")
+	assert.Contains(t, content, "#mycli-user-add")
+	// Should NOT have duplicate simple anchors
+	assert.NotContains(t, content, "(#add)")
+}
+
+func TestLLMsTxt_MinimalCLI(t *testing.T) {
+	root := buildMinimalTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "# bare")
+}
+
+func TestLLMsTxt_EmptyDescription(t *testing.T) {
+	root := buildNoDescriptionTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Should not crash, no blockquote for empty description
+	assert.NotContains(t, content, "> \n")
+}
+
+func TestLLMsTxt_EmptyFlagDescription(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+	root := &cobra.Command{Use: "app", Short: "App", RunE: noop}
+	root.Flags().String("silent", "", "")
+
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Empty flag description should show "-"
+	assert.Contains(t, content, "--silent")
+	assert.Contains(t, content, ": -")
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/leodido/structcli/generate"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -112,6 +113,40 @@ func TestAgents_IncludeMCP(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, string(out), "--mcp")
+}
+
+func TestAgents_MinimalCLI(t *testing.T) {
+	root := buildMinimalTree()
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "# bare")
+	assert.Contains(t, content, "| `bare` |")
+}
+
+func TestAgents_EmptyDescription(t *testing.T) {
+	root := buildNoDescriptionTree()
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Empty description should show "-" in table
+	assert.Contains(t, content, "| `nodesc` | - |")
+}
+
+func TestAgents_EmptyFlagDescription(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+	root := &cobra.Command{Use: "app", Short: "App", RunE: noop}
+	root.Flags().String("silent", "", "")
+
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Empty flag description should show "-"
+	line := extractSection(content, "| `--silent`")
+	assert.Contains(t, line, "| - |")
 }
 
 // --- helpers ---

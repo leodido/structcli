@@ -28,10 +28,8 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 		return nil, fmt.Errorf("no commands found")
 	}
 
-	// Sort schemas by command path for deterministic output.
-	sort.Slice(schemas, func(i, j int) bool {
-		return schemas[i].CommandPath < schemas[j].CommandPath
-	})
+	// Sort for deterministic output
+	schemas = sortedSchemas(schemas)
 
 	root := schemas[0]
 	cliName := root.Name
@@ -86,7 +84,7 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 		buf.WriteString("\n")
 	}
 
-	// Environment variables (aggregated)
+	// Environment variables (aggregated, deduplicated)
 	envRows := collectEnvVars(schemas)
 	if len(envRows) > 0 {
 		fmt.Fprintf(&buf, "### Environment Variables\n\n")
@@ -102,14 +100,15 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 		buf.WriteString("\n")
 	}
 
-	// Config File section
-	if rootCmd.Flags().Lookup("config") != nil {
-		fmt.Fprintf(&buf, "### Config File\n\nSupports YAML/JSON/TOML config files. Use `--config` to specify path.\n\n")
+	// Config File section — use annotation, not hardcoded flag name
+	configFlagName := findConfigFlagName(rootCmd)
+	if configFlagName != "" {
+		fmt.Fprintf(&buf, "### Config File\n\nSupports YAML/JSON/TOML config files. Use `--%s` to specify path.\n\n", configFlagName)
 	}
 
 	// Machine Interface
 	fmt.Fprintf(&buf, "## Machine Interface\n\n")
-	fmt.Fprintf(&buf, "- JSON Schema: `%s --jsonschema` (per-command schema)\n", cliName)
+	fmt.Fprintf(&buf, "- JSON Schema: `%s --jsonschema`\n", cliName)
 	fmt.Fprintf(&buf, "- Structured errors: JSON on stderr with semantic exit codes\n")
 	if opts.IncludeMCP {
 		fmt.Fprintf(&buf, "- MCP server: `%s --mcp`\n", cliName)
@@ -153,4 +152,20 @@ func requiredFlags(s *structcli.CommandSchema) string {
 		return ""
 	}
 	return strings.Join(req, ", ")
+}
+
+// findConfigFlagName checks if the root command has a config flag registered
+// by structcli's SetupConfig. Returns the flag name or empty string.
+func findConfigFlagName(rootCmd *cobra.Command) string {
+	// Check the annotation set by structcli.SetupConfig
+	if rootCmd.Annotations != nil {
+		if name, ok := rootCmd.Annotations["___leodido_structcli_configflagname"]; ok {
+			return name
+		}
+	}
+	// Fallback: check if a "config" flag exists as persistent
+	if rootCmd.PersistentFlags().Lookup("config") != nil {
+		return "config"
+	}
+	return ""
 }

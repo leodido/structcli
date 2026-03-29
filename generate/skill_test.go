@@ -196,6 +196,71 @@ func TestSkill_CommandPathInBody(t *testing.T) {
 	assert.Contains(t, content, "#### `myapp config`")
 }
 
+func TestSkill_MinimalCLI_NoFlags(t *testing.T) {
+	root := buildMinimalTree()
+	out, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "name: bare")
+	assert.Contains(t, content, "#### `bare`")
+	// No flags table since there are no flags
+	assert.NotContains(t, content, "| Flag |")
+}
+
+func TestSkill_EmptyDescription(t *testing.T) {
+	root := buildNoDescriptionTree()
+	out, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Should not crash, should produce valid output
+	assert.Contains(t, content, "name: nodesc")
+}
+
+func TestSkill_YAMLSpecialCharsInMetadata(t *testing.T) {
+	root := buildMinimalTree()
+	out, err := generate.Skill(root, generate.SkillOptions{
+		Author:  "Alice: The Author",
+		Version: "1.0.0",
+	})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Author with colon should be quoted
+	assert.Contains(t, content, `author: "Alice: The Author"`)
+	// Version without special chars should NOT be quoted
+	assert.Contains(t, content, "version: 1.0.0")
+}
+
+func TestSkill_EmptyFlagDescription(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+	root := &cobra.Command{Use: "app", Short: "App", RunE: noop}
+	root.Flags().String("silent", "", "")
+
+	out, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Empty flag description should show "-" not empty
+	line := findTableLine(content, "silent")
+	assert.Contains(t, line, "| - |")
+}
+
+func TestSkill_CommandsSorted(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	configIdx := strings.Index(content, "#### `myapp config`")
+	serveIdx := strings.Index(content, "#### `myapp serve`")
+	assert.Greater(t, configIdx, 0)
+	assert.Greater(t, serveIdx, 0)
+	// config comes before serve alphabetically
+	assert.Less(t, configIdx, serveIdx)
+}
+
 // --- helpers ---
 
 func findTableLine(section, substr string) string {
