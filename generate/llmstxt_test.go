@@ -1,0 +1,108 @@
+package generate_test
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/leodido/structcli/generate"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestLLMsTxt_H1Heading(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	assert.True(t, strings.HasPrefix(string(out), "# myapp\n"))
+}
+
+func TestLLMsTxt_ProjectURL(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{ProjectURL: "https://github.com/test/myapp"})
+	require.NoError(t, err)
+
+	assert.Contains(t, string(out), "https://github.com/test/myapp")
+}
+
+func TestLLMsTxt_Blockquote(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	assert.Contains(t, string(out), "> A test CLI application")
+}
+
+func TestLLMsTxt_CommandsIndex(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "## Commands")
+	assert.Contains(t, content, "myapp serve")
+	assert.Contains(t, content, "myapp config")
+}
+
+func TestLLMsTxt_PerCommandFlags(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	// Flags should be listed with type and default
+	assert.Contains(t, content, "--port")
+	assert.Contains(t, content, "--host")
+	assert.Contains(t, content, "default: 3000")
+	assert.Contains(t, content, "default: localhost")
+}
+
+func TestLLMsTxt_EnvVars(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "### Environment Variables")
+	assert.Contains(t, content, "SERVE_PORT")
+	assert.Contains(t, content, "SERVE_HOST")
+}
+
+func TestLLMsTxt_OptionalSection(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "## Optional")
+	assert.Contains(t, content, "--jsonschema")
+}
+
+func TestLLMsTxt_IncludeMCP(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{IncludeMCP: true})
+	require.NoError(t, err)
+
+	assert.Contains(t, string(out), "--mcp")
+}
+
+func TestLLMsTxt_NoMCPByDefault(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(out), "--mcp")
+}
+
+func TestLLMsTxt_FlagsSorted(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	hostIdx := strings.Index(content, "--host")
+	portIdx := strings.Index(content, "--port")
+	require.Greater(t, hostIdx, 0, "should contain --host")
+	require.Greater(t, portIdx, 0, "should contain --port")
+	assert.Less(t, hostIdx, portIdx, "host should come before port alphabetically")
+}
