@@ -15,10 +15,10 @@ import (
 
 // jsonSchemaBasicOptions is a test fixture covering basic types, env vars, groups, and descriptions.
 type jsonSchemaBasicOptions struct {
-	Port     int          `flag:"port" flagshort:"p" flagdescr:"server port" flagenv:"true" flaggroup:"Network" flagrequired:"true"`
-	Host     string       `flag:"host" flagdescr:"server host" default:"localhost" flagenv:"true" flaggroup:"Network"`
+	Port     int           `flag:"port" flagshort:"p" flagdescr:"server port" flagenv:"true" flaggroup:"Network" flagrequired:"true"`
+	Host     string        `flag:"host" flagdescr:"server host" default:"localhost" flagenv:"true" flaggroup:"Network"`
 	LogLevel zapcore.Level `flag:"log-level" flagdescr:"set log level" flagenv:"true" flaggroup:"Logging"`
-	Debug    bool         `flag:"debug" flagdescr:"enable debug mode"`
+	Debug    bool          `flag:"debug" flagdescr:"enable debug mode"`
 }
 
 func (o *jsonSchemaBasicOptions) Attach(c *cobra.Command) error { return nil }
@@ -44,7 +44,7 @@ func (o *jsonSchemaNestedOptions) Attach(c *cobra.Command) error { return nil }
 
 // jsonSchemaNetOptions is a test fixture covering net.IP and related types.
 type jsonSchemaNetOptions struct {
-	IP   net.IP   `flag:"ip" flagdescr:"bind IP address" flagenv:"true"`
+	IP   net.IP    `flag:"ip" flagdescr:"bind IP address" flagenv:"true"`
 	CIDR net.IPNet `flag:"cidr" flagdescr:"network CIDR"`
 }
 
@@ -265,7 +265,7 @@ func TestToJSONSchema_ValidOutput(t *testing.T) {
 	// Verify port property
 	portProp, ok := props["port"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "number", portProp["type"])
+	assert.Equal(t, "integer", portProp["type"])
 	assert.Equal(t, "server port", portProp["description"])
 	assert.Equal(t, "p", portProp["x-structcli-shorthand"])
 	assert.Equal(t, "Network", portProp["x-structcli-group"])
@@ -361,19 +361,24 @@ func TestJSONSchema_ManualFlagRegexFallback(t *testing.T) {
 
 func TestToJSONSchema_TypeMapping(t *testing.T) {
 	tests := []struct {
-		pflagType    string
-		expectedType string
-		expectItems  bool
+		pflagType     string
+		expectedType  string
+		expectItems   bool
+		expectedItems string
 	}{
-		{"bool", "boolean", false},
-		{"int", "number", false},
-		{"int64", "number", false},
-		{"float64", "number", false},
-		{"string", "string", false},
-		{"duration", "string", false},
-		{"stringSlice", "array", true},
-		{"intSlice", "array", true},
-		{"stringToString", "object", false},
+		{"bool", "boolean", false, ""},
+		{"int", "integer", false, ""},
+		{"int64", "integer", false, ""},
+		{"uint", "integer", false, ""},
+		{"count", "integer", false, ""},
+		{"float64", "number", false, ""},
+		{"string", "string", false, ""},
+		{"duration", "string", false, ""},
+		{"stringSlice", "array", true, "string"},
+		{"intSlice", "array", true, "integer"},
+		{"uintSlice", "array", true, "integer"},
+		{"boolSlice", "array", true, "boolean"},
+		{"stringToString", "object", false, ""},
 	}
 
 	for _, tc := range tests {
@@ -382,9 +387,90 @@ func TestToJSONSchema_TypeMapping(t *testing.T) {
 			assert.Equal(t, tc.expectedType, jsonType)
 			if tc.expectItems {
 				assert.NotNil(t, items)
+				assert.Equal(t, tc.expectedItems, items.Type)
 			} else {
 				assert.Nil(t, items)
 			}
 		})
 	}
+}
+
+func TestToJSONSchema_TypedArrayDefaults(t *testing.T) {
+	schema := &CommandSchema{
+		Name:        "app",
+		CommandPath: "app",
+		Flags: map[string]*FlagSchema{
+			"ports": {
+				Type:    "intSlice",
+				Default: "8080,8081",
+			},
+			"features": {
+				Type:    "boolSlice",
+				Default: "true,false",
+			},
+		},
+	}
+
+	output, err := schema.ToJSONSchema()
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(output, &parsed))
+
+	props := parsed["properties"].(map[string]any)
+	ports := props["ports"].(map[string]any)
+	assert.Equal(t, "array", ports["type"])
+	assert.Equal(t, []any{float64(8080), float64(8081)}, ports["default"])
+
+	features := props["features"].(map[string]any)
+	assert.Equal(t, "array", features["type"])
+	assert.Equal(t, []any{true, false}, features["default"])
+}
+
+type jsonSchemaMetadataOptions struct {
+	Port int `flag:"port" flagdescr:"Server port"`
+}
+
+func (o *jsonSchemaMetadataOptions) Attach(c *cobra.Command) error { return nil }
+
+func TestJSONSchema_CommandMetadata(t *testing.T) {
+	o := &jsonSchemaMetadataOptions{}
+
+	cmd := &cobra.Command{
+		Use:       "srv",
+		Short:     "Start the server",
+		Long:      "Start the server with the specified configuration",
+		Example:   "  mycli srv --port 8080\n  mycli srv --port 3000",
+		Aliases:   []string{"server", "serve"},
+		ValidArgs: []string{"start", "stop", "restart"},
+	}
+
+	require.NoError(t, Define(cmd, o))
+
+	schemas, err := JSONSchema(cmd)
+	require.NoError(t, err)
+	require.Len(t, schemas, 1)
+	s := schemas[0]
+
+	assert.Equal(t, "  mycli srv --port 8080\n  mycli srv --port 3000", s.Example)
+	assert.Equal(t, []string{"server", "serve"}, s.Aliases)
+	assert.Equal(t, []string{"start", "stop", "restart"}, s.ValidArgs)
+}
+
+func TestJSONSchema_CommandMetadata_Empty(t *testing.T) {
+	o := &jsonSchemaMetadataOptions{}
+
+	cmd := &cobra.Command{Use: "srv", Short: "Start"}
+
+	require.NoError(t, Define(cmd, o))
+
+	schemas, err := JSONSchema(cmd)
+	require.NoError(t, err)
+	require.Len(t, schemas, 1)
+	s := schemas[0]
+
+	// Empty fields should be omitted (zero values)
+	assert.Empty(t, s.Example)
+	assert.Nil(t, s.Aliases)
+	assert.Nil(t, s.ValidArgs)
 }

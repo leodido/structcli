@@ -264,8 +264,8 @@ type jsonSchema struct {
 	Required    []string                       `json:"required,omitempty"`
 
 	// x-structcli extensions at root level
-	Subcommands []string `json:"x-structcli-subcommands,omitempty"`
-	EnvPrefix   string   `json:"x-structcli-env-prefix,omitempty"`
+	Subcommands []string            `json:"x-structcli-subcommands,omitempty"`
+	EnvPrefix   string              `json:"x-structcli-env-prefix,omitempty"`
 	Groups      map[string][]string `json:"x-structcli-groups,omitempty"`
 }
 
@@ -275,8 +275,9 @@ func pflagTypeToJSONSchemaType(pflagType string) (string, *jsonSchema) {
 	case "bool":
 		return "boolean", nil
 	case "int", "int8", "int16", "int32", "int64",
-		"uint", "uint8", "uint16", "uint32", "uint64",
-		"float32", "float64", "count":
+		"uint", "uint8", "uint16", "uint32", "uint64", "count":
+		return "integer", nil
+	case "float32", "float64":
 		return "number", nil
 	case "string", "duration", "zapcore.Level", "slog.Level",
 		"ip", "ipMask", "ipNet":
@@ -286,7 +287,7 @@ func pflagTypeToJSONSchemaType(pflagType string) (string, *jsonSchema) {
 		itemType := "string"
 		switch pflagType {
 		case "intSlice", "uintSlice":
-			itemType = "number"
+			itemType = "integer"
 		case "boolSlice":
 			itemType = "boolean"
 		}
@@ -301,26 +302,60 @@ func pflagTypeToJSONSchemaType(pflagType string) (string, *jsonSchema) {
 }
 
 // typedDefault converts a string default value to a typed value for JSON Schema.
-func typedDefault(defval string, jsonType string) any {
+func typedDefault(defval string, jsonType string, items *jsonSchema) any {
 	if defval == "" {
 		return nil
 	}
 	switch jsonType {
 	case "boolean":
 		return defval == "true"
+	case "integer":
+		return json.Number(defval)
 	case "number":
 		// Use json.Number to preserve integer/float precision in the output
 		return json.Number(defval)
 	case "array":
-		// Split comma-separated defaults into a JSON array
+		// Split comma-separated defaults into a JSON array with typed items.
+		if items == nil || items.Type == "" {
+			if defval == "[]" {
+				return []string{}
+			}
+			parts := strings.Split(defval, ",")
+			for i := range parts {
+				parts[i] = strings.TrimSpace(parts[i])
+			}
+			return parts
+		}
 		if defval == "[]" {
-			return []string{}
+			switch items.Type {
+			case "boolean":
+				return []bool{}
+			case "integer", "number":
+				return []json.Number{}
+			default:
+				return []string{}
+			}
 		}
 		parts := strings.Split(defval, ",")
-		for i := range parts {
-			parts[i] = strings.TrimSpace(parts[i])
+		switch items.Type {
+		case "boolean":
+			result := make([]bool, 0, len(parts))
+			for _, part := range parts {
+				result = append(result, strings.EqualFold(strings.TrimSpace(part), "true"))
+			}
+			return result
+		case "integer", "number":
+			result := make([]json.Number, 0, len(parts))
+			for _, part := range parts {
+				result = append(result, json.Number(strings.TrimSpace(part)))
+			}
+			return result
+		default:
+			for i := range parts {
+				parts[i] = strings.TrimSpace(parts[i])
+			}
+			return parts
 		}
-		return parts
 	default:
 		return defval
 	}
@@ -360,7 +395,7 @@ func (cs *CommandSchema) ToJSONSchema() ([]byte, error) {
 			Items:       items,
 		}
 
-		if def := typedDefault(fs.Default, jsonType); def != nil {
+		if def := typedDefault(fs.Default, jsonType, items); def != nil {
 			prop.Default = def
 		}
 		if len(fs.Enum) > 0 {
@@ -395,7 +430,6 @@ func (cs *CommandSchema) ToJSONSchema() ([]byte, error) {
 
 	return json.MarshalIndent(schema, "", "  ")
 }
-
 
 // SetupJSONSchema adds a --jsonschema persistent flag to the root command.
 //
