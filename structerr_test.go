@@ -56,12 +56,14 @@ func TestHandleError_MissingRequiredFlagWithEnvHint(t *testing.T) {
 	err := fmt.Errorf(`required flag(s) "port" not set`)
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.MissingRequiredFlag, code)
+	assert.Equal(t, exitcode.EnvMissingRequired, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, "env_missing_required", se.Error)
+	assert.Equal(t, exitcode.EnvMissingRequired, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
+	assert.Equal(t, "MYCLI_PORT", se.EnvVar)
 	assert.Contains(t, se.Hint, "MYCLI_PORT")
 }
 
@@ -280,23 +282,26 @@ func TestHandleError_EnvMissingRequired(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "mycli"}
 
-	// Flag with env annotation, env var NOT set
+	// Flag with multiple env annotations, all unset
 	cmd.Flags().IntP("port", "p", 0, "Server port")
 	_ = cmd.MarkFlagRequired("port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT"})
+	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT", "MYCLI_PORT_ALT"})
 
 	// Make sure env var is unset
 	os.Unsetenv("MYCLI_PORT")
+	os.Unsetenv("MYCLI_PORT_ALT")
 
 	err := fmt.Errorf(`required flag(s) "port" not set`)
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.MissingRequiredFlag, code)
+	assert.Equal(t, exitcode.EnvMissingRequired, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, "env_missing_required", se.Error)
+	assert.Equal(t, exitcode.EnvMissingRequired, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
+	assert.Equal(t, "MYCLI_PORT", se.EnvVar)
 	assert.Contains(t, se.Hint, "MYCLI_PORT")
 }
 
@@ -359,11 +364,12 @@ func TestHandleError_UnmarshalDecodeError_NoEnvVar(t *testing.T) {
 	err := fmt.Errorf("couldn't unmarshal config to options: decoding failed due to the following error(s):\n\n'Port' cannot parse value as 'int': strconv.ParseInt: invalid syntax")
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.InvalidFlagValue, code)
+	assert.Equal(t, exitcode.ConfigInvalidValue, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "invalid_flag_value", se.Error)
+	assert.Equal(t, "config_invalid_value", se.Error)
+	assert.Equal(t, exitcode.ConfigInvalidValue, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
 	assert.Equal(t, "int", se.Expected)
 }
@@ -375,11 +381,12 @@ func TestHandleError_UnmarshalDecodeError_Unparseable(t *testing.T) {
 	err := fmt.Errorf("couldn't unmarshal config to options: decoding failed due to the following error(s):\n\nsome weird error")
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.InvalidFlagValue, code)
+	assert.Equal(t, exitcode.ConfigInvalidValue, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "invalid_flag_value", se.Error)
+	assert.Equal(t, "config_invalid_value", se.Error)
+	assert.Equal(t, exitcode.ConfigInvalidValue, se.ExitCode)
 	assert.Empty(t, se.Flag)
 }
 
@@ -611,12 +618,14 @@ func TestHandleError_Integration_RealCommand(t *testing.T) {
 	var buf bytes.Buffer
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.MissingRequiredFlag, code)
+	assert.Equal(t, exitcode.EnvMissingRequired, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, "env_missing_required", se.Error)
+	assert.Equal(t, exitcode.EnvMissingRequired, se.ExitCode)
 	assert.Equal(t, "port", se.Flag)
+	assert.Equal(t, "MYAPP_PORT", se.EnvVar)
 	assert.Contains(t, se.Hint, "MYAPP_PORT")
 }
 
@@ -847,12 +856,14 @@ func TestHandleError_MissingRequiredFlagWithValidateHint(t *testing.T) {
 	err := fmt.Errorf(`required flag(s) "email" not set`)
 	code := HandleError(cmd, err, &buf)
 
-	assert.Equal(t, exitcode.MissingRequiredFlag, code)
+	assert.Equal(t, exitcode.EnvMissingRequired, code)
 
 	var se StructuredError
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &se))
-	assert.Equal(t, "missing_required_flag", se.Error)
+	assert.Equal(t, "env_missing_required", se.Error)
+	assert.Equal(t, exitcode.EnvMissingRequired, se.ExitCode)
 	assert.Equal(t, "email", se.Flag)
+	assert.Equal(t, "MYCLI_EMAIL", se.EnvVar)
 	assert.Contains(t, se.Hint, "MYCLI_EMAIL")
 	assert.Contains(t, se.Hint, "required by validation")
 }
