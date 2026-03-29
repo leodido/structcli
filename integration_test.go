@@ -36,25 +36,6 @@ var (
 	testValidator *validator.Validate
 )
 
-type savedEnv struct {
-	value string
-	set   bool
-}
-
-func captureEnv(key string) savedEnv {
-	value, set := os.LookupEnv(key)
-
-	return savedEnv{value: value, set: set}
-}
-
-func restoreEnv(key string, saved savedEnv) {
-	if saved.set {
-		_ = os.Setenv(key, saved.value)
-	} else {
-		_ = os.Unsetenv(key)
-	}
-}
-
 // TestMain sets up the molder and validator instances once for all tests in this package.
 func TestMain(m *testing.M) {
 	// Setup
@@ -763,16 +744,12 @@ func TestConfigFlow_FileDiscovery(t *testing.T) {
 		// Create mock filesystem
 		fs = afero.NewMemMapFs()
 
-		// Store original environment values
-		originalHome := captureEnv("HOME")
-		originalPwd := captureEnv("PWD")
-
 		// Set mock environment values
 		mockHome := "/home/testuser"
 		mockPwd := "/current/dir"
 
-		os.Setenv("HOME", mockHome)
-		os.Setenv("PWD", mockPwd)
+		t.Setenv("HOME", mockHome)
+		t.Setenv("PWD", mockPwd)
 
 		// Create mock directories in filesystem
 		err := fs.MkdirAll(mockHome, 0755)
@@ -786,8 +763,6 @@ func TestConfigFlow_FileDiscovery(t *testing.T) {
 		viper.SetFs(fs)
 
 		return fs, func() {
-			restoreEnv("HOME", originalHome)
-			restoreEnv("PWD", originalPwd)
 			viper.Reset()
 		}
 	}
@@ -1001,11 +976,7 @@ jsonlogging: true`
 		require.NoError(t, err)
 
 		// Set environment variable
-		originalConfigEnv := captureEnv("TESTAPP_CONFIG")
-		os.Setenv("TESTAPP_CONFIG", envConfigPath)
-		defer func() {
-			restoreEnv("TESTAPP_CONFIG", originalConfigEnv)
-		}()
+		t.Setenv("TESTAPP_CONFIG", envConfigPath)
 
 		// Create a buffer to capture command output
 		var buf bytes.Buffer
@@ -1478,11 +1449,7 @@ timeout: 30`
 		require.NoError(t, err)
 
 		// Set environment variable for config file path
-		originalConfigEnv := captureEnv("TESTAPP_CONFIG")
-		os.Setenv("TESTAPP_CONFIG", envConfigPath)
-		defer func() {
-			restoreEnv("TESTAPP_CONFIG", originalConfigEnv)
-		}()
+		t.Setenv("TESTAPP_CONFIG", envConfigPath)
 
 		// Create a buffer to capture command output
 		var buf bytes.Buffer
@@ -1554,11 +1521,7 @@ timeout: 30`
 		require.NoError(t, err)
 
 		// Set custom environment variable
-		originalCustomEnv := captureEnv("MYAPP_SETTINGS_FILE")
-		os.Setenv("MYAPP_SETTINGS_FILE", customConfigPath)
-		defer func() {
-			restoreEnv("MYAPP_SETTINGS_FILE", originalCustomEnv)
-		}()
+		t.Setenv("MYAPP_SETTINGS_FILE", customConfigPath)
 
 		// Create a buffer to capture command output
 		var buf bytes.Buffer
@@ -1850,8 +1813,6 @@ func TestSetupOrdering_CustomOptions(t *testing.T) {
 	defer func() {
 		viper.Reset()
 		structcli.SetEnvPrefix("")
-		os.Unsetenv("CUSTOM_CONFIG")
-		os.Unsetenv("CUSTOM_DEBUG")
 	}()
 
 	opts := &OrderingTestOptions{}
@@ -1918,32 +1879,19 @@ func testOrderingScenario(t *testing.T, setupFunc func(*cobra.Command, *Ordering
 	fs := afero.NewMemMapFs()
 	viper.SetFs(fs)
 
-	// Store original environment values
-	originalEnvs := map[string]savedEnv{
-		"HOME":                  captureEnv("HOME"),
-		"TESTAPP_LOG_LEVEL":     captureEnv("TESTAPP_LOG_LEVEL"),
-		"TESTAPP_TIMEOUT":       captureEnv("TESTAPP_TIMEOUT"),
-		"TESTAPP_VERBOSE":       captureEnv("TESTAPP_VERBOSE"),
-		"TESTAPP_DEBUG_OPTIONS": captureEnv("TESTAPP_DEBUG_OPTIONS"),
-		"TESTAPP_CONFIG":        captureEnv("TESTAPP_CONFIG"),
-	}
-
 	// Cleanup function
 	defer func() {
-		for key, saved := range originalEnvs {
-			restoreEnv(key, saved)
-		}
 		viper.Reset()
 		structcli.SetEnvPrefix("")
 	}()
 
 	// Set up test environment variables
 	mockHome := "/home/testuser"
-	os.Setenv("HOME", mockHome)
-	os.Setenv("TESTAPP_LOG_LEVEL", "debug")
-	os.Setenv("TESTAPP_TIMEOUT", "60")
-	os.Setenv("TESTAPP_VERBOSE", "true")
-	os.Setenv("TESTAPP_DEBUG_OPTIONS", "true")
+	t.Setenv("HOME", mockHome)
+	t.Setenv("TESTAPP_LOG_LEVEL", "debug")
+	t.Setenv("TESTAPP_TIMEOUT", "60")
+	t.Setenv("TESTAPP_VERBOSE", "true")
+	t.Setenv("TESTAPP_DEBUG_OPTIONS", "true")
 
 	// Create mock directories and config file
 	err := fs.MkdirAll(mockHome+"/.testapp", 0755)
@@ -2502,11 +2450,7 @@ func TestUnmarshal_CustomDecodeHook_Integration(t *testing.T) {
 
 		// Set environment variable
 		envVarName := "TESTCMD_ENV_OVERRIDE_SERVER_MODE"
-		originalEnv := captureEnv(envVarName)
-		defer func() {
-			restoreEnv(envVarName, originalEnv)
-		}()
-		os.Setenv(envVarName, "staging")
+		t.Setenv(envVarName, "staging")
 
 		cmd := &cobra.Command{Use: "testcmd-env-override"}
 		opts := &customDecodeHookOptions{}

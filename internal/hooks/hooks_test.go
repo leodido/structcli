@@ -26,23 +26,19 @@ type structcliSuite struct {
 	suite.Suite
 }
 
-type savedEnv struct {
-	value string
-	set   bool
-}
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
 
-func captureEnv(key string) savedEnv {
 	value, set := os.LookupEnv(key)
+	t.Cleanup(func() {
+		if set {
+			_ = os.Setenv(key, value)
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	})
 
-	return savedEnv{value: value, set: set}
-}
-
-func restoreEnv(key string, saved savedEnv) {
-	if saved.set {
-		_ = os.Setenv(key, saved.value)
-	} else {
-		_ = os.Unsetenv(key)
-	}
+	require.NoError(t, os.Unsetenv(key))
 }
 
 func TestStructCLISuite(t *testing.T) {
@@ -1312,19 +1308,13 @@ func (suite *structcliSuite) TestHooks_BytesFromEnv() {
 		envHex    = "BYTESAPP_HEX"
 		envBase64 = "BYTESAPP_BASE64"
 	)
-	originalRaw := captureEnv(envRaw)
-	originalHex := captureEnv(envHex)
-	originalBase64 := captureEnv(envBase64)
 	defer func() {
-		restoreEnv(envRaw, originalRaw)
-		restoreEnv(envHex, originalHex)
-		restoreEnv(envBase64, originalBase64)
 		structcli.SetEnvPrefix("")
 	}()
 
-	os.Setenv(envRaw, "from-env")
-	os.Setenv(envHex, "656e762d686578")      // "env-hex"
-	os.Setenv(envBase64, "ZW52LWJhc2U2NA==") // "env-base64"
+	suite.T().Setenv(envRaw, "from-env")
+	suite.T().Setenv(envHex, "656e762d686578")      // "env-hex"
+	suite.T().Setenv(envBase64, "ZW52LWJhc2U2NA==") // "env-base64"
 	structcli.SetEnvPrefix("bytesapp")
 
 	opts := &bytesOptions{}
@@ -1505,22 +1495,14 @@ func (suite *structcliSuite) TestHooks_NetTypesFromEnv() {
 		envPeers   = "NETAPP_PEERS"
 	)
 
-	originalAddress := captureEnv(envAddress)
-	originalMask := captureEnv(envMask)
-	originalNetwork := captureEnv(envNetwork)
-	originalPeers := captureEnv(envPeers)
 	defer func() {
-		restoreEnv(envAddress, originalAddress)
-		restoreEnv(envMask, originalMask)
-		restoreEnv(envNetwork, originalNetwork)
-		restoreEnv(envPeers, originalPeers)
 		structcli.SetEnvPrefix("")
 	}()
 
-	os.Setenv(envAddress, "10.10.0.10")
-	os.Setenv(envMask, "ffffff00")
-	os.Setenv(envNetwork, "10.10.0.0/24")
-	os.Setenv(envPeers, "10.10.0.11,10.10.0.12")
+	suite.T().Setenv(envAddress, "10.10.0.10")
+	suite.T().Setenv(envMask, "ffffff00")
+	suite.T().Setenv(envNetwork, "10.10.0.0/24")
+	suite.T().Setenv(envPeers, "10.10.0.11,10.10.0.12")
 	structcli.SetEnvPrefix("netapp")
 
 	opts := &netOptions{}
@@ -1598,12 +1580,7 @@ func (suite *structcliSuite) TestFlagrequired_WithEnvRuntimeBehavior() {
 
 		// Set the environment variable that will be used
 		envVarName := "AUTOFLAGS_TEST_REQUIRED_ENV_FLAG"
-		originalEnv := captureEnv(envVarName)
-		defer func() {
-			restoreEnv(envVarName, originalEnv)
-		}()
-
-		os.Setenv(envVarName, "env-value")
+		suite.T().Setenv(envVarName, "env-value")
 
 		opts := &requiredWithEnvRuntimeOptions{}
 		cmd := &cobra.Command{Use: "test"}
@@ -1653,20 +1630,8 @@ func (suite *structcliSuite) TestFlagrequired_WithEnvMissingValue() {
 			"AUTOFLAGS_TEST_REQUIRED_ENV_FLAG",
 		}
 
-		originalEnvs := make(map[string]savedEnv)
-		defer func() {
-			for _, envVar := range envVarNames {
-				if originalVal, exists := originalEnvs[envVar]; exists {
-					restoreEnv(envVar, originalVal)
-				} else {
-					_ = os.Unsetenv(envVar)
-				}
-			}
-		}()
-
 		for _, envVar := range envVarNames {
-			originalEnvs[envVar] = captureEnv(envVar)
-			os.Unsetenv(envVar)
+			unsetEnv(suite.T(), envVar)
 		}
 
 		opts := &requiredWithEnvRuntimeOptions{}
@@ -1768,17 +1733,14 @@ func (suite *structcliSuite) TestHooks_SlogLevelFromYAML() {
 }
 
 func (suite *structcliSuite) TestHooks_SlogLevelFromEnv() {
-	// Store original environment
-	originalEnv := captureEnv("TESTAPP_LOG_LEVEL")
 	defer func() {
-		restoreEnv("TESTAPP_LOG_LEVEL", originalEnv)
 		// Reset state after test
 		viper.Reset()
 		structcli.SetEnvPrefix("")
 	}()
 
 	// Set environment variable (note: log-level becomes LOG_LEVEL)
-	os.Setenv("TESTAPP_LOG_LEVEL", "warn")
+	suite.T().Setenv("TESTAPP_LOG_LEVEL", "warn")
 
 	// IMPORTANT: Set environment prefix BEFORE defining flags
 	structcli.SetEnvPrefix("TESTAPP")
