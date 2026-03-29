@@ -98,13 +98,15 @@ type Options struct {
 
 Built-in types like `zapcore.Level` are validated automatically too.
 
-Your CLI now supports:
+Out of the box, your CLI supports:
 
 - 📝 Command-line flags (`--level info`, `-p 8080`)
 - 🌍 Environment variables (`MYAPP_PORT=8080`)
 - 💦 Options precedence (flags > env vars > config file > defaults)
 - ✅ Automatic validation and type conversion
 - 📚 Beautiful help output with proper grouping
+
+Add the AI-native wiring below and it also gains machine-readable JSON Schema, structured JSON errors, and semantic exit codes for agents.
 
 ## Build AI-Native CLIs
 
