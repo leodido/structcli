@@ -11,32 +11,32 @@
 //	# Valid invocation
 //	go run . srv --port 8080 --host localhost --level info
 //
-//	# Missing required flag (exit 10)
+//	# Missing required flag (StructuredError exit_code 10)
 //	go run . srv
 //
-//	# Invalid flag value — wrong type (exit 11)
+//	# Invalid flag value — wrong type (StructuredError exit_code 11)
 //	go run . srv --port abc
 //
-//	# Invalid flag value — via short flag (exit 11)
+//	# Invalid flag value — via short flag (StructuredError exit_code 11)
 //	go run . srv -p xyz
 //
-//	# Unknown flag (exit 12)
+//	# Unknown flag (StructuredError exit_code 12)
 //	go run . srv --nonexistent
 //
-//	# Validation failed — invalid email (exit 13)
+//	# Validation failed — invalid email (StructuredError exit_code 13)
 //	go run . usr add --email notanemail --age 25 --name "John"
 //
-//	# Validation failed — age out of range (exit 13)
+//	# Validation failed — age out of range (StructuredError exit_code 13)
 //	go run . usr add --email test@example.com --age 10 --name "John"
 //
-//	# Unknown command (exit 14)
+//	# Unknown command (StructuredError exit_code 14)
 //	go run . nonexistent
 //
-//	# Invalid enum value (exit 15)
+//	# Invalid enum value (StructuredError exit_code 15)
 //	go run . srv --port 8080 --level bogus
 //
-//	# Env var with invalid value (exit 25)
-//	MYAPP_SRV_PORT=abc go run . srv
+//	# Env var with invalid value (StructuredError exit_code 25)
+//	SRV_PORT=abc go run . srv
 //
 //	# Multiple missing flags
 //	go run . usr add
