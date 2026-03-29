@@ -90,7 +90,7 @@ import "github.com/leodido/structcli/exitcode"
 | 25 | `EnvInvalidValue` | Env var set but wrong format |
 
 Required values that are still missing at execution time are reported as `MissingRequiredFlag`.
-If a bound env fallback exists and is unset, the structured JSON may include a hint mentioning it.
+For single-flag missing-required errors, if a bound env fallback exists and is unset, the structured JSON includes a hint mentioning it.
 `EnvMissingRequired` (`26`) is reserved for future env-only required inputs.
 
 **Runtime errors** — not the agent's fault:
