@@ -32,7 +32,7 @@ $ mycli srv --jsonschema
   "type": "object",
   "properties": {
     "port": {
-      "type": "number",
+      "type": "integer",
       "default": 3000,
       "description": "Server port",
       "x-structcli-env-vars": ["MYCLI_SRV_PORT"],
@@ -51,7 +51,7 @@ $ mycli srv --jsonschema
 
 No `--help` text parsing. The agent can construct valid invocations directly from the schema. Works at every level of the command tree.
 
-See `jsonschema.WithFullTree()` and `jsonschema.WithEnumInDescription()` for programmatic access and configuration.
+See `jsonschema.WithFullTree()` and `jsonschema.WithEnumInDescription()` for programmatic access and configuration. The same schema options can be passed through `SetupJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
 
 ### Semantic exit codes
 
