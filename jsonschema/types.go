@@ -3,6 +3,10 @@ package jsonschema
 // Options configures the --jsonschema flag for command-line applications.
 type Options struct {
 	FlagName string // Name of the persistent flag (defaults to "jsonschema")
+
+	// SchemaOpts configures the schema renderer used by SetupJSONSchema.
+	// It accepts the same functional options as JSONSchema().
+	SchemaOpts []Opt
 }
 
 // Opt is a functional option for JSONSchema.
