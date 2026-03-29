@@ -13,7 +13,7 @@ import (
 
 // LLMsTxtOptions configures the llms.txt generator.
 type LLMsTxtOptions struct {
-	ProjectURL string // Optional URL for the project
+	ModulePath string // Go module path (eg. "github.com/myorg/mycli") — used to derive project URL
 	IncludeMCP bool   // Mention --mcp in the output
 }
 
@@ -36,8 +36,8 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 
 	// H1 heading with CLI name
 	fmt.Fprintf(&buf, "# %s\n", cliName)
-	if opts.ProjectURL != "" {
-		fmt.Fprintf(&buf, "\n%s\n", opts.ProjectURL)
+	if opts.ModulePath != "" {
+		fmt.Fprintf(&buf, "\nhttps://%s\n", opts.ModulePath)
 	}
 
 	// Blockquote summary

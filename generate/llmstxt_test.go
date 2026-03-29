@@ -17,12 +17,20 @@ func TestLLMsTxt_H1Heading(t *testing.T) {
 	assert.True(t, strings.HasPrefix(string(out), "# myapp\n"))
 }
 
-func TestLLMsTxt_ProjectURL(t *testing.T) {
+func TestLLMsTxt_ModulePath(t *testing.T) {
 	root := buildTestTree()
-	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{ProjectURL: "https://github.com/test/myapp"})
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{ModulePath: "github.com/test/myapp"})
 	require.NoError(t, err)
 
 	assert.Contains(t, string(out), "https://github.com/test/myapp")
+}
+
+func TestLLMsTxt_NoURLWithoutModulePath(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(out), "https://")
 }
 
 func TestLLMsTxt_Blockquote(t *testing.T) {
