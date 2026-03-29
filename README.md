@@ -1,6 +1,6 @@
 [![Coverage](https://img.shields.io/codecov/c/github/leodido/structcli.svg?style=for-the-badge)](https://codecov.io/gh/leodido/structcli) [![Documentation](https://img.shields.io/badge/godoc-reference-blue.svg?style=for-the-badge)](https://godoc.org/github.com/leodido/structcli) [![GoReportCard](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=for-the-badge)](https://goreportcard.com/report/github.com/leodido/structcli)
 
-> CLI generation from Go structs
+> Human-friendly, AI-native CLIs from Go structs
 
 Declare your CLI contract once in Go structs. `structcli` turns it into flags, env vars, config-file loading, validation, organized help, and machine-readable contracts for agents.
 
@@ -116,7 +116,7 @@ Instead of scraping `--help` and guessing, an agent can discover the contract, c
 
 ```go
 structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
-structcli.SetupFlagErrors(rootCmd)
+structcli.SetupFlagErrors(rootCmd) // Optional, but recommended for typed flag-parse errors
 structcli.ExecuteOrExit(rootCmd)
 ```
 
