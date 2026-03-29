@@ -76,9 +76,10 @@ const (
 	// wrong format or type for its target flag.
 	EnvInvalidValue = 25
 
-	// Deprecated: reserved for compatibility. HandleError currently reports
-	// missing required inputs as MissingRequiredFlag and may include env
-	// fallback hints in the structured error payload instead.
+	// EnvMissingRequired is reserved for future env-only required inputs.
+	// HandleError currently reports missing required flags/inputs as
+	// MissingRequiredFlag and may include env fallback hints in the
+	// structured error payload instead.
 	EnvMissingRequired = 26
 )
 
