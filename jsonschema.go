@@ -50,6 +50,9 @@ type CommandSchema struct {
 	Groups      map[string][]string    `json:"groups,omitempty"`
 	Subcommands []string               `json:"subcommands,omitempty"`
 	EnvPrefix   string                 `json:"env_prefix,omitempty"`
+	Example     string                 `json:"example,omitempty"`    // Usage examples from cobra.Command.Example
+	Aliases     []string               `json:"aliases,omitempty"`    // Command aliases from cobra.Command.Aliases
+	ValidArgs   []string               `json:"valid_args,omitempty"` // Valid positional arguments from cobra.Command.ValidArgs
 }
 
 // JSONSchema returns machine-readable schemas for a command's inputs.
@@ -86,6 +89,16 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 
 	if c.Long != "" {
 		schema.Description = c.Long
+	}
+
+	if c.Example != "" {
+		schema.Example = c.Example
+	}
+	if len(c.Aliases) > 0 {
+		schema.Aliases = c.Aliases
+	}
+	if len(c.ValidArgs) > 0 {
+		schema.ValidArgs = c.ValidArgs
 	}
 
 	// Collect groups
