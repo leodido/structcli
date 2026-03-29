@@ -145,6 +145,8 @@ No `--help` parsing. No guessing what failed. Just a CLI that can explain itself
 
 Use `exitcode.Category(code)` and `exitcode.IsRetryable(code)` to decide what to do next. See `jsonschema.WithFullTree()` and `jsonschema.WithEnumInDescription()` for schema customization, and pass the same schema options through `SetupJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
 
+Read the full [AI-native guide](docs/ai-native.md) or walk through the runnable [structured error example](examples/structerr/README.md).
+
 ## ⬇️ Install
 
 ```bash
@@ -689,7 +691,11 @@ It does not bypass transform/validate flow.
 
 For comprehensive documentation and advanced usage patterns, visit the [documentation](https://pkg.go.dev/github.com/leodido/structcli).
 
-Or take a look at the [examples](examples/).
+Start here for repo-local guides:
+
+- [AI-Native CLIs guide](docs/ai-native.md)
+- [Structured error example walkthrough](examples/structerr/README.md)
+- [Examples directory](examples/)
 
 ## 🤝 Contributing
 
