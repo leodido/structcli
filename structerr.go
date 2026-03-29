@@ -43,7 +43,7 @@ var (
 	// These patterns match the exact formats pflag produces in flag.go:
 	//   fmt.Errorf("invalid argument %q for %q flag: %v", value, flagName, err)
 	//   f.failf("unknown flag: --%s", name)
-	rePflagInvalidArg = regexp.MustCompile(`^invalid argument "([^"]*)" for "([^"]*)" flag`)
+	rePflagInvalidArg  = regexp.MustCompile(`^invalid argument "([^"]*)" for "([^"]*)" flag`)
 	rePflagUnknownFlag = regexp.MustCompile(`^unknown flag: --(.+)$`)
 )
 
@@ -93,11 +93,11 @@ type StructuredError struct {
 	Message  string `json:"message"`
 
 	// Input error fields
-	Flag      string `json:"flag,omitempty"`
-	Got       string `json:"got,omitempty"`
-	Expected  string `json:"expected,omitempty"`
-	Command   string `json:"command,omitempty"`
-	Hint      string `json:"hint,omitempty"`
+	Flag      string   `json:"flag,omitempty"`
+	Got       string   `json:"got,omitempty"`
+	Expected  string   `json:"expected,omitempty"`
+	Command   string   `json:"command,omitempty"`
+	Hint      string   `json:"hint,omitempty"`
 	Available []string `json:"available,omitempty"`
 
 	// Validation fields
@@ -368,8 +368,16 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 
 		// Build hint from env var bindings and validation rules
 		var hint string
-		if envVars := flagEnvVars(cmd, flagName); len(envVars) > 0 {
+		envVars := flagEnvVars(cmd, flagName)
+		envSet := false
+		if len(envVars) > 0 {
 			hint = fmt.Sprintf("use --%s <value> or set %s", flagName, envVars[0])
+			for _, ev := range envVars {
+				if os.Getenv(ev) != "" {
+					envSet = true
+					break
+				}
+			}
 		}
 		if rules := flagValidateRules(cmd, flagName); strings.Contains(rules, "required") {
 			if hint != "" {
@@ -377,6 +385,22 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 			} else {
 				hint = fmt.Sprintf("--%s is required by validation", flagName)
 			}
+		}
+
+		if len(envVars) > 0 && !envSet {
+			se := &StructuredError{
+				Error:    "env_missing_required",
+				ExitCode: exitcode.EnvMissingRequired,
+				Flag:     flagName,
+				EnvVar:   envVars[0],
+				Command:  cmdPath,
+				Message:  errMsg,
+			}
+			if hint != "" {
+				se.Hint = hint
+			}
+
+			return se
 		}
 
 		se := &StructuredError{
@@ -498,10 +522,10 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 	fieldName, gotValue, expectedType := parseDecodeError(errMsg)
 
 	if fieldName == "" {
-		// Can't parse the specific field — generic decode error
+		// Can't parse the specific field — treat as a config-origin decode failure.
 		return &StructuredError{
-			Error:    "invalid_flag_value",
-			ExitCode: exitcode.InvalidFlagValue,
+			Error:    "config_invalid_value",
+			ExitCode: exitcode.ConfigInvalidValue,
 			Command:  cmdPath,
 			Message:  errMsg,
 		}
@@ -559,8 +583,8 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 
 	// Not from env — could be from config or default
 	return &StructuredError{
-		Error:    "invalid_flag_value",
-		ExitCode: exitcode.InvalidFlagValue,
+		Error:    "config_invalid_value",
+		ExitCode: exitcode.ConfigInvalidValue,
 		Flag:     flagName,
 		Got:      gotValue,
 		Expected: expectedType,
