@@ -20,36 +20,40 @@ go run . srv --port 8080 --host localhost --level info
 
 ## Try these commands
 
+When you invoke the example with `go run`, the structured JSON carries the semantic `exit_code`, and the Go tool itself exits `1` while printing `exit status N`.
+
+If you want the shell process to exit with the semantic code directly, build the example first and run the compiled binary instead.
+
 ```bash
 # JSON Schema for the command being invoked
 go run . srv --jsonschema
 
-# Missing required flag (exit 10)
+# Missing required flag (StructuredError exit_code 10)
 go run . srv
 
-# Invalid flag value (exit 11)
+# Invalid flag value (StructuredError exit_code 11)
 go run . srv --port abc
 
-# Invalid flag value via short flag (exit 11)
+# Invalid flag value via short flag (StructuredError exit_code 11)
 go run . srv -p xyz
 
-# Unknown flag (exit 12)
+# Unknown flag (StructuredError exit_code 12)
 go run . srv --nonexistent
 
-# Validation failed (exit 13)
+# Validation failed (StructuredError exit_code 13)
 go run . usr add --email notanemail --age 25 --name "John"
 
-# Validation failed (exit 13)
+# Validation failed (StructuredError exit_code 13)
 go run . usr add --email test@example.com --age 10 --name "John"
 
-# Unknown command (exit 14)
+# Unknown command (StructuredError exit_code 14)
 go run . nonexistent
 
-# Invalid enum value (exit 15)
+# Invalid enum value (StructuredError exit_code 15)
 go run . srv --port 8080 --level bogus
 
-# Env var with invalid value (exit 25)
-MYAPP_SRV_PORT=abc go run . srv
+# Env var with invalid value (StructuredError exit_code 25)
+SRV_PORT=abc go run . srv
 ```
 
 ## Where the wiring lives
