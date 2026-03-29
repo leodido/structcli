@@ -33,11 +33,14 @@ func Skill(rootCmd *cobra.Command, opts SkillOptions) ([]byte, error) {
 	// Build a map from command path to the cobra command for accessing Example, Aliases, etc.
 	cmdMap := buildCommandMap(rootCmd)
 
+	// Sort for deterministic output
+	schemas = sortedSchemas(schemas)
+
 	rootSchema := schemas[0]
 
 	name := opts.Name
 	if name == "" {
-		name = toKebabCase(rootSchema.Name)
+		name = toKebab(rootSchema.Name)
 	}
 
 	description := buildDescription(schemas, cmdMap)
@@ -55,13 +58,13 @@ func Skill(rootCmd *cobra.Command, opts SkillOptions) ([]byte, error) {
 	if opts.Author != "" || opts.Version != "" || opts.MCPServer != "" {
 		fmt.Fprintf(&buf, "metadata:\n")
 		if opts.Author != "" {
-			fmt.Fprintf(&buf, "  author: %s\n", opts.Author)
+			fmt.Fprintf(&buf, "  author: %s\n", yamlQuote(opts.Author))
 		}
 		if opts.Version != "" {
-			fmt.Fprintf(&buf, "  version: %s\n", opts.Version)
+			fmt.Fprintf(&buf, "  version: %s\n", yamlQuote(opts.Version))
 		}
 		if opts.MCPServer != "" {
-			fmt.Fprintf(&buf, "  mcp-server: %s\n", opts.MCPServer)
+			fmt.Fprintf(&buf, "  mcp-server: %s\n", yamlQuote(opts.MCPServer))
 		}
 	}
 	fmt.Fprintf(&buf, "---\n\n")
@@ -158,9 +161,13 @@ func writeFlagsTable(buf *bytes.Buffer, flags map[string]*structcli.FlagSchema) 
 		}
 		def := f.Default
 		if def == "" {
-			def = ""
+			def = "-"
 		}
-		fmt.Fprintf(buf, "| `--%s` | %s | %s | %s | %s |\n", f.Name, f.Type, def, reqStr, f.Description)
+		descr := f.Description
+		if descr == "" {
+			descr = "-"
+		}
+		fmt.Fprintf(buf, "| `--%s` | %s | %s | %s | %s |\n", f.Name, f.Type, def, reqStr, descr)
 	}
 }
 
@@ -200,7 +207,8 @@ func writeEnvVarsTable(buf *bytes.Buffer, rows []envVarRow) {
 
 // buildDescription generates the skill description from command schemas.
 // It describes what the CLI does and when to use it (trigger phrases from leaf commands).
-// The result is kept under 1024 characters and contains no XML tags.
+// The result is kept at or under [maxSkillDescriptionLen] characters and contains no XML tags,
+// per the Anthropic skill specification.
 func buildDescription(schemas []*structcli.CommandSchema, cmdMap map[string]*cobra.Command) string {
 	if len(schemas) == 0 {
 		return ""
@@ -218,8 +226,8 @@ func buildDescription(schemas []*structcli.CommandSchema, cmdMap map[string]*cob
 	// Trigger phrases from leaf commands
 	var triggers []string
 	for _, schema := range schemas {
-		isLeaf := len(schema.Subcommands) == 0 || len(schema.Flags) > 0
-		if isLeaf && schema.Description != "" {
+		cmd := cmdMap[schema.CommandPath]
+		if isLeafCommand(schema, cmd) && schema.Description != "" {
 			trigger := strings.ToLower(strings.TrimRight(schema.Description, "."))
 			triggers = append(triggers, trigger)
 		}
@@ -233,12 +241,12 @@ func buildDescription(schemas []*structcli.CommandSchema, cmdMap map[string]*cob
 
 	desc := sb.String()
 
-	// Strip any XML tags
+	// Strip any XML tags (forbidden in SKILL.md frontmatter)
 	desc = stripXMLTags(desc)
 
-	// Truncate to 1024 chars
-	if len(desc) > 1024 {
-		desc = desc[:1021] + "..."
+	// Truncate to maxSkillDescriptionLen
+	if len(desc) > maxSkillDescriptionLen {
+		desc = desc[:maxSkillDescriptionLen-3] + "..."
 	}
 
 	return desc
@@ -262,10 +270,4 @@ func stripXMLTags(s string) string {
 		}
 	}
 	return result.String()
-}
-
-// toKebabCase converts a string to kebab-case.
-func toKebabCase(s string) string {
-	s = strings.ReplaceAll(s, " ", "-")
-	return strings.ToLower(s)
 }

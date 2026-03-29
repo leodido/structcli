@@ -57,3 +57,51 @@ func buildTestTree() *cobra.Command {
 
 	return root
 }
+
+// buildMinimalTree creates a CLI with a single command, no flags, no subcommands.
+func buildMinimalTree() *cobra.Command {
+	return &cobra.Command{
+		Use:   "bare",
+		Short: "A bare CLI with no subcommands",
+		RunE:  func(cmd *cobra.Command, args []string) error { return nil },
+	}
+}
+
+// buildNoDescriptionTree creates a CLI where some commands have empty descriptions.
+func buildNoDescriptionTree() *cobra.Command {
+	root := &cobra.Command{
+		Use:  "nodesc",
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+
+	sub := &cobra.Command{
+		Use:  "sub",
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+
+	opts := &testServeOptions{}
+	opts.Attach(sub)
+	root.AddCommand(sub)
+
+	return root
+}
+
+// buildDuplicateNameTree creates a CLI where two subcommands share the same name
+// under different parents (eg. "db add" and "user add").
+func buildDuplicateNameTree() *cobra.Command {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+
+	root := &cobra.Command{Use: "mycli", Short: "CLI with duplicate names", RunE: noop}
+
+	db := &cobra.Command{Use: "db", Short: "Database commands"}
+	dbAdd := &cobra.Command{Use: "add", Short: "Add a database", RunE: noop}
+	db.AddCommand(dbAdd)
+
+	user := &cobra.Command{Use: "user", Short: "User commands"}
+	userAdd := &cobra.Command{Use: "add", Short: "Add a user", RunE: noop}
+	user.AddCommand(userAdd)
+
+	root.AddCommand(db, user)
+
+	return root
+}
