@@ -26,6 +26,9 @@ type structcliSuite struct {
 	suite.Suite
 }
 
+// unsetEnv is for tests that must observe a genuinely absent variable.
+// t.Setenv can restore state, but it cannot temporarily remove a variable,
+// and these cases distinguish unset from set-to-empty via os.LookupEnv.
 func unsetEnv(t *testing.T, key string) {
 	t.Helper()
 
