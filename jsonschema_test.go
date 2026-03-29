@@ -510,3 +510,51 @@ func TestSetupJSONSchema_PassesThroughSchemaOptions(t *testing.T) {
 	require.Len(t, docs, 2)
 	assert.Contains(t, string(output), "{debug,info,warn,error,dpanic,panic,fatal}")
 }
+
+type jsonSchemaMetadataOptions struct {
+	Port int `flag:"port" flagdescr:"Server port"`
+}
+
+func (o *jsonSchemaMetadataOptions) Attach(c *cobra.Command) error { return nil }
+
+func TestJSONSchema_CommandMetadata(t *testing.T) {
+	o := &jsonSchemaMetadataOptions{}
+
+	cmd := &cobra.Command{
+		Use:       "srv",
+		Short:     "Start the server",
+		Long:      "Start the server with the specified configuration",
+		Example:   "  mycli srv --port 8080\n  mycli srv --port 3000",
+		Aliases:   []string{"server", "serve"},
+		ValidArgs: []string{"start", "stop", "restart"},
+	}
+
+	require.NoError(t, Define(cmd, o))
+
+	schemas, err := JSONSchema(cmd)
+	require.NoError(t, err)
+	require.Len(t, schemas, 1)
+	s := schemas[0]
+
+	assert.Equal(t, "  mycli srv --port 8080\n  mycli srv --port 3000", s.Example)
+	assert.Equal(t, []string{"server", "serve"}, s.Aliases)
+	assert.Equal(t, []string{"start", "stop", "restart"}, s.ValidArgs)
+}
+
+func TestJSONSchema_CommandMetadata_Empty(t *testing.T) {
+	o := &jsonSchemaMetadataOptions{}
+
+	cmd := &cobra.Command{Use: "srv", Short: "Start"}
+
+	require.NoError(t, Define(cmd, o))
+
+	schemas, err := JSONSchema(cmd)
+	require.NoError(t, err)
+	require.Len(t, schemas, 1)
+	s := schemas[0]
+
+	// Empty fields should be omitted (zero values)
+	assert.Empty(t, s.Example)
+	assert.Nil(t, s.Aliases)
+	assert.Nil(t, s.ValidArgs)
+}
