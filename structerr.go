@@ -136,8 +136,8 @@ type Violation struct {
 //	    os.Exit(structcli.HandleError(cmd, err, os.Stderr))
 //	}
 //
-// HandleError is a pure function — no global state, no environment sniffing, no side effects
-// beyond writing to w.
+// HandleError has no side effects beyond reading the current process environment to improve
+// source attribution and writing the structured error JSON to w.
 //
 // If err is nil, HandleError returns exitcode.OK and writes nothing.
 func HandleError(cmd *cobra.Command, err error, w io.Writer) int {
@@ -373,7 +373,7 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 		envVars := flagEnvVars(cmd, flagName)
 		envSet := false
 		for _, ev := range envVars {
-			if os.Getenv(ev) != "" {
+			if _, ok := os.LookupEnv(ev); ok {
 				envSet = true
 				break
 			}
@@ -451,22 +451,22 @@ func classifyInvalidArg(cmd *cobra.Command, cmdPath, gotValue, flagSpec, errMsg 
 	}
 
 	// 2. Check env vars
-	if envVars := flagEnvVars(cmd, flagName); len(envVars) > 0 {
-		for _, ev := range envVars {
-			if val := os.Getenv(ev); val != "" {
-				return &StructuredError{
-					Error:    "env_invalid_value",
-					ExitCode: exitcode.EnvInvalidValue,
-					EnvVar:   ev,
-					Flag:     flagName,
-					Got:      val,
-					Expected: expected,
-					Command:  cmdPath,
-					Message:  fmt.Sprintf("env var %s: invalid value %q for flag %q (expected %s)", ev, val, flagName, expected),
+		if envVars := flagEnvVars(cmd, flagName); len(envVars) > 0 {
+			for _, ev := range envVars {
+				if val, ok := os.LookupEnv(ev); ok {
+					return &StructuredError{
+						Error:    "env_invalid_value",
+						ExitCode: exitcode.EnvInvalidValue,
+						EnvVar:   ev,
+						Flag:     flagName,
+						Got:      val,
+						Expected: expected,
+						Command:  cmdPath,
+						Message:  fmt.Sprintf("env var %s: invalid value %q for flag %q (expected %s)", ev, val, flagName, expected),
+					}
 				}
 			}
 		}
-	}
 
 	// 3. Default: attribute to CLI flag (cobra reports it this way)
 	return &StructuredError{
@@ -545,26 +545,26 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 
 	// Source attribution: check if the bad value came from an env var
 	if flagName != "" {
-		if envVars := flagEnvVars(cmd, flagName); len(envVars) > 0 {
-			for _, ev := range envVars {
-				if val := os.Getenv(ev); val != "" {
-					if gotValue == "" {
-						gotValue = val
-					}
+			if envVars := flagEnvVars(cmd, flagName); len(envVars) > 0 {
+				for _, ev := range envVars {
+					if val, ok := os.LookupEnv(ev); ok {
+						if gotValue == "" {
+							gotValue = val
+						}
 
-					return &StructuredError{
-						Error:    "env_invalid_value",
-						ExitCode: exitcode.EnvInvalidValue,
-						EnvVar:   ev,
-						Flag:     flagName,
-						Got:      gotValue,
-						Expected: expectedType,
-						Command:  cmdPath,
-						Message:  fmt.Sprintf("env var %s: invalid value %q for flag %q (expected %s)", ev, gotValue, flagName, expectedType),
+						return &StructuredError{
+							Error:    "env_invalid_value",
+							ExitCode: exitcode.EnvInvalidValue,
+							EnvVar:   ev,
+							Flag:     flagName,
+							Got:      gotValue,
+							Expected: expectedType,
+							Command:  cmdPath,
+							Message:  fmt.Sprintf("env var %s: invalid value %q for flag %q (expected %s)", ev, gotValue, flagName, expectedType),
+						}
 					}
 				}
 			}
-		}
 	}
 
 	// Not from env — could be from config or default
