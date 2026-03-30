@@ -1,0 +1,55 @@
+# full
+
+https://github.com/leodido/structcli/examples/full
+
+> A demonstration of the structcli library with beautiful CLI features
+
+## Commands
+
+- [full preset](#full-preset): Demonstrate that flagpreset aliases are syntactic sugar and still flow through Transform and Validate
+- [full srv version](#full-srv-version): Print version information
+- [full usr add](#full-usr-add): Add a new user to the system with the specified details
+
+## full preset
+
+Demonstrate that flagpreset aliases are syntactic sugar and still flow through Transform and Validate
+
+### Flags
+
+- `--label` (string): -
+- `--role` (string): -
+
+## full srv version
+
+Print version information
+
+### Flags
+
+- `--dry` (bool, default: false): -
+- `--verbose` (count, default: 0): -
+
+### Environment Variables
+
+- `FULL_DRYRUN`: maps to `--dry`
+- `FULL_DRY`: maps to `--dry`
+
+## full usr add
+
+Add a new user to the system with the specified details
+
+### Flags
+
+- `--age` (int, default: 0): User age
+- `--dry` (bool, default: false): -
+- `--email` (string): User email
+- `--name` (string): User name
+- `--verbose` (count, default: 0): -
+
+### Environment Variables
+
+- `FULL_DRYRUN`: maps to `--dry`
+- `FULL_DRY`: maps to `--dry`
+
+## Optional
+
+- [JSON Schema](#json-schema): Machine-readable schema available via `full --jsonschema`
