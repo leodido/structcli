@@ -1,8 +1,15 @@
 package generate_test
 
 import (
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/leodido/structcli"
+	"github.com/leodido/structcli/generate"
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // testServeOptions defines flags via structcli.Define() — the same path real users take.
@@ -104,4 +111,76 @@ func buildDuplicateNameTree() *cobra.Command {
 	root.AddCommand(db, user)
 
 	return root
+}
+
+// TestWriteAll_CreatesAllThreeFiles verifies that WriteAll produces SKILL.md,
+// llms.txt, and AGENTS.md in the given output directory.
+func TestWriteAll_CreatesAllThreeFiles(t *testing.T) {
+	root := buildTestTree()
+	outDir := t.TempDir()
+
+	err := generate.WriteAll(root, outDir, generate.AllOptions{
+		ModulePath: "github.com/example/myapp",
+		Skill: generate.SkillOptions{
+			Author:  "testauthor",
+			Version: "1.2.3",
+		},
+	})
+	require.NoError(t, err)
+
+	for _, name := range []string{"SKILL.md", "llms.txt", "AGENTS.md"} {
+		data, err := os.ReadFile(filepath.Join(outDir, name))
+		require.NoError(t, err, "reading %s", name)
+		assert.NotEmpty(t, data, "%s should not be empty", name)
+	}
+}
+
+// TestWriteAll_SkillFrontmatter verifies that SKILL.md contains the expected
+// frontmatter fields when options are passed through AllOptions.
+func TestWriteAll_SkillFrontmatter(t *testing.T) {
+	root := buildTestTree()
+	outDir := t.TempDir()
+
+	require.NoError(t, generate.WriteAll(root, outDir, generate.AllOptions{
+		ModulePath: "github.com/example/myapp",
+		Skill: generate.SkillOptions{
+			Author:  "leodido",
+			Version: "0.9.0",
+		},
+	}))
+
+	data, err := os.ReadFile(filepath.Join(outDir, "SKILL.md"))
+	require.NoError(t, err)
+	content := string(data)
+
+	assert.Contains(t, content, "name: myapp")
+	assert.Contains(t, content, "author: leodido")
+	assert.Contains(t, content, "version: 0.9.0")
+}
+
+// TestWriteAll_ModulePathPropagated verifies that ModulePath from AllOptions
+// is propagated into llms.txt and AGENTS.md.
+func TestWriteAll_ModulePathPropagated(t *testing.T) {
+	root := buildTestTree()
+	outDir := t.TempDir()
+	modulePath := "github.com/myorg/myprojcli"
+
+	require.NoError(t, generate.WriteAll(root, outDir, generate.AllOptions{
+		ModulePath: modulePath,
+	}))
+
+	for _, name := range []string{"llms.txt", "AGENTS.md"} {
+		data, err := os.ReadFile(filepath.Join(outDir, name))
+		require.NoError(t, err)
+		assert.Contains(t, string(data), modulePath, "%s should reference ModulePath", name)
+	}
+}
+
+// TestWriteAll_ErrorOnBadDir verifies that WriteAll returns an error when
+// the output directory does not exist.
+func TestWriteAll_ErrorOnBadDir(t *testing.T) {
+	root := buildMinimalTree()
+	err := generate.WriteAll(root, "/nonexistent/path/that/does/not/exist/at/all", generate.AllOptions{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "writing SKILL.md")
 }
