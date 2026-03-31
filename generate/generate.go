@@ -19,6 +19,9 @@
 package generate
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -100,4 +103,66 @@ func yamlQuote(s string) string {
 		return `"` + escaped + `"`
 	}
 	return s
+}
+
+// AllOptions configures all three generators together.
+// It is the recommended configuration for [WriteAll] in //go:generate workflows.
+type AllOptions struct {
+	// ModulePath is the Go module path of the CLI binary.
+	// It is used to derive the project URL for llms.txt and AGENTS.md.
+	// Example: "github.com/myuser/mycli"
+	ModulePath string
+
+	// Skill configures the SKILL.md generator (name override, author, version, mcp-server).
+	Skill SkillOptions
+
+	// IncludeMCP includes MCP server information in llms.txt and AGENTS.md (reserved for future use).
+	IncludeMCP bool
+}
+
+// WriteAll generates SKILL.md, llms.txt, and AGENTS.md in outDir from the given command tree.
+// It is the recommended entry point for //go:generate workflows.
+//
+// When invoked from a //go:generate directive, outDir is typically [os.Getwd] since
+// go generate sets the working directory to the package containing the directive.
+//
+// Example:
+//
+//	func main() {
+//	    rootCmd, _ := mycli.NewRootCmd()
+//	    outDir, _ := os.Getwd()
+//	    if err := generate.WriteAll(rootCmd, outDir, generate.AllOptions{
+//	        ModulePath: "github.com/myuser/mycli",
+//	        Skill:      generate.SkillOptions{Author: "myuser", Version: "1.0.0"},
+//	    }); err != nil {
+//	        log.Fatal(err)
+//	    }
+//	}
+func WriteAll(rootCmd *cobra.Command, outDir string, opts AllOptions) error {
+	type entry struct {
+		name string
+		gen  func() ([]byte, error)
+	}
+	entries := []entry{
+		{"SKILL.md", func() ([]byte, error) {
+			return Skill(rootCmd, opts.Skill)
+		}},
+		{"llms.txt", func() ([]byte, error) {
+			return LLMsTxt(rootCmd, LLMsTxtOptions{ModulePath: opts.ModulePath, IncludeMCP: opts.IncludeMCP})
+		}},
+		{"AGENTS.md", func() ([]byte, error) {
+			return Agents(rootCmd, AgentsOptions{ModulePath: opts.ModulePath, IncludeMCP: opts.IncludeMCP})
+		}},
+	}
+
+	for _, e := range entries {
+		data, err := e.gen()
+		if err != nil {
+			return fmt.Errorf("generating %s: %w", e.name, err)
+		}
+		if err := os.WriteFile(filepath.Join(outDir, e.name), data, 0644); err != nil {
+			return fmt.Errorf("writing %s: %w", e.name, err)
+		}
+	}
+	return nil
 }
