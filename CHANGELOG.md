@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Machine-readable flag annotations for enums, presets, config metadata, validation tags, and mod tags.
 - `ValidationError.Details()` and `StructField` resolution for richer validation output.
 - `CommandSchema` metadata for examples, aliases, and valid args.
+- `structcli/generate` package with `Skill`, `LLMsTxt`, and `Agents` generators; produces SKILL.md, llms.txt, and AGENTS.md static discovery files from any `cobra.Command` tree, intended for `//go:generate` workflows.
+- `EnumValuer` interface for custom `pflag.Value` implementations to declare allowed values without description-text parsing.
+- `structcli/exitcode` subpackage with named exit code constants, `Category`, and `IsRetryable` helpers.
 
 ### Changed
 - JSON Schema now emits `integer` for integral flag types and integral slice items, while keeping floats as `number`.
