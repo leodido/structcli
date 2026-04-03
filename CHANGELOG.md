@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing required flags now remain classified as `MissingRequiredFlag`, with env fallback hints on single-flag errors when helpful.
 - Non-env decode failures now classify as `ConfigInvalidValue`.
 - Empty-but-set env vars are now treated as set when attributing env-origin errors.
+- `Define` now recurses into unexported embedded structs so their promoted exported fields are correctly defined as flags.
 
 ## [0.12.0] - 2026-03-22
 ### Added
