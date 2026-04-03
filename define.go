@@ -120,8 +120,19 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 	for i := range val.NumField() {
 		field := val.Field(i)
-		// Ignore private fields
+		f := val.Type().Field(i)
+
+		// Ignore unexported fields, but recurse into unexported embedded structs
+		// because their exported fields are promoted and accessible.
 		if !field.CanInterface() {
+			if f.Anonymous && f.Type.Kind() == reflect.Struct && field.CanAddr() {
+				// Use reflect.NewAt to obtain an interfaceable pointer to the
+				// unexported embedded struct so we can pass it to the recursive call.
+				ptr := reflect.NewAt(f.Type, unsafe.Pointer(field.UnsafeAddr()))
+				if err := define(c, ptr.Interface(), startingGroup, structPath, exclusions, defineEnv, mandatory, validateTagName, modTagName); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 
@@ -129,8 +140,6 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		if !field.CanAddr() {
 			continue
 		}
-
-		f := val.Type().Field(i)
 		path := internalpath.GetFieldPath(structPath, f)
 
 		// Check exclusions for struct path with command name validation (case-insensitive)

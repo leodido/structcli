@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -3873,4 +3874,71 @@ func (suite *structcliSuite) TestDefine_ValidateAnnotation_DefaultTagNameIgnores
 	require.NotNil(suite.T(), nameFlag)
 	_, hasMod := nameFlag.Annotations[flagModAnnotation]
 	assert.False(suite.T(), hasMod, "default tag name 'mod' should not match 'transform' tag")
+}
+
+// unexportedEmbeddedConfig contains flag fields inside an unexported embedded struct.
+// This reproduces the bug where CanInterface() skips the entire embedded struct,
+// causing none of its exported fields to be defined as flags.
+type unexportedEmbeddedConfig struct {
+	LogLevel string `default:"info" flagdescr:"the logging level" flag:"log-level" flaggroup:"Configuration"`
+	JSONLog  bool   `flagdescr:"whether to log in json" flag:"json-logging" flaggroup:"Configuration"`
+	Output   string `flagdescr:"output file" flag:"output" flagshort:"o" flaggroup:"Output"`
+}
+
+type unexportedEmbeddedFlagset struct {
+	unexportedEmbeddedConfig              // unexported embedded struct
+	closeOnce                sync.Once    // unexported non-embedded struct (not a flag)
+}
+
+func (o *unexportedEmbeddedFlagset) Attach(_ *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_UnexportedEmbeddedStruct() {
+	opts := &unexportedEmbeddedFlagset{}
+	cmd := &cobra.Command{Use: "test"}
+
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err, "Define should succeed with unexported embedded struct")
+
+	// Verify promoted fields from the unexported embedded struct are defined as flags
+	logLevelFlag := cmd.Flags().Lookup("log-level")
+	assert.NotNil(suite.T(), logLevelFlag, "log-level flag should be created from unexported embedded struct field")
+
+	jsonLogFlag := cmd.Flags().Lookup("json-logging")
+	assert.NotNil(suite.T(), jsonLogFlag, "json-logging flag should be created from unexported embedded struct field")
+
+	outputFlag := cmd.Flags().Lookup("output")
+	assert.NotNil(suite.T(), outputFlag, "output flag should be created from unexported embedded struct field")
+	assert.Equal(suite.T(), "o", outputFlag.Shorthand, "shorthand should be preserved")
+
+	// Verify flag values can be set and propagate to the struct
+	err = cmd.Flags().Set("log-level", "debug")
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "debug", opts.LogLevel, "setting flag should update promoted field")
+
+	err = cmd.Flags().Set("json-logging", "true")
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), true, opts.JSONLog, "setting flag should update promoted bool field")
+
+	err = cmd.Flags().Set("output", "/tmp/out.json")
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "/tmp/out.json", opts.Output, "setting flag should update promoted string field")
+}
+
+// Test that purely unexported non-embedded fields are still skipped.
+type mixedExportedUnexportedOptions struct {
+	Visible   string `flagdescr:"visible flag"`
+	invisible string `flagdescr:"should not appear"`
+}
+
+func (o *mixedExportedUnexportedOptions) Attach(_ *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_UnexportedNonEmbeddedFieldStillSkipped() {
+	opts := &mixedExportedUnexportedOptions{Visible: "yes"}
+	cmd := &cobra.Command{Use: "test"}
+
+	err := Define(cmd, opts)
+	require.NoError(suite.T(), err)
+
+	assert.NotNil(suite.T(), cmd.Flags().Lookup("visible"), "exported field should be defined")
+	assert.Nil(suite.T(), cmd.Flags().Lookup("invisible"), "unexported non-embedded field should still be skipped")
 }
