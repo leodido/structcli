@@ -57,8 +57,17 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		field := val.Field(i)
 		structF := val.Type().Field(i)
 
-		// Skip private fields
+		// Skip unexported fields, but recurse into unexported embedded structs
+		// because their exported fields are promoted and accessible.
 		if !field.CanInterface() {
+			if structF.Anonymous && structF.Type.Kind() == reflect.Struct {
+				_, hasDefineHook := internalhooks.DefineHookRegistry[structF.Type.String()]
+				if !hasDefineHook {
+					if err := Fields(field, internalpath.GetFieldName(prefix, structF), typeToFields, s); err != nil {
+						return err
+					}
+				}
+			}
 			continue
 		}
 
