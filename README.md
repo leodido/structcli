@@ -145,6 +145,8 @@ No `--help` parsing. No guessing what failed. Just a CLI that can explain itself
 
 Use `exitcode.Category(code)` and `exitcode.IsRetryable(code)` to decide what to do next. See `jsonschema.WithFullTree()` and `jsonschema.WithEnumInDescription()` for schema customization, and pass the same schema options through `SetupJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
 
+For build-time discovery, `generate.WriteAll` produces SKILL.md, llms.txt, and AGENTS.md from the same struct definitions — wire it into `//go:generate` and the files stay in sync automatically.
+
 Read the full [AI-native guide](docs/ai-native.md) or walk through the runnable [structured error example](examples/structerr/README.md).
 
 ## ⬇️ Install

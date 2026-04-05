@@ -109,6 +109,46 @@ Helpers:
 - `exitcode.Category(code)`
 - `exitcode.IsRetryable(code)`
 
+## Static discovery files
+
+The `generate` package produces build-time discovery files from the same struct definitions that power `--jsonschema` and `HandleError`. No hand-written markdown to keep in sync.
+
+Three formats are supported:
+
+| File | Standard | Consumer |
+|------|----------|----------|
+| `SKILL.md` | [Anthropic skill spec](https://docs.anthropic.com/en/docs/build-with-claude/tool-use/skills) | Claude Code, Claude API |
+| `llms.txt` | [llms.txt](https://llmstxt.org/) | LLM-powered tooling |
+| `AGENTS.md` | [Linux Foundation AGENTS.md](https://github.com/nicholasgriffintn/AGENTS.md) | Autonomous agents |
+
+### Recommended setup
+
+Add a `//go:generate` directive and a small build-time tool:
+
+```go
+//go:generate go run ./cmd/generate
+```
+
+```go
+// cmd/generate/main.go
+func main() {
+    rootCmd, _ := mycli.NewRootCmd()
+    outDir, _ := os.Getwd()
+    if err := generate.WriteAll(rootCmd, outDir, generate.AllOptions{
+        ModulePath: "github.com/myuser/mycli",
+        Skill:      generate.SkillOptions{Author: "myuser", Version: "1.0.0"},
+    }); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+Then `go generate ./...` keeps all three files in sync with the CLI definition. If a struct tag changes, the next generate run updates every discovery file automatically.
+
+The generated output is a scaffold. Add trigger phrases, workflow guidance, and examples on top as needed.
+
+See the [full example](../examples/full/) for a working `//go:generate` setup that dogfoods all three generators.
+
 ## Runnable example
 
 See the [structured error example](../examples/structerr/README.md) for a runnable demo covering:
@@ -122,7 +162,10 @@ See the [structured error example](../examples/structerr/README.md) for a runnab
 
 ## When to use what
 
-- `SetupJSONSchema`: expose a machine-readable contract
-- `SetupFlagErrors`: improve flag-parse error classification
-- `HandleError`: manual control over formatting and exit flow
-- `ExecuteOrExit`: one-line production wiring
+| Need | Tool |
+|------|------|
+| Runtime self-description | `SetupJSONSchema` |
+| Better flag-parse errors | `SetupFlagErrors` |
+| Manual error formatting | `HandleError` |
+| One-line production main | `ExecuteOrExit` |
+| Build-time discovery files | `generate.WriteAll` with `//go:generate` |
