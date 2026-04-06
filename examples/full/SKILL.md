@@ -1,7 +1,7 @@
 ---
 name: full
 description: |
-  A demonstration of the structcli library with beautiful CLI features. Use when you need to: demonstrate that flagpreset aliases are syntactic sugar and still flow through transform and validate, print version information, add a new user to the system with the specified details.
+  A demonstration of the structcli library with beautiful CLI features. Use when you need to: demonstrate that flagpreset aliases are syntactic sugar and still flow through transform and validate, start the server with the specified configuration, print version information, add a new user to the system with the specified details.
 metadata:
   author: leodido
   version: 0.13.0

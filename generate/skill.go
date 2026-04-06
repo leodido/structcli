@@ -226,8 +226,11 @@ func buildDescription(schemas []*structcli.CommandSchema, cmdMap map[string]*cob
 	// Trigger phrases from leaf commands
 	var triggers []string
 	for _, schema := range schemas {
+		if schema.CommandPath == root.CommandPath {
+			continue
+		}
 		cmd := cmdMap[schema.CommandPath]
-		if isLeafCommand(schema, cmd) && schema.Description != "" {
+		if isCallableCommand(schema, cmd) && schema.Description != "" {
 			trigger := strings.ToLower(strings.TrimRight(schema.Description, "."))
 			triggers = append(triggers, trigger)
 		}

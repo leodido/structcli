@@ -49,11 +49,19 @@ func buildCommandMap(root *cobra.Command) map[string]*cobra.Command {
 	return m
 }
 
-// isLeafCommand returns true if a command is a leaf (callable, not just a group).
-// A leaf command has no subcommands and either has flags or has a RunE handler.
-// This is the single source of truth used by all generators.
-func isLeafCommand(s *structcli.CommandSchema, cmd *cobra.Command) bool {
-	return len(s.Subcommands) == 0 && (len(s.Flags) > 0 || (cmd != nil && cmd.RunE != nil))
+// isCallableCommand returns true if a command is directly invokable.
+//
+// Cobra allows runnable parent commands: a command may have both its own
+// Run/RunE handler and child subcommands. For discovery files we care about
+// whether the command can be invoked, not whether it is a leaf in the tree.
+//
+// When the cobra command is unavailable, fall back to a conservative schema-only
+// heuristic so generators still produce something sensible.
+func isCallableCommand(s *structcli.CommandSchema, cmd *cobra.Command) bool {
+	if cmd != nil {
+		return cmd.Runnable()
+	}
+	return len(s.Subcommands) == 0 && len(s.Flags) > 0
 }
 
 // sortedSchemas returns a copy of schemas sorted by CommandPath for deterministic output.
