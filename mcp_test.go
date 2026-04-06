@@ -20,6 +20,22 @@ type mcpLeafOptions struct {
 	Port int    `flag:"port" flagrequired:"true"`
 }
 
+type failingFlagValue struct {
+	value string
+}
+
+func (f *failingFlagValue) String() string { return f.value }
+
+func (f *failingFlagValue) Set(value string) error {
+	if value == "default" {
+		return fmt.Errorf("cannot reset to %q", value)
+	}
+	f.value = value
+	return nil
+}
+
+func (f *failingFlagValue) Type() string { return "failing" }
+
 func (o *mcpLeafOptions) Attach(c *cobra.Command) error {
 	return Define(c, o)
 }
@@ -294,6 +310,169 @@ func TestRunMCPServer_NotificationsAreIgnored(t *testing.T) {
 	)
 
 	assert.Empty(t, responses)
+}
+
+func TestHandleMCPRequest_ErrorResponses(t *testing.T) {
+	root := newMCPRunnableParentRoot(t)
+	cfg := resolveMCPConfig(root, structclimcp.Options{AllCommands: true})
+	registry, err := newMCPRegistry(root, cfg)
+	require.NoError(t, err)
+
+	t.Run("nil request", func(t *testing.T) {
+		resp, err := handleMCPRequest(root, cfg, registry, nil)
+		require.NoError(t, err)
+		assert.Nil(t, resp)
+	})
+
+	t.Run("invalid jsonrpc", func(t *testing.T) {
+		resp, err := handleMCPRequest(root, cfg, registry, &structclimcp.Request{
+			JSONRPC: "1.0",
+			ID:      json.RawMessage(`1`),
+			Method:  "tools/list",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, rpcCodeInvalidRequest, resp.Error.Code)
+		assert.Equal(t, "jsonrpc must be 2.0", resp.Error.Message)
+	})
+
+	t.Run("unknown method", func(t *testing.T) {
+		resp, err := handleMCPRequest(root, cfg, registry, &structclimcp.Request{
+			JSONRPC: jsonrpcVersion,
+			ID:      json.RawMessage(`2`),
+			Method:  "tools/missing",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, rpcCodeMethodNotFound, resp.Error.Code)
+	})
+
+	t.Run("notification without id is ignored", func(t *testing.T) {
+		resp, err := handleMCPRequest(root, cfg, registry, &structclimcp.Request{
+			JSONRPC: jsonrpcVersion,
+			Method:  "tools/missing",
+		})
+		require.NoError(t, err)
+		assert.Nil(t, resp)
+	})
+
+	t.Run("invalid tools call params", func(t *testing.T) {
+		resp, err := handleMCPRequest(root, cfg, registry, &structclimcp.Request{
+			JSONRPC: jsonrpcVersion,
+			ID:      json.RawMessage(`3`),
+			Method:  "tools/call",
+			Params:  json.RawMessage(`{`),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, rpcCodeInvalidParams, resp.Error.Code)
+		assert.Equal(t, "invalid tools/call params", resp.Error.Message)
+	})
+
+	t.Run("missing tool name", func(t *testing.T) {
+		params, err := json.Marshal(map[string]any{
+			"arguments": map[string]any{"port": 3000},
+		})
+		require.NoError(t, err)
+
+		resp, err := handleMCPRequest(root, cfg, registry, &structclimcp.Request{
+			JSONRPC: jsonrpcVersion,
+			ID:      json.RawMessage(`4`),
+			Method:  "tools/call",
+			Params:  params,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, rpcCodeInvalidParams, resp.Error.Code)
+		assert.Equal(t, "tool name is required", resp.Error.Message)
+	})
+}
+
+func TestMCPArgumentHelpers(t *testing.T) {
+	t.Run("arguments to argv", func(t *testing.T) {
+		schema := &CommandSchema{
+			Flags: map[string]*FlagSchema{
+				"host": {},
+				"port": {},
+				"tags": {},
+			},
+		}
+
+		args, err := mcpArgumentsToArgs(schema, map[string]any{
+			"host": "0.0.0.0",
+			"port": json.Number("3000"),
+			"tags": []any{"alpha", true, float64(1.5)},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"--host", "0.0.0.0",
+			"--port", "3000",
+			"--tags", "alpha",
+			"--tags", "true",
+			"--tags", "1.5",
+		}, args)
+	})
+
+	t.Run("unknown argument", func(t *testing.T) {
+		schema := &CommandSchema{Flags: map[string]*FlagSchema{"host": {}}}
+
+		args, err := mcpArgumentsToArgs(schema, map[string]any{"port": 3000})
+		require.Error(t, err)
+		assert.Nil(t, args)
+		assert.EqualError(t, err, `unknown argument "port"`)
+	})
+
+	t.Run("invalid repeated argument value", func(t *testing.T) {
+		schema := &CommandSchema{Flags: map[string]*FlagSchema{"tags": {}}}
+
+		args, err := mcpArgumentsToArgs(schema, map[string]any{
+			"tags": []any{make(chan int)},
+		})
+		require.Error(t, err)
+		assert.Nil(t, args)
+		assert.Contains(t, err.Error(), `invalid argument "tags"`)
+	})
+
+	t.Run("stringify supported values", func(t *testing.T) {
+		values, err := mcpArgumentValues([]any{
+			"hello",
+			true,
+			json.Number("42"),
+			float32(1.25),
+			int64(-7),
+			uint(9),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"hello", "true", "42", "1.25", "-7", "9"}, values)
+
+		value, err := mcpArgumentString([]int{1, 2})
+		require.NoError(t, err)
+		assert.Equal(t, "[1,2]", value)
+	})
+
+	t.Run("unsupported scalar value", func(t *testing.T) {
+		value, err := mcpArgumentString(make(chan int))
+		require.Error(t, err)
+		assert.Empty(t, value)
+		assert.Contains(t, err.Error(), "unsupported value type chan int")
+	})
+}
+
+func TestResetCommandExecutionState_ReturnsFlagResetError(t *testing.T) {
+	root := &cobra.Command{Use: "app"}
+	value := &failingFlagValue{value: "default"}
+	root.Flags().Var(value, "broken", "broken flag")
+
+	require.NoError(t, root.Flags().Set("broken", "custom"))
+	assert.True(t, root.Flags().Lookup("broken").Changed)
+
+	err := resetCommandExecutionState(root)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resetting flag broken")
 }
 
 func runMCPTestServer(t *testing.T, root *cobra.Command, cfg *mcpConfig, requests ...string) []structclimcp.Response {
