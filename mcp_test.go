@@ -152,6 +152,22 @@ func TestRunMCPServer_ToolsList_AllCommands(t *testing.T) {
 	assert.Equal(t, []string{"myapp", "ping", "srv", "srv-version"}, toolNames(listResult.Tools))
 }
 
+func TestRunMCPServer_ToolsList_Exclude(t *testing.T) {
+	root := newMCPRunnableParentRoot(t)
+	responses := runMCPTestServer(t, root, resolveMCPConfig(root, structclimcp.Options{
+		AllCommands: true,
+		Exclude:     []string{"ping", "myapp srv"},
+	}),
+		`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`,
+	)
+
+	require.Len(t, responses, 1)
+
+	var listResult structclimcp.ToolsListResult
+	mustUnmarshalJSON(t, responses[0].Result, &listResult)
+	assert.Equal(t, []string{"myapp", "srv-version"}, toolNames(listResult.Tools))
+}
+
 func TestRunMCPServer_ToolsCallSuccess(t *testing.T) {
 	root := newMCPLeafRoot(t)
 	responses := runMCPTestServer(t, root, resolveMCPConfig(root, structclimcp.Options{}),
@@ -198,7 +214,7 @@ func runMCPTestServer(t *testing.T, root *cobra.Command, cfg *mcpConfig, request
 	in := strings.NewReader(strings.Join(requests, "\n"))
 	var out bytes.Buffer
 
-	require.NoError(t, runMCPServer(root, cfg, in, &out, &out))
+	require.NoError(t, runMCPServer(root, cfg, in, &out))
 
 	dec := json.NewDecoder(bytes.NewReader(out.Bytes()))
 	var responses []structclimcp.Response
