@@ -1,6 +1,8 @@
 package internalcmd
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	internalscope "github.com/leodido/structcli/internal/scope"
@@ -101,4 +103,161 @@ func TestRecursivelyWrapRun_IsIdempotentAndRecursive(t *testing.T) {
 	root.SetArgs([]string{"mid", "leaf"})
 	require.NoError(t, root.Execute())
 	assert.Equal(t, 1, leafCalls)
+}
+
+func TestPrepareInterceptedExecution_RestoresFlagsAndState(t *testing.T) {
+	RestoreInterceptedExecutions()
+	t.Cleanup(RestoreInterceptedExecutions)
+
+	root := &cobra.Command{Use: "app"}
+	root.PersistentFlags().String("config", "default.yaml", "config file")
+
+	srv := &cobra.Command{Use: "srv"}
+	srv.Flags().Int("port", 8080, "server port")
+	root.AddCommand(srv)
+
+	require.NoError(t, root.PersistentFlags().Set("config", "custom.yaml"))
+	require.NoError(t, srv.Flags().Set("port", "9090"))
+
+	assert.True(t, root.PersistentFlags().Lookup("config").Changed)
+	assert.True(t, srv.Flags().Lookup("port").Changed)
+
+	PrepareInterceptedExecution(srv)
+
+	assert.True(t, IsExecutionIntercepted(srv))
+	assert.True(t, srv.DisableFlagParsing)
+
+	RestoreInterceptedExecutions()
+
+	config, err := root.PersistentFlags().GetString("config")
+	require.NoError(t, err)
+	port, err := srv.Flags().GetInt("port")
+	require.NoError(t, err)
+
+	assert.Equal(t, "default.yaml", config)
+	assert.Equal(t, 8080, port)
+	assert.False(t, root.PersistentFlags().Lookup("config").Changed)
+	assert.False(t, srv.Flags().Lookup("port").Changed)
+	assert.False(t, srv.DisableFlagParsing)
+	assert.False(t, IsExecutionIntercepted(srv))
+}
+
+func TestRecursivelyWrapExecution_PreservesLifecycleWhenNotIntercepted(t *testing.T) {
+	var calls []string
+
+	root := &cobra.Command{
+		Use: "app",
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			calls = append(calls, "persistent-pre")
+		},
+		PersistentPostRun: func(_ *cobra.Command, _ []string) {
+			calls = append(calls, "persistent-post")
+		},
+	}
+
+	srv := &cobra.Command{
+		Use: "srv",
+		Args: func(_ *cobra.Command, args []string) error {
+			calls = append(calls, "args")
+			if len(args) != 1 {
+				return fmt.Errorf("expected one argument, got %d", len(args))
+			}
+			return nil
+		},
+		PreRun: func(_ *cobra.Command, _ []string) {
+			calls = append(calls, "pre")
+		},
+		Run: func(_ *cobra.Command, _ []string) {
+			calls = append(calls, "run")
+		},
+		PostRun: func(_ *cobra.Command, _ []string) {
+			calls = append(calls, "post")
+		},
+	}
+	root.AddCommand(srv)
+
+	RecursivelyWrapExecution(root, ExecutionInterceptor{
+		Annotation: "structcli/test-wrapped",
+		ShouldIntercept: func(_ *cobra.Command) bool {
+			return false
+		},
+		Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
+			calls = append(calls, "intercept")
+			return false, nil
+		},
+	})
+
+	root.SetArgs([]string{"srv", "now"})
+	require.NoError(t, root.Execute())
+
+	assert.Equal(t, []string{
+		"args",
+		"persistent-pre",
+		"intercept",
+		"pre",
+		"run",
+		"post",
+		"persistent-post",
+	}, calls)
+	assert.Equal(t, "true", root.Annotations["structcli/test-wrapped"])
+	assert.Equal(t, "true", srv.Annotations["structcli/test-wrapped"])
+}
+
+func TestRecursivelyWrapExecution_InterceptsWithoutRunningCommand(t *testing.T) {
+	t.Run("handled", func(t *testing.T) {
+		RestoreInterceptedExecutions()
+		t.Cleanup(RestoreInterceptedExecutions)
+
+		var calls []string
+		root := &cobra.Command{
+			Use: "app",
+			PersistentPreRun: func(_ *cobra.Command, _ []string) {
+				calls = append(calls, "persistent-pre")
+			},
+			PreRun: func(_ *cobra.Command, _ []string) {
+				calls = append(calls, "pre")
+			},
+			Run: func(_ *cobra.Command, _ []string) {
+				calls = append(calls, "run")
+			},
+			PostRun: func(_ *cobra.Command, _ []string) {
+				calls = append(calls, "post")
+			},
+			PersistentPostRun: func(_ *cobra.Command, _ []string) {
+				calls = append(calls, "persistent-post")
+			},
+		}
+
+		RecursivelyWrapExecution(root, ExecutionInterceptor{
+			Annotation: "structcli/test-wrapped",
+			Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
+				calls = append(calls, "intercept")
+				return true, nil
+			},
+		})
+
+		require.NoError(t, root.Execute())
+		assert.Equal(t, []string{"persistent-pre", "intercept"}, calls)
+		assert.False(t, IsExecutionIntercepted(root))
+	})
+
+	t.Run("error", func(t *testing.T) {
+		root := &cobra.Command{
+			Use: "app",
+			Run: func(_ *cobra.Command, _ []string) {
+				t.Fatal("run should not execute when interception fails")
+			},
+		}
+
+		RecursivelyWrapExecution(root, ExecutionInterceptor{
+			Annotation: "structcli/test-wrapped",
+			Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
+				return false, errors.New("boom")
+			},
+		})
+
+		err := root.Execute()
+		require.Error(t, err)
+		assert.EqualError(t, err, "boom")
+	})
 }
