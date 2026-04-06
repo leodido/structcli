@@ -113,6 +113,34 @@ func buildDuplicateNameTree() *cobra.Command {
 	return root
 }
 
+// buildRunnableParentTree creates a CLI where a parent command is directly
+// runnable via Run while also having subcommands. This matches valid Cobra
+// behavior and guards against leaf-only discovery heuristics.
+func buildRunnableParentTree() *cobra.Command {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+
+	root := &cobra.Command{Use: "myapp", Short: "A CLI with runnable parents"}
+
+	srv := &cobra.Command{
+		Use:   "srv",
+		Short: "Start the server",
+		Run: func(cmd *cobra.Command, args []string) {
+			_ = args
+		},
+	}
+	srv.Flags().Int("port", 3000, "Server port")
+
+	version := &cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		RunE:  noop,
+	}
+	srv.AddCommand(version)
+	root.AddCommand(srv)
+
+	return root
+}
+
 // TestWriteAll_CreatesAllThreeFiles verifies that WriteAll produces SKILL.md,
 // llms.txt, and AGENTS.md in the given output directory.
 func TestWriteAll_CreatesAllThreeFiles(t *testing.T) {

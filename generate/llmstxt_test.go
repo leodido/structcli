@@ -139,6 +139,18 @@ func TestLLMsTxt_DuplicateNamesUniqueAnchors(t *testing.T) {
 	assert.NotContains(t, content, "(#add)")
 }
 
+func TestLLMsTxt_RunnableParentIncluded(t *testing.T) {
+	root := buildRunnableParentTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "- [myapp srv](#myapp-srv): Start the server")
+	assert.Contains(t, content, "## myapp srv")
+	assert.Contains(t, content, "--port")
+	assert.Contains(t, content, "## myapp srv version")
+}
+
 func TestLLMsTxt_MinimalCLI(t *testing.T) {
 	root := buildMinimalTree()
 	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})

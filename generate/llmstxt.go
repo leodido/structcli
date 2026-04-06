@@ -47,53 +47,53 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 		fmt.Fprintf(&buf, "\n> %s\n", rootSchema.Description)
 	}
 
-	// Collect leaf commands using shared logic
-	type leafCommand struct {
+	// Collect directly invokable commands using shared logic.
+	type callableCommand struct {
 		schema *structcli.CommandSchema
 		cmd    *cobra.Command
 	}
-	var leaves []leafCommand
+	var callables []callableCommand
 
 	cmdMap := buildCommandMap(rootCmd)
 
 	for _, s := range schemas {
 		cmd := cmdMap[s.CommandPath]
-		if isLeafCommand(s, cmd) {
-			leaves = append(leaves, leafCommand{schema: s, cmd: cmd})
+		if isCallableCommand(s, cmd) {
+			callables = append(callables, callableCommand{schema: s, cmd: cmd})
 		}
 	}
 
 	// Commands index section — use CommandPath for unique anchors
-	if len(leaves) > 0 {
+	if len(callables) > 0 {
 		fmt.Fprintf(&buf, "\n## Commands\n\n")
-		for _, leaf := range leaves {
-			anchor := toKebab(leaf.schema.CommandPath)
-			description := leaf.schema.Description
+		for _, callable := range callables {
+			anchor := toKebab(callable.schema.CommandPath)
+			description := callable.schema.Description
 			if description == "" {
 				description = "-"
 			}
-			fmt.Fprintf(&buf, "- [%s](#%s): %s\n", leaf.schema.CommandPath, anchor, description)
+			fmt.Fprintf(&buf, "- [%s](#%s): %s\n", callable.schema.CommandPath, anchor, description)
 		}
 	}
 
 	// Per-command sections
-	for _, leaf := range leaves {
+	for _, callable := range callables {
 		// Use CommandPath as heading for uniqueness
-		fmt.Fprintf(&buf, "\n## %s\n", leaf.schema.CommandPath)
+		fmt.Fprintf(&buf, "\n## %s\n", callable.schema.CommandPath)
 
-		if leaf.schema.Description != "" {
-			fmt.Fprintf(&buf, "\n%s\n", leaf.schema.Description)
+		if callable.schema.Description != "" {
+			fmt.Fprintf(&buf, "\n%s\n", callable.schema.Description)
 		}
 
 		// Build sorted flags once for this command
-		flagNames := sortedFlagNames(leaf.schema.Flags)
+		flagNames := sortedFlagNames(callable.schema.Flags)
 
 		// Flags section
 		if len(flagNames) > 0 {
 			fmt.Fprintf(&buf, "\n### Flags\n\n")
 
 			for _, name := range flagNames {
-				f := leaf.schema.Flags[name]
+				f := callable.schema.Flags[name]
 				parts := []string{f.Type}
 				if f.Default != "" {
 					parts = append(parts, fmt.Sprintf("default: %s", f.Default))
@@ -115,7 +115,7 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 			flagName string
 		}
 		for _, name := range flagNames {
-			f := leaf.schema.Flags[name]
+			f := callable.schema.Flags[name]
 			for _, envVar := range f.EnvVars {
 				envEntries = append(envEntries, struct {
 					envVar   string

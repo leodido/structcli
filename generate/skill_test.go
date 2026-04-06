@@ -261,6 +261,24 @@ func TestSkill_CommandsSorted(t *testing.T) {
 	assert.Less(t, configIdx, serveIdx)
 }
 
+func TestSkill_DescriptionIncludesRunnableParent(t *testing.T) {
+	root := buildRunnableParentTree()
+	out, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "Use when you need to: start the server, print version information.")
+}
+
+func TestSkill_DescriptionSkipsRootCommandTrigger(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.NotContains(t, content, "Use when you need to: a test cli application")
+}
+
 // --- helpers ---
 
 func findTableLine(section, substr string) string {
