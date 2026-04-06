@@ -36,7 +36,7 @@
 //	go run . srv --port 8080 --level bogus
 //
 //	# Env var with invalid value (StructuredError exit_code 25)
-//	MYAPP_SRV_PORT=abc go run . srv
+//	SRV_PORT=abc go run . srv
 //
 //	# Multiple missing flags
 //	go run . usr add
