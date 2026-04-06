@@ -349,8 +349,7 @@ func callMCPTool(root *cobra.Command, registry *mcpRegistry, params structclimcp
 		return nil, &structclimcp.ResponseError{Code: rpcCodeInvalidParams, Message: err.Error()}
 	}
 
-	argv := make([]string, 0, len(def.path)+len(flagArgs))
-	argv = append(argv, def.path...)
+	argv := append([]string(nil), def.path...)
 	argv = append(argv, flagArgs...)
 
 	stdout, stderr, executedCmd, execErr := executeMCPCommand(root, argv)
