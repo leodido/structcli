@@ -125,7 +125,8 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 		// Skip structcli infrastructure flags (debug, config)
 		if rootAnnotations := c.Root().Annotations; rootAnnotations != nil {
 			if f.Name == rootAnnotations[internaldebug.FlagAnnotation] ||
-				f.Name == rootAnnotations[configFlagAnnotation] {
+				f.Name == rootAnnotations[configFlagAnnotation] ||
+				f.Name == rootAnnotations[mcpFlagAnnotation] {
 				return
 			}
 		}
