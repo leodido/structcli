@@ -107,7 +107,7 @@ func resolveMCPConfig(rootC *cobra.Command, opts structclimcp.Options) *mcpConfi
 func wrapForMCP(rootC *cobra.Command, cfg *mcpConfig) {
 	originalPreRun := rootC.PersistentPreRunE
 	rootC.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		handled, err := serveMCPIfRequested(cmd, cfg, os.Stdin, os.Stdout, os.Stderr)
+		handled, err := serveMCPIfRequested(cmd, cfg, os.Stdin, os.Stdout)
 		if err != nil {
 			return err
 		}
@@ -121,11 +121,11 @@ func wrapForMCP(rootC *cobra.Command, cfg *mcpConfig) {
 	}
 }
 
-func serveMCPIfRequested(c *cobra.Command, cfg *mcpConfig, in io.Reader, out, errw io.Writer) (bool, error) {
+func serveMCPIfRequested(c *cobra.Command, cfg *mcpConfig, in io.Reader, out io.Writer) (bool, error) {
 	if !isPersistentFlagChanged(c, cfg.flagName) {
 		return false, nil
 	}
-	return true, runMCPServer(c.Root(), cfg, in, out, errw)
+	return true, runMCPServer(c.Root(), cfg, in, out)
 }
 
 func isPersistentFlagChanged(c *cobra.Command, flagName string) bool {
@@ -145,8 +145,7 @@ func isPersistentFlagChanged(c *cobra.Command, flagName string) bool {
 	return false
 }
 
-func runMCPServer(root *cobra.Command, cfg *mcpConfig, in io.Reader, out, errw io.Writer) error {
-	_ = errw
+func runMCPServer(root *cobra.Command, cfg *mcpConfig, in io.Reader, out io.Writer) error {
 	registry, err := newMCPRegistry(root, cfg)
 	if err != nil {
 		return err

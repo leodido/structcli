@@ -11,7 +11,7 @@ type Options struct {
 	Name        string   // Server name reported during initialize (defaults to root command name)
 	Version     string   // Server version reported during initialize (defaults to structcli.Version)
 	Separator   string   // Tool name separator for nested commands (defaults to "-")
-	AllCommands bool     // Include runnable parent/root commands, not just leaf commands
+	AllCommands bool     // Include runnable parent/root commands. By default MCP exposes runnable leaves only.
 	Exclude     []string // Exclude tool names or full command paths from tools/list and tools/call
 }
 
