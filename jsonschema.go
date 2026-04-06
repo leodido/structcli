@@ -3,10 +3,10 @@ package structcli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
+	internalcmd "github.com/leodido/structcli/internal/cmd"
 	internaldebug "github.com/leodido/structcli/internal/debug"
 	internalenv "github.com/leodido/structcli/internal/env"
 	internalusage "github.com/leodido/structcli/internal/usage"
@@ -447,7 +447,8 @@ func (cs *CommandSchema) ToJSONSchema() ([]byte, error) {
 
 // SetupJSONSchema adds a --jsonschema persistent flag to the root command.
 //
-// When the flag is set, the command prints its JSON Schema to stdout and exits.
+// When the flag is set, the command prints its JSON Schema to stdout and returns
+// without running the command's normal execution path.
 // Works only for the root command.
 func SetupJSONSchema(rootC *cobra.Command, opts jsonschema.Options) error {
 	if rootC.Parent() != nil {
@@ -469,9 +470,11 @@ func SetupJSONSchema(rootC *cobra.Command, opts jsonschema.Options) error {
 	}
 	rootC.Annotations[jsonSchemaFlagAnnotation] = flagName
 
-	// Wrap the root persistent pre-run so it can render schema output before the
-	// command's normal execution path. This preserves any pre-existing handler.
-	wrapForJSONSchema(rootC, flagName, cfg)
+	// Wrap right before execution so commands and hooks added after setup are
+	// still intercepted before Cobra validates args and required flags.
+	cobra.OnInitialize(func() {
+		wrapForJSONSchema(rootC, flagName, cfg)
+	})
 
 	// Regenerate usage templates
 	SetupUsage(rootC)
@@ -558,21 +561,20 @@ func schemaOptsFromConfig(cfg *jsonschema.Config) []jsonschema.Opt {
 
 // wrapForJSONSchema recursively wraps commands to intercept --jsonschema.
 func wrapForJSONSchema(c *cobra.Command, flagName string, cfg *jsonschema.Config) {
-	originalPreRun := c.PersistentPreRunE
-	c.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		handled, output, err := renderJSONSchemaIfRequested(cmd, flagName, cfg)
-		if err != nil {
-			return err
-		}
-		if handled {
-			fmt.Fprintln(os.Stdout, string(output))
-			os.Exit(0)
-		}
-
-		if originalPreRun != nil {
-			return originalPreRun(cmd, args)
-		}
-
-		return nil
-	}
+	internalcmd.RecursivelyWrapExecution(c, internalcmd.ExecutionInterceptor{
+		Annotation: "structcli/jsonschema-wrapped",
+		ShouldIntercept: func(cmd *cobra.Command) bool {
+			return isPersistentFlagChanged(cmd, flagName)
+		},
+		Intercept: func(cmd *cobra.Command, args []string) (bool, error) {
+			handled, output, err := renderJSONSchemaIfRequested(cmd, flagName, cfg)
+			if err != nil {
+				return false, err
+			}
+			if handled {
+				fmt.Fprintln(cmd.OutOrStdout(), string(output))
+			}
+			return handled, nil
+		},
+	})
 }

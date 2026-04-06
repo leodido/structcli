@@ -1,6 +1,7 @@
 package structcli
 
 import (
+	"bytes"
 	"encoding/json"
 	"net"
 	"testing"
@@ -453,6 +454,100 @@ func TestSetupJSONSchema_PreservesPersistentPreRunE(t *testing.T) {
 	require.NoError(t, root.Execute())
 
 	assert.Equal(t, 1, calls)
+}
+
+func TestSetupJSONSchema_PreservesPersistentPreRun(t *testing.T) {
+	calls := 0
+	root := &cobra.Command{
+		Use: "app",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			calls++
+		},
+	}
+
+	sub := &cobra.Command{
+		Use: "serve",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	require.NoError(t, Define(sub, &jsonSchemaBasicOptions{}))
+	root.AddCommand(sub)
+
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+
+	root.SetArgs([]string{"serve", "--port", "8080"})
+	require.NoError(t, root.Execute())
+
+	assert.Equal(t, 1, calls)
+}
+
+func TestSetupJSONSchema_ExecuteInterceptsWithoutExit(t *testing.T) {
+	root := &cobra.Command{Use: "app", SilenceErrors: true, SilenceUsage: true}
+	preRunCalls := 0
+	runCalls := 0
+	sub := &cobra.Command{
+		Use: "serve",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			preRunCalls++
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runCalls++
+			return nil
+		},
+	}
+	require.NoError(t, Define(sub, &jsonSchemaBasicOptions{}))
+	root.AddCommand(sub)
+
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"serve", "--jsonschema"})
+	require.NoError(t, root.Execute())
+
+	assert.Zero(t, preRunCalls)
+	assert.Zero(t, runCalls)
+	assert.Contains(t, out.String(), `"title": "app serve"`)
+
+	out.Reset()
+	root.SetArgs([]string{"serve"})
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `required flag(s) "port" not set`)
+}
+
+func TestSetupJSONSchema_InterceptsRootHooksAssignedAfterSetup(t *testing.T) {
+	root := &cobra.Command{Use: "app", SilenceErrors: true, SilenceUsage: true}
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+	require.NoError(t, Define(root, &jsonSchemaBasicOptions{}))
+
+	preRunCalls := 0
+	runCalls := 0
+	root.PreRunE = func(cmd *cobra.Command, args []string) error {
+		preRunCalls++
+		return nil
+	}
+	root.RunE = func(cmd *cobra.Command, args []string) error {
+		runCalls++
+		return nil
+	}
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"--jsonschema"})
+	require.NoError(t, root.Execute())
+
+	assert.Zero(t, preRunCalls)
+	assert.Zero(t, runCalls)
+	assert.Contains(t, out.String(), `"title": "app"`)
+
+	out.Reset()
+	root.SetArgs(nil)
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `required flag(s) "port" not set`)
 }
 
 func TestRenderJSONSchemaIfRequested_Subcommand(t *testing.T) {
