@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/leodido/structcli"
 	full_example_cli "github.com/leodido/structcli/examples/full/cli"
 	"github.com/leodido/structcli/generate"
 )
@@ -35,7 +36,7 @@ func main() {
 		ModulePath: "github.com/leodido/structcli/examples/full",
 		Skill: generate.SkillOptions{
 			Author:  "leodido",
-			Version: "0.9.0",
+			Version: structcli.Version,
 		},
 	}); err != nil {
 		log.Fatal(err)
