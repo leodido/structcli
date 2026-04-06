@@ -6,6 +6,7 @@ import (
 
 	"github.com/leodido/structcli"
 	"github.com/leodido/structcli/jsonschema"
+	"github.com/leodido/structcli/mcp"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
 )
@@ -33,6 +34,9 @@ func main() {
 	if err := structcli.SetupJSONSchema(cli, jsonschema.Options{}); err != nil {
 		log.Fatalln(err)
 	}
+	if err := structcli.SetupMCP(cli, mcp.Options{}); err != nil {
+		log.Fatalln(err)
+	}
 
 	// This single line creates all the options (flags, env vars)
 	if err := opts.Attach(cli); err != nil {
@@ -44,7 +48,7 @@ func main() {
 	}
 
 	cli.RunE = func(c *cobra.Command, args []string) error {
-		fmt.Println(opts)
+		fmt.Fprintln(c.OutOrStdout(), opts)
 
 		return nil
 	}
