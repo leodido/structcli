@@ -109,6 +109,94 @@ func TestSetupMCP_PreservesPersistentPreRunE(t *testing.T) {
 	assert.True(t, called)
 }
 
+func TestSetupMCP_PreservesPersistentPreRun(t *testing.T) {
+	called := false
+	root := &cobra.Command{
+		Use: "myapp",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			called = true
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+
+	require.NoError(t, SetupMCP(root, structclimcp.Options{}))
+
+	root.SetArgs(nil)
+	require.NoError(t, root.Execute())
+	assert.True(t, called)
+}
+
+func TestSetupMCP_ExecuteInterceptsWithoutExit(t *testing.T) {
+	root := newMCPLeafRoot(t)
+	root.SilenceErrors = true
+	root.SilenceUsage = true
+	require.NoError(t, SetupMCP(root, structclimcp.Options{}))
+
+	var out bytes.Buffer
+	root.SetIn(strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n"))
+	root.SetOut(&out)
+	root.SetArgs([]string{"srv", "--mcp"})
+	require.NoError(t, root.Execute())
+
+	var resp structclimcp.Response
+	require.NoError(t, json.Unmarshal(out.Bytes(), &resp))
+	var listResult structclimcp.ToolsListResult
+	mustUnmarshalJSON(t, resp.Result, &listResult)
+	assert.Contains(t, toolNames(listResult.Tools), "srv")
+	assert.NotContains(t, out.String(), "started")
+
+	out.Reset()
+	root.SetIn(strings.NewReader(""))
+	root.SetArgs([]string{"srv"})
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `required flag(s) "port" not set`)
+}
+
+func TestSetupMCP_InterceptsRootHooksAssignedAfterSetup(t *testing.T) {
+	root := &cobra.Command{Use: "myapp", SilenceErrors: true, SilenceUsage: true}
+	require.NoError(t, SetupMCP(root, structclimcp.Options{}))
+
+	opts := &mcpLeafOptions{}
+	require.NoError(t, opts.Attach(root))
+
+	preRunCalls := 0
+	runCalls := 0
+	root.PreRunE = func(c *cobra.Command, args []string) error {
+		preRunCalls++
+		return Unmarshal(c, opts)
+	}
+	root.RunE = func(c *cobra.Command, args []string) error {
+		runCalls++
+		fmt.Fprint(c.OutOrStdout(), "started")
+		return nil
+	}
+
+	var out bytes.Buffer
+	root.SetIn(strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n"))
+	root.SetOut(&out)
+	root.SetArgs([]string{"--mcp"})
+	require.NoError(t, root.Execute())
+
+	var resp structclimcp.Response
+	require.NoError(t, json.Unmarshal(out.Bytes(), &resp))
+	var listResult structclimcp.ToolsListResult
+	mustUnmarshalJSON(t, resp.Result, &listResult)
+	assert.Contains(t, toolNames(listResult.Tools), "myapp")
+	assert.Zero(t, preRunCalls)
+	assert.Zero(t, runCalls)
+	assert.NotContains(t, out.String(), "started")
+
+	out.Reset()
+	root.SetIn(strings.NewReader(""))
+	root.SetArgs(nil)
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `required flag(s) "port" not set`)
+}
+
 func TestJSONSchema_SkipsMCPFlag(t *testing.T) {
 	root := newMCPLeafRoot(t)
 	require.NoError(t, SetupMCP(root, structclimcp.Options{}))

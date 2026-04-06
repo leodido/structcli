@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
 
+	internalcmd "github.com/leodido/structcli/internal/cmd"
 	"github.com/leodido/structcli/jsonschema"
 	structclimcp "github.com/leodido/structcli/mcp"
 	"github.com/spf13/cobra"
@@ -51,7 +51,8 @@ type mcpRegistry struct {
 
 // SetupMCP adds a --mcp persistent flag to the root command.
 //
-// When the flag is set, the command serves a minimal MCP server over stdio and exits.
+// When the flag is set, the command serves a minimal MCP server over stdio and
+// returns without running the command's normal execution path.
 // Works only for the root command.
 func SetupMCP(rootC *cobra.Command, opts structclimcp.Options) error {
 	if rootC.Parent() != nil {
@@ -67,7 +68,11 @@ func SetupMCP(rootC *cobra.Command, opts structclimcp.Options) error {
 	}
 	rootC.Annotations[mcpFlagAnnotation] = cfg.flagName
 
-	wrapForMCP(rootC, cfg)
+	// Wrap right before execution so commands and hooks added after setup are
+	// still intercepted before Cobra validates args and required flags.
+	cobra.OnInitialize(func() {
+		wrapForMCP(rootC, cfg)
+	})
 	SetupUsage(rootC)
 
 	return nil
@@ -105,20 +110,15 @@ func resolveMCPConfig(rootC *cobra.Command, opts structclimcp.Options) *mcpConfi
 }
 
 func wrapForMCP(rootC *cobra.Command, cfg *mcpConfig) {
-	originalPreRun := rootC.PersistentPreRunE
-	rootC.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		handled, err := serveMCPIfRequested(cmd, cfg, os.Stdin, os.Stdout)
-		if err != nil {
-			return err
-		}
-		if handled {
-			os.Exit(0)
-		}
-		if originalPreRun != nil {
-			return originalPreRun(cmd, args)
-		}
-		return nil
-	}
+	internalcmd.RecursivelyWrapExecution(rootC, internalcmd.ExecutionInterceptor{
+		Annotation: "structcli/mcp-wrapped",
+		ShouldIntercept: func(cmd *cobra.Command) bool {
+			return isPersistentFlagChanged(cmd, cfg.flagName)
+		},
+		Intercept: func(cmd *cobra.Command, args []string) (bool, error) {
+			return serveMCPIfRequested(cmd, cfg, cmd.InOrStdin(), cmd.OutOrStdout())
+		},
+	})
 }
 
 func serveMCPIfRequested(c *cobra.Command, cfg *mcpConfig, in io.Reader, out io.Writer) (bool, error) {
