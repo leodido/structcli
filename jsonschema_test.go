@@ -653,3 +653,125 @@ func TestJSONSchema_CommandMetadata_Empty(t *testing.T) {
 	assert.Nil(t, s.Aliases)
 	assert.Nil(t, s.ValidArgs)
 }
+
+func TestTypedDefault_Boolean(t *testing.T) {
+	assert.Equal(t, true, typedDefault("true", "boolean", nil))
+	assert.Equal(t, false, typedDefault("false", "boolean", nil))
+}
+
+func TestTypedDefault_Integer(t *testing.T) {
+	result := typedDefault("42", "integer", nil)
+	assert.Equal(t, json.Number("42"), result)
+}
+
+func TestTypedDefault_Number(t *testing.T) {
+	result := typedDefault("3.14", "number", nil)
+	assert.Equal(t, json.Number("3.14"), result)
+}
+
+func TestTypedDefault_String(t *testing.T) {
+	assert.Equal(t, "hello", typedDefault("hello", "string", nil))
+}
+
+func TestTypedDefault_Empty(t *testing.T) {
+	assert.Nil(t, typedDefault("", "string", nil))
+	assert.Nil(t, typedDefault("", "boolean", nil))
+	assert.Nil(t, typedDefault("", "array", nil))
+}
+
+func TestTypedDefault_ArrayWithoutItems(t *testing.T) {
+	result := typedDefault("a,b,c", "array", nil)
+	assert.Equal(t, []string{"a", "b", "c"}, result)
+}
+
+func TestTypedDefault_ArrayWithoutItems_EmptyBrackets(t *testing.T) {
+	result := typedDefault("[]", "array", nil)
+	assert.Equal(t, []string{}, result)
+}
+
+func TestTypedDefault_ArrayWithStringItems(t *testing.T) {
+	items := &jsonSchema{Type: "string"}
+	result := typedDefault("x,y,z", "array", items)
+	assert.Equal(t, []string{"x", "y", "z"}, result)
+}
+
+func TestTypedDefault_ArrayWithIntegerItems(t *testing.T) {
+	items := &jsonSchema{Type: "integer"}
+	result := typedDefault("1,2,3", "array", items)
+	assert.Equal(t, []json.Number{json.Number("1"), json.Number("2"), json.Number("3")}, result)
+}
+
+func TestTypedDefault_ArrayWithNumberItems(t *testing.T) {
+	items := &jsonSchema{Type: "number"}
+	result := typedDefault("1.5,2.5", "array", items)
+	assert.Equal(t, []json.Number{json.Number("1.5"), json.Number("2.5")}, result)
+}
+
+func TestTypedDefault_ArrayWithBoolItems(t *testing.T) {
+	items := &jsonSchema{Type: "boolean"}
+	result := typedDefault("true,false,True", "array", items)
+	assert.Equal(t, []bool{true, false, true}, result)
+}
+
+func TestTypedDefault_EmptyArrayWithTypedItems(t *testing.T) {
+	assert.Equal(t, []bool{}, typedDefault("[]", "array", &jsonSchema{Type: "boolean"}))
+	assert.Equal(t, []json.Number{}, typedDefault("[]", "array", &jsonSchema{Type: "integer"}))
+	assert.Equal(t, []json.Number{}, typedDefault("[]", "array", &jsonSchema{Type: "number"}))
+	assert.Equal(t, []string{}, typedDefault("[]", "array", &jsonSchema{Type: "string"}))
+}
+
+func TestPflagTypeToJSONSchemaType_MapTypes(t *testing.T) {
+	typ, items := pflagTypeToJSONSchemaType("stringToString")
+	assert.Equal(t, "object", typ)
+	assert.Nil(t, items)
+
+	typ, items = pflagTypeToJSONSchemaType("stringToInt")
+	assert.Equal(t, "object", typ)
+	assert.Nil(t, items)
+
+	typ, items = pflagTypeToJSONSchemaType("stringToInt64")
+	assert.Equal(t, "object", typ)
+	assert.Nil(t, items)
+}
+
+func TestPflagTypeToJSONSchemaType_SliceTypes(t *testing.T) {
+	typ, items := pflagTypeToJSONSchemaType("boolSlice")
+	assert.Equal(t, "array", typ)
+	require.NotNil(t, items)
+	assert.Equal(t, "boolean", items.Type)
+
+	typ, items = pflagTypeToJSONSchemaType("durationSlice")
+	assert.Equal(t, "array", typ)
+	require.NotNil(t, items)
+	assert.Equal(t, "string", items.Type)
+
+	typ, items = pflagTypeToJSONSchemaType("ipSlice")
+	assert.Equal(t, "array", typ)
+	require.NotNil(t, items)
+	assert.Equal(t, "string", items.Type)
+}
+
+func TestPflagTypeToJSONSchemaType_ByteTypes(t *testing.T) {
+	for _, pflagType := range []string{"hexBytes", "base64Bytes", "bytesBase64", "bytesHex"} {
+		typ, items := pflagTypeToJSONSchemaType(pflagType)
+		assert.Equal(t, "string", typ, "type for %s", pflagType)
+		assert.Nil(t, items, "items for %s", pflagType)
+	}
+}
+
+func TestPflagTypeToJSONSchemaType_UnknownFallsToString(t *testing.T) {
+	typ, items := pflagTypeToJSONSchemaType("customType")
+	assert.Equal(t, "string", typ)
+	assert.Nil(t, items)
+}
+
+func TestJSONSchema_FullTreeOption(t *testing.T) {
+	root := &cobra.Command{Use: "app", Short: "root app"}
+	sub := &cobra.Command{Use: "sub", Short: "sub command", RunE: func(c *cobra.Command, args []string) error { return nil }}
+	sub.Flags().String("name", "", "a name")
+	root.AddCommand(sub)
+
+	schemas, err := JSONSchema(root, jsonschema.WithFullTree())
+	require.NoError(t, err)
+	assert.Len(t, schemas, 2, "full tree should include root and subcommand")
+}
