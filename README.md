@@ -106,7 +106,7 @@ Out of the box, your CLI supports:
 - ✅ Automatic validation and type conversion
 - 📚 Beautiful help output with proper grouping
 
-Add the AI-native wiring below and it also gains machine-readable JSON Schema, structured JSON errors, and semantic exit codes for agents.
+Add the AI-native wiring below and it also gains machine-readable JSON Schema, structured JSON errors, semantic exit codes, and optional MCP tool-server mode for agents.
 
 ## Build AI-Native CLIs
 
@@ -117,6 +117,7 @@ Instead of scraping `--help` and guessing, an agent can discover the contract, c
 ```go
 structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
 structcli.SetupFlagErrors(rootCmd) // Optional, but recommended for typed flag-parse errors
+structcli.SetupMCP(rootCmd, mcp.Options{}) // Optional, exposes the CLI as an MCP server over stdio
 structcli.ExecuteOrExit(rootCmd)
 ```
 
@@ -124,6 +125,7 @@ With that wiring:
 
 - `--jsonschema` exposes flags, defaults, required inputs, enums, and env bindings across the command tree
 - `HandleError` / `ExecuteOrExit` emit structured JSON errors instead of forcing callers to parse human-oriented output
+- `--mcp` exposes the same command tree as MCP tools over stdio, with typed inputs and structured tool-call failures
 - semantic exit codes tell the caller whether it should fix input, fix config, retry, or escalate to a human
 
 The same contract spans flags, env vars, config, validation, and enum constraints.
