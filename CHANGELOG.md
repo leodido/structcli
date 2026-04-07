@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-04-07
+
 ### Added
 - `SetupMCP` support for turning a Cobra CLI into a stdio MCP server with `--mcp`.
 - `generate.WriteAll` for `//go:generate` workflows that want to emit SKILL.md, llms.txt, and AGENTS.md together.
@@ -105,7 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `ResetGlobals()` to `Reset()`.
 
-[Unreleased]: https://github.com/leodido/structcli/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/leodido/structcli/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/leodido/structcli/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/leodido/structcli/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/leodido/structcli/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/leodido/structcli/compare/v0.10.0...v0.11.0
