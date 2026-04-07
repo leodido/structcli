@@ -11,6 +11,7 @@ rootCmd := &cobra.Command{Use: "mycli"}
 
 structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
 structcli.SetupFlagErrors(rootCmd) // Optional, but recommended
+structcli.SetupMCP(rootCmd, mcp.Options{}) // Optional, exposes the CLI as an MCP server over stdio
 structcli.ExecuteOrExit(rootCmd)
 ```
 
@@ -49,6 +50,27 @@ Programmatic APIs:
 - `structcli.JSONSchema(cmd, jsonschema.WithFullTree())`
 - `jsonschema.WithEnumInDescription()`
 - `jsonschema.Options{SchemaOpts: ...}` passed through `SetupJSONSchema`
+
+## MCP server mode
+
+`SetupMCP` adds a `--mcp` flag to the root command. When requested, structcli serves the same command tree over stdio as an MCP server.
+
+That means an agent can use the CLI as a live tool host instead of only consuming generated markdown:
+
+- `initialize` advertises the server name, version, and tool capability
+- `tools/list` exposes commands as tools using the same JSON Schema metadata as `--jsonschema`
+- `tools/call` executes the selected command and returns structured tool output or a structured error payload
+
+Minimal wiring:
+
+```go
+structcli.SetupMCP(rootCmd, mcp.Options{
+    Name:    "mycli",
+    Version: "1.0.0",
+})
+```
+
+The default transport is stdio, which fits Claude Code and similar agent runners. Command execution, typed inputs, and structured failures all reuse the existing structcli contract, so the MCP surface stays aligned with the CLI surface.
 
 ## Structured JSON errors
 
@@ -111,7 +133,7 @@ Helpers:
 
 ## Static discovery files
 
-The `generate` package produces build-time discovery files from the same struct definitions that power `--jsonschema` and `HandleError`. No hand-written markdown to keep in sync.
+The `generate` package produces build-time discovery files from the same struct definitions that power `--jsonschema`, `SetupMCP`, and `HandleError`. No hand-written markdown to keep in sync.
 
 Three formats are supported:
 
@@ -165,6 +187,7 @@ See the [structured error example](../examples/structerr/README.md) for a runnab
 | Need | Tool |
 |------|------|
 | Runtime self-description | `SetupJSONSchema` |
+| Live agent tool access | `SetupMCP` |
 | Better flag-parse errors | `SetupFlagErrors` |
 | Manual error formatting | `HandleError` |
 | One-line production main | `ExecuteOrExit` |
