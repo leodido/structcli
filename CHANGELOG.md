@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `SetupMCP` support for turning a Cobra CLI into a stdio MCP server with `--mcp`.
+- `generate.WriteAll` for `//go:generate` workflows that want to emit SKILL.md, llms.txt, and AGENTS.md together.
+
+### Changed
+- `SetupJSONSchema` and `SetupMCP` now use shared intercepted execution plumbing instead of hard exits, so their interception paths are testable in-process.
+- Static discovery generation now includes runnable parent commands, and the full example dogfoods the generators.
+- Release metadata now guards against tag/version drift with the `Version` constant.
+
+### Fixed
+- MCP argv handling no longer uses overflow-prone preallocation.
+- The structured error example docs now use the current `SRV_PORT` env var.
+
+## [0.13.0] - 2026-04-03
+
+### Added
 - AI-native CLI support through `SetupJSONSchema`, `JSONSchema`, semantic exit codes, and structured JSON error handling via `HandleError`, `ExecuteOrExit`, and `SetupFlagErrors`.
 - Machine-readable flag annotations for enums, presets, config metadata, validation tags, and mod tags.
 - `ValidationError.Details()` and `StructField` resolution for richer validation output.
@@ -90,7 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `ResetGlobals()` to `Reset()`.
 
-[Unreleased]: https://github.com/leodido/structcli/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/leodido/structcli/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/leodido/structcli/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/leodido/structcli/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/leodido/structcli/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/leodido/structcli/compare/v0.9.2...v0.10.0
