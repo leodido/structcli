@@ -124,7 +124,7 @@ func init() {
 func InferDecodeHooks(c *cobra.Command, name, typename string) (bool, error) {
 	if data, ok := DecodeHookRegistry[typename]; ok {
 		if err := c.Flags().SetAnnotation(name, FlagDecodeHookAnnotation, []string{data.ann}); err != nil {
-			return false, fmt.Errorf("couldn't set decode hook annotation for flag %s: %w", name, err)
+			return false, fmt.Errorf("set decode hook annotation: %w", err)
 		}
 
 		return true, nil

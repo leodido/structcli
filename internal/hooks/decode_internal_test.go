@@ -41,9 +41,10 @@ func TestInferDecodeHooks_ErrorOnUnknownFlag(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	// Don't define a "durations" flag — SetAnnotation will fail on unknown flag
 
-	_, err := InferDecodeHooks(cmd, "durations", "[]time.Duration")
+	found, err := InferDecodeHooks(cmd, "durations", "[]time.Duration")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "durations")
+	assert.False(t, found)
+	assert.Contains(t, err.Error(), "decode hook annotation")
 }
 
 func TestConvertMapInputErrors(t *testing.T) {

@@ -542,7 +542,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				return fmt.Errorf("couldn't infer decode hooks for flag %s: %w", name, err)
 			}
 			if !found {
-				return fmt.Errorf("internal error: missing decode hook for built-in slice type %s", f.Type.String())
+				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 			}
 
 		default:
