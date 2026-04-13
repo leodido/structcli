@@ -36,6 +36,38 @@ func (f *failingFlagValue) Set(value string) error {
 
 func (f *failingFlagValue) Type() string { return "failing" }
 
+type mcpStreamCapturedOptions struct {
+	Name string `flag:"name" default:"agent"`
+
+	out io.Writer
+	err io.Writer
+}
+
+func (o *mcpStreamCapturedOptions) Attach(c *cobra.Command) error {
+	return Define(c, o)
+}
+
+func newMCPStreamCapturedRoot(t *testing.T, out io.Writer, errOut io.Writer) *cobra.Command {
+	t.Helper()
+
+	streams := &mcpStreamCapturedOptions{out: out, err: errOut}
+	root := &cobra.Command{Use: "myapp"}
+	cmd := &cobra.Command{
+		Use:   "stream",
+		Short: "Write through captured streams",
+		PreRunE: func(c *cobra.Command, args []string) error {
+			return Unmarshal(c, streams)
+		},
+		Run: func(c *cobra.Command, args []string) {
+			fmt.Fprintf(streams.out, "captured stdout for %s", streams.Name)
+			fmt.Fprint(streams.err, "captured stderr")
+		},
+	}
+	require.NoError(t, streams.Attach(cmd))
+	root.AddCommand(cmd)
+	return root
+}
+
 func (o *mcpLeafOptions) Attach(c *cobra.Command) error {
 	return Define(c, o)
 }
@@ -285,6 +317,68 @@ func TestRunMCPServer_ToolsCallSuccess(t *testing.T) {
 	require.Len(t, result.Content, 1)
 	assert.False(t, result.IsError)
 	assert.Equal(t, "started 0.0.0.0:3000", result.Content[0].Text)
+}
+
+func TestRunMCPServer_ToolsCallCommandFactoryCapturesConstructionStreams(t *testing.T) {
+	root := newMCPStreamCapturedRoot(t, io.Discard, io.Discard)
+	cfg := resolveMCPConfig(root, structclimcp.Options{
+		CommandFactory: func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error) {
+			assert.Equal(t, []string{"stream", "--name", "kubectl"}, argv)
+			return newMCPStreamCapturedRoot(t, stdout, stderr), nil
+		},
+	})
+	responses := runMCPTestServer(t, root, cfg,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"stream","arguments":{"name":"kubectl"}}}`,
+	)
+
+	require.Len(t, responses, 1)
+
+	var result structclimcp.ToolCallResult
+	mustUnmarshalJSON(t, responses[0].Result, &result)
+	require.Len(t, result.Content, 1)
+	assert.False(t, result.IsError)
+	assert.Equal(t, "captured stdout for kubectlcaptured stderr", result.Content[0].Text)
+}
+
+func TestRunMCPServer_ToolsCallCommandFactoryErrorBecomesStructuredError(t *testing.T) {
+	root := newMCPStreamCapturedRoot(t, io.Discard, io.Discard)
+	cfg := resolveMCPConfig(root, structclimcp.Options{
+		CommandFactory: func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error) {
+			return nil, fmt.Errorf("factory failed")
+		},
+	})
+	responses := runMCPTestServer(t, root, cfg,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"stream"}}`,
+	)
+
+	require.Len(t, responses, 1)
+
+	var result structclimcp.ToolCallResult
+	mustUnmarshalJSON(t, responses[0].Result, &result)
+	require.Len(t, result.Content, 1)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content[0].Text, `"error":"error"`)
+	assert.Contains(t, result.Content[0].Text, `"message":"factory failed"`)
+}
+
+func TestRunMCPServer_ToolsCallCommandFactoryNilCommandBecomesStructuredError(t *testing.T) {
+	root := newMCPStreamCapturedRoot(t, io.Discard, io.Discard)
+	cfg := resolveMCPConfig(root, structclimcp.Options{
+		CommandFactory: func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error) {
+			return nil, nil
+		},
+	})
+	responses := runMCPTestServer(t, root, cfg,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"stream"}}`,
+	)
+
+	require.Len(t, responses, 1)
+
+	var result structclimcp.ToolCallResult
+	mustUnmarshalJSON(t, responses[0].Result, &result)
+	require.Len(t, result.Content, 1)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content[0].Text, `"message":"command factory returned nil command"`)
 }
 
 func TestRunMCPServer_ToolsCallStructuredError(t *testing.T) {
