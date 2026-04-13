@@ -176,6 +176,7 @@ func TestDefine_FlagHidden_InvalidBoolValue(t *testing.T) {
 	err := Define(cmd, &hiddenInvalidBoolOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "flaghidden")
+	assert.Contains(t, err.Error(), "Bad", "error should reference the field name")
 }
 
 func TestDefine_FlagHidden_InvalidNumericBoolValue(t *testing.T) {
@@ -185,6 +186,7 @@ func TestDefine_FlagHidden_InvalidNumericBoolValue(t *testing.T) {
 	err := Define(cmd, &hiddenInvalidNumericOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "flaghidden")
+	assert.Contains(t, err.Error(), "Bad", "error should reference the field name")
 }
 
 func TestDefine_FlagHidden_OnStructField(t *testing.T) {
@@ -195,6 +197,7 @@ func TestDefine_FlagHidden_OnStructField(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "flaghidden")
 	assert.Contains(t, err.Error(), "struct")
+	assert.Contains(t, err.Error(), "Nested", "error should reference the field name")
 }
 
 func TestDefine_FlagHidden_ConflictsWithFlagIgnore(t *testing.T) {
@@ -205,6 +208,7 @@ func TestDefine_FlagHidden_ConflictsWithFlagIgnore(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "flagignore")
 	assert.Contains(t, err.Error(), "flaghidden")
+	assert.Contains(t, err.Error(), "Bad", "error should reference the field name")
 }
 
 func TestDefine_FlagHidden_ValidTrueValue(t *testing.T) {
