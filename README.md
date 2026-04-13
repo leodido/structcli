@@ -12,6 +12,8 @@ Stop writing plumbing. Start shipping commands.
 
 ## ⚡ Quick Start
 
+[![Build with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/leodido/structcli)
+
 Start with a plain Go struct:
 
 ```go
