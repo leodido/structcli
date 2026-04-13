@@ -160,6 +160,21 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 			return structclierrors.NewConflictingTagsError(fieldName, []string{"flagignore", "flagrequired"}, "mutually exclusive tags")
 		}
 
+		// Validate flaghidden tag
+		flagHiddenValue, flagHiddenErr := IsValidBoolTag(fieldName, "flaghidden", structF.Tag.Get("flaghidden"))
+		if flagHiddenErr != nil {
+			return flagHiddenErr
+		}
+
+		// Ensure that flaghidden is given to non-struct types
+		if flagHiddenValue != nil && *flagHiddenValue && isStructKind {
+			return structclierrors.NewInvalidTagUsageError(fieldName, "flaghidden", "flaghidden cannot be used on struct types")
+		}
+
+		if flagHiddenValue != nil && flagIgnoreValue != nil && *flagHiddenValue && *flagIgnoreValue {
+			return structclierrors.NewConflictingTagsError(fieldName, []string{"flagignore", "flaghidden"}, "mutually exclusive tags")
+		}
+
 		// Check for duplicate flags
 		if !isStructKind {
 			// Skip ignored fields from duplicate check

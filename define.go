@@ -164,6 +164,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		defval := f.Tag.Get("default")
 		descr := f.Tag.Get("flagdescr")
 		group := f.Tag.Get("flaggroup")
+		hidden, _ := strconv.ParseBool(f.Tag.Get("flaghidden"))
 		if startingGroup != "" {
 			group = startingGroup
 		}
@@ -205,6 +206,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			// Marking the flag
 			if mandatory {
 				c.MarkFlagRequired(name)
+			}
+			if hidden {
+				c.Flags().Lookup(name).Hidden = true
 			}
 
 			// Set the defaults
@@ -300,6 +304,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					if err := c.Flags().SetAnnotation(aliasName, internalusage.FlagGroupAnnotation, []string{group}); err != nil {
 						return fmt.Errorf("couldn't set group annotation for flag %s: %w", aliasName, err)
 					}
+				}
+				if hidden {
+					c.Flags().Lookup(aliasName).Hidden = true
 				}
 			}
 
