@@ -385,12 +385,11 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				// The users set `flagcustom:"true"` but they didn't define a custom define hook
 				// We fallback to look up the hooks registries to avoid erroring out
 				if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
-				found, err := internalhooks.InferDecodeHooks(c, name, f.Type.String())
-					if err != nil {
+				// Best-effort: attach a decode hook if one exists, but don't
+					// hard-error when missing — this is a fallback path, not a
+					// mandatory one like the other two call sites.
+					if _, err := internalhooks.InferDecodeHooks(c, name, f.Type.String()); err != nil {
 						return fmt.Errorf("couldn't infer decode hooks for flag %s: %w", name, err)
-					}
-					if !found {
-						return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 					}
 
 					if err := finalizeFieldDefinition(); err != nil {
