@@ -121,14 +121,16 @@ func init() {
 	}
 }
 
-func InferDecodeHooks(c *cobra.Command, name, typename string) bool {
+func InferDecodeHooks(c *cobra.Command, name, typename string) (bool, error) {
 	if data, ok := DecodeHookRegistry[typename]; ok {
-		_ = c.Flags().SetAnnotation(name, FlagDecodeHookAnnotation, []string{data.ann})
+		if err := c.Flags().SetAnnotation(name, FlagDecodeHookAnnotation, []string{data.ann}); err != nil {
+			return false, fmt.Errorf("set decode hook annotation: %w", err)
+		}
 
-		return true
+		return true, nil
 	}
 
-	return false
+	return false, nil
 }
 
 // StringToZapcoreLevelHookFunc creates a decode hook that converts string values
