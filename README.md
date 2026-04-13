@@ -682,7 +682,7 @@ Use these tags in your struct fields to control the behavior:
 | `default`      | Sets the default value for the flag                                                                                                     | `default:"info"`            |
 | `flagenv`      | Enables binding to an environment variable (`"true"`/`"false"`)                                                                         | `flagenv:"true"`            |
 | `flagrequired` | Marks the flag as required (`"true"`/`"false"`)                                                                                         | `flagrequired:"true"`       |
-| `flaghidden`   | Hides the flag from help/usage output while keeping it fully functional (`"true"`/`"false"`)                                            | `flaghidden:"true"`         |
+| `flaghidden`   | Hides the flag from help/usage output and machine-readable schemas while keeping it fully functional (`"true"`/`"false"`)               | `flaghidden:"true"`         |
 | `flaggroup`    | Assigns the flag to a group in the help message                                                                                         | `flaggroup:"Database"`      |
 | `flagignore`   | Skips creating a flag for this field (`"true"`/`"false"`)                                                                               | `flagignore:"true"`         |
 | `flagcustom`   | Uses a custom `Define<FieldName>` method for advanced flag creation and a custom `Decode<FieldName>` method for advanced value decoding | `flagcustom:"true"`         |
