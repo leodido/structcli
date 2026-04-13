@@ -528,3 +528,21 @@ func TestUnmarshal_FlagHidden_PresetStillWorks(t *testing.T) {
 
 	assert.Equal(t, 10, opts.Level, "hidden preset alias should still set the value")
 }
+
+func TestJSONSchema_FlagHidden_ExcludedFromSchema(t *testing.T) {
+	resetFlagHiddenTestState()
+
+	opts := &hiddenFlagOptions{}
+	cmd := &cobra.Command{Use: "app", Short: "test app"}
+	require.NoError(t, Define(cmd, opts))
+
+	schemas, err := JSONSchema(cmd)
+	require.NoError(t, err)
+	require.Len(t, schemas, 1)
+
+	_, hasSecret := schemas[0].Flags["secret"]
+	assert.False(t, hasSecret, "hidden flag should be excluded from JSON schema")
+
+	_, hasVisible := schemas[0].Flags["visible"]
+	assert.True(t, hasVisible, "visible flag should be included in JSON schema")
+}
