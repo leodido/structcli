@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 	"unsafe"
@@ -175,7 +175,7 @@ func enumHelpText[L ~int8 | ~int](levels map[L][]string, descr string) ([]string
 	for k := range levels {
 		keys = append(keys, int(k))
 	}
-	sort.Ints(keys)
+	slices.Sort(keys)
 
 	values := make([]string, 0, len(keys))
 	for _, k := range keys {
