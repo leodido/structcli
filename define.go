@@ -208,9 +208,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				c.MarkFlagRequired(name)
 			}
 			if hidden {
-				if err := c.Flags().MarkHidden(name); err != nil {
-					return fmt.Errorf("couldn't mark flag %s as hidden: %w", name, err)
-				}
+				// Error discarded: MarkHidden only fails on unknown flags,
+				// which cannot happen here since the flag was just defined above.
+				_ = c.Flags().MarkHidden(name)
 			}
 
 			// Set the defaults
@@ -308,9 +308,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					}
 				}
 				if hidden {
-					if err := c.Flags().MarkHidden(aliasName); err != nil {
-						return fmt.Errorf("couldn't mark preset alias flag %s as hidden: %w", aliasName, err)
-					}
+					// Error discarded: MarkHidden only fails on unknown flags,
+					// which cannot happen here since the alias was just defined above.
+					_ = c.Flags().MarkHidden(aliasName)
 				}
 			}
 
