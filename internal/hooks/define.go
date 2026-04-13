@@ -167,6 +167,24 @@ func DefineTimeDurationHookFunc() DefineHookFunc {
 	}
 }
 
+// enumHelpText builds a sorted "{val1,val2,...}" addendum from an enum map
+// keyed by integer-typed levels. It returns the sorted value names and the
+// description with the addendum appended.
+func enumHelpText[L ~int8 | ~int](levels map[L][]string, descr string) ([]string, string) {
+	keys := make([]int, 0, len(levels))
+	for k := range levels {
+		keys = append(keys, int(k))
+	}
+	sort.Ints(keys)
+
+	values := make([]string, 0, len(keys))
+	for _, k := range keys {
+		values = append(values, levels[L(k)][0])
+	}
+
+	return values, descr + fmt.Sprintf(" {%s}", strings.Join(values, ","))
+}
+
 // DefineZapcoreLevelHookFunc creates a flag definition function for zapcore.Level.
 //
 // It returns an enum flag that implements pflag.Value.
@@ -182,19 +200,8 @@ func DefineZapcoreLevelHookFunc() DefineHookFunc {
 			zapcore.FatalLevel:  {"fatal"},
 		}
 
-		keys := []int{}
-		for k := range logLevels {
-			keys = append(keys, int(k))
-		}
-		sort.Ints(keys)
-		values := []string{}
-		for _, k := range keys {
-			values = append(values, logLevels[zapcore.Level(k)][0])
-		}
-		addendum := fmt.Sprintf(" {%s}", strings.Join(values, ","))
-		enhancedDescr := descr + addendum
+		values, enhancedDescr := enumHelpText(logLevels, descr)
 
-		// Get pointer to the field for the enum flag
 		fieldPtr := (*zapcore.Level)(unsafe.Pointer(fieldValue.UnsafeAddr()))
 		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), logLevels, enumflag.EnumCaseInsensitive)
 
@@ -214,19 +221,8 @@ func DefineSlogLevelHookFunc() DefineHookFunc {
 			slog.LevelError: {"error"},
 		}
 
-		keys := []int{}
-		for k := range logLevels {
-			keys = append(keys, int(k))
-		}
-		sort.Ints(keys)
-		values := []string{}
-		for _, k := range keys {
-			values = append(values, logLevels[slog.Level(k)][0])
-		}
-		addendum := fmt.Sprintf(" {%s}", strings.Join(values, ","))
-		enhancedDescr := descr + addendum
+		values, enhancedDescr := enumHelpText(logLevels, descr)
 
-		// Get pointer to the field for the enum flag
 		fieldPtr := (*slog.Level)(unsafe.Pointer(fieldValue.UnsafeAddr()))
 		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), logLevels, enumflag.EnumCaseInsensitive)
 
