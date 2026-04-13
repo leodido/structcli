@@ -72,6 +72,23 @@ structcli.SetupMCP(rootCmd, mcp.Options{
 
 The default transport is stdio, which fits Claude Code and similar agent runners. Command execution, typed inputs, and structured failures all reuse the existing structcli contract, so the MCP surface stays aligned with the CLI surface.
 
+For CLIs that capture output streams during command construction, provide a fresh command factory:
+
+```go
+structcli.SetupMCP(rootCmd, mcp.Options{
+    Name: "streamed",
+    CommandFactory: func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error) {
+        return NewRootCommand(Streams{
+            In:     strings.NewReader(""),
+            Out:    stdout,
+            ErrOut: stderr,
+        }), nil
+    },
+})
+```
+
+Use `CommandFactory` when the CLI stores output streams in option structs or command constructors. The factory should build the command tree, while structcli sets the MCP call's argv before execution. MCP tool calls are non-interactive; if your command constructor requires stdin, wire a non-interactive reader such as `strings.NewReader("")`. The default MCP executor still reuses and resets the original Cobra tree, which is simpler for CLIs that only write through `cmd.OutOrStdout()` and `cmd.ErrOrStderr()`.
+
 ## Structured JSON errors
 
 `HandleError` classifies Cobra and structcli failures into a `StructuredError` JSON payload and returns a semantic exit code.
