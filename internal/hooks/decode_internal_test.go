@@ -24,14 +24,26 @@ func TestInferDecodeHooks(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("durations", "", "durations")
 
-	ok := InferDecodeHooks(cmd, "durations", "[]time.Duration")
+	ok, err := InferDecodeHooks(cmd, "durations", "[]time.Duration")
+	require.NoError(t, err)
 	require.True(t, ok)
 
 	flag := cmd.Flags().Lookup("durations")
 	require.NotNil(t, flag)
 	assert.Equal(t, []string{"StringToDurationSliceHookFunc"}, flag.Annotations[FlagDecodeHookAnnotation])
 
-	assert.False(t, InferDecodeHooks(cmd, "durations", "missing.Type"))
+	found, err := InferDecodeHooks(cmd, "durations", "missing.Type")
+	require.NoError(t, err)
+	assert.False(t, found)
+}
+
+func TestInferDecodeHooks_ErrorOnUnknownFlag(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	// Don't define a "durations" flag — SetAnnotation will fail on unknown flag
+
+	_, err := InferDecodeHooks(cmd, "durations", "[]time.Duration")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "durations")
 }
 
 func TestConvertMapInputErrors(t *testing.T) {

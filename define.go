@@ -385,9 +385,11 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				// The users set `flagcustom:"true"` but they didn't define a custom define hook
 				// We fallback to look up the hooks registries to avoid erroring out
 				if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
-					// Defensive: registries are always populated in pairs, so this
-					// should never fail — but surface the error instead of hiding it.
-					if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
+				found, err := internalhooks.InferDecodeHooks(c, name, f.Type.String())
+					if err != nil {
+						return fmt.Errorf("couldn't infer decode hooks for flag %s: %w", name, err)
+					}
+					if !found {
 						return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 					}
 
@@ -405,7 +407,11 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 		// Check registry for known custom types
 		if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
-			if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
+			found, err := internalhooks.InferDecodeHooks(c, name, f.Type.String())
+			if err != nil {
+				return fmt.Errorf("couldn't infer decode hooks for flag %s: %w", name, err)
+			}
+			if !found {
 				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 			}
 
@@ -531,7 +537,11 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				ref := (*[]int)(unsafe.Pointer(field.UnsafeAddr()))
 				c.Flags().IntSliceVarP(ref, name, short, val, descr)
 			}
-			if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
+			found, err := internalhooks.InferDecodeHooks(c, name, f.Type.String())
+			if err != nil {
+				return fmt.Errorf("couldn't infer decode hooks for flag %s: %w", name, err)
+			}
+			if !found {
 				return fmt.Errorf("internal error: missing decode hook for built-in slice type %s", f.Type.String())
 			}
 
