@@ -30,12 +30,13 @@ const (
 )
 
 type mcpConfig struct {
-	name        string
-	version     string
-	flagName    string
-	separator   string
-	allCommands bool
-	exclude     map[string]struct{}
+	name           string
+	version        string
+	flagName       string
+	separator      string
+	allCommands    bool
+	exclude        map[string]struct{}
+	commandFactory structclimcp.CommandFactory
 }
 
 type mcpToolDef struct {
@@ -80,12 +81,13 @@ func SetupMCP(rootC *cobra.Command, opts structclimcp.Options) error {
 
 func resolveMCPConfig(rootC *cobra.Command, opts structclimcp.Options) *mcpConfig {
 	cfg := &mcpConfig{
-		name:        opts.Name,
-		version:     opts.Version,
-		flagName:    opts.FlagName,
-		separator:   opts.Separator,
-		allCommands: opts.AllCommands,
-		exclude:     make(map[string]struct{}, len(opts.Exclude)),
+		name:           opts.Name,
+		version:        opts.Version,
+		flagName:       opts.FlagName,
+		separator:      opts.Separator,
+		allCommands:    opts.AllCommands,
+		exclude:        make(map[string]struct{}, len(opts.Exclude)),
+		commandFactory: opts.CommandFactory,
 	}
 	if cfg.flagName == "" {
 		cfg.flagName = "mcp"
@@ -216,7 +218,7 @@ func handleMCPRequest(root *cobra.Command, cfg *mcpConfig, registry *mcpRegistry
 				return jsonRPCError(req.ID, rpcCodeInvalidParams, "invalid tools/call params"), nil
 			}
 		}
-		result, rpcErr := callMCPTool(root, registry, params)
+		result, rpcErr := callMCPTool(root, cfg, registry, params)
 		if rpcErr != nil {
 			return jsonRPCError(req.ID, rpcErr.Code, rpcErr.Message), nil
 		}
@@ -334,7 +336,7 @@ func mcpCommandPathArgs(commandPath string) []string {
 	return append([]string(nil), parts[1:]...)
 }
 
-func callMCPTool(root *cobra.Command, registry *mcpRegistry, params structclimcp.ToolCallParams) (*structclimcp.ToolCallResult, *structclimcp.ResponseError) {
+func callMCPTool(root *cobra.Command, cfg *mcpConfig, registry *mcpRegistry, params structclimcp.ToolCallParams) (*structclimcp.ToolCallResult, *structclimcp.ResponseError) {
 	if params.Name == "" {
 		return nil, &structclimcp.ResponseError{Code: rpcCodeInvalidParams, Message: "tool name is required"}
 	}
@@ -351,7 +353,7 @@ func callMCPTool(root *cobra.Command, registry *mcpRegistry, params structclimcp
 	argv := append([]string(nil), def.path...)
 	argv = append(argv, flagArgs...)
 
-	stdout, stderr, executedCmd, execErr := executeMCPCommand(root, argv)
+	stdout, stderr, executedCmd, execErr := executeMCPCommand(root, cfg, argv)
 	if execErr != nil {
 		var structured bytes.Buffer
 		HandleError(executedCmd, execErr, &structured)
@@ -377,13 +379,35 @@ func callMCPTool(root *cobra.Command, registry *mcpRegistry, params structclimcp
 	}, nil
 }
 
-func executeMCPCommand(root *cobra.Command, argv []string) (*bytes.Buffer, *bytes.Buffer, *cobra.Command, error) {
+func executeMCPCommand(root *cobra.Command, cfg *mcpConfig, argv []string) (*bytes.Buffer, *bytes.Buffer, *cobra.Command, error) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	if cfg != nil && cfg.commandFactory != nil {
+		cmd, err := cfg.commandFactory(append([]string(nil), argv...), &stdout, &stderr)
+		if err != nil {
+			return &stdout, &stderr, root, err
+		}
+		if cmd == nil {
+			return &stdout, &stderr, root, fmt.Errorf("command factory returned nil command")
+		}
+		cmd.SetArgs(argv)
+		cmd.SetIn(strings.NewReader(""))
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&stderr)
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+
+		executedCmd, err := cmd.ExecuteC()
+		if executedCmd == nil {
+			executedCmd = cmd
+		}
+		return &stdout, &stderr, executedCmd, err
+	}
+
 	if err := resetCommandExecutionState(root); err != nil {
 		return nil, nil, root, err
 	}
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
 
 	root.SetArgs(argv)
 	root.SetIn(strings.NewReader(""))

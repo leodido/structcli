@@ -1,18 +1,32 @@
 package mcp
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"io"
+
+	"github.com/spf13/cobra"
+)
 
 // ProtocolVersion is the MCP protocol version reported by SetupMCP.
 const ProtocolVersion = "2024-11-05"
 
+// CommandFactory builds a fresh Cobra command for a single MCP tools/call.
+//
+// argv contains the command path and flag arguments to execute, excluding the
+// root command name. stdout and stderr must receive all command output for the
+// tool call. Use this when a CLI captures output streams during command
+// construction, or when reusing and resetting the same Cobra tree is unsafe.
+type CommandFactory func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error)
+
 // Options configures the --mcp flag for command-line applications.
 type Options struct {
-	FlagName    string   // Name of the persistent flag (defaults to "mcp")
-	Name        string   // Server name reported during initialize (defaults to root command name)
-	Version     string   // Server version reported during initialize (defaults to structcli.Version)
-	Separator   string   // Tool name separator for nested commands (defaults to "-")
-	AllCommands bool     // Include runnable parent/root commands. By default MCP exposes runnable leaves only.
-	Exclude     []string // Exclude tool names or full command paths from tools/list and tools/call
+	FlagName       string         // Name of the persistent flag (defaults to "mcp")
+	Name           string         // Server name reported during initialize (defaults to root command name)
+	Version        string         // Server version reported during initialize (defaults to structcli.Version)
+	Separator      string         // Tool name separator for nested commands (defaults to "-")
+	AllCommands    bool           // Include runnable parent/root commands. By default MCP exposes runnable leaves only.
+	Exclude        []string       // Exclude tool names or full command paths from tools/list and tools/call
+	CommandFactory CommandFactory // Optional fresh command factory for each MCP tools/call execution.
 }
 
 // Request is a JSON-RPC request sent over MCP stdio.
