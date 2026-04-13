@@ -5,6 +5,7 @@ use (
 	./examples/collections
 	./examples/full
 	./examples/loginsvc
+	./examples/mcp-command-factory
 	./examples/minimal
 	./examples/simple
 	./examples/structerr
