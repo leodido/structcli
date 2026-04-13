@@ -175,6 +175,9 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 			return structclierrors.NewConflictingTagsError(fieldName, []string{"flagignore", "flaghidden"}, "mutually exclusive tags")
 		}
 
+		// NOTE: flaghidden + flagrequired is intentionally allowed.
+		// Use case: flags that must be set via env var or config but should not clutter --help.
+
 		// Check for duplicate flags
 		if !isStructKind {
 			// Skip ignored fields from duplicate check
