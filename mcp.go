@@ -384,14 +384,15 @@ func executeMCPCommand(root *cobra.Command, cfg *mcpConfig, argv []string) (*byt
 	var stderr bytes.Buffer
 
 	if cfg != nil && cfg.commandFactory != nil {
-		cmd, err := cfg.commandFactory(append([]string(nil), argv...), &stdout, &stderr)
+		argvCopy := append([]string(nil), argv...)
+		cmd, err := cfg.commandFactory(argvCopy, &stdout, &stderr)
 		if err != nil {
 			return &stdout, &stderr, root, err
 		}
 		if cmd == nil {
 			return &stdout, &stderr, root, fmt.Errorf("command factory returned nil command")
 		}
-		cmd.SetArgs(argv)
+		cmd.SetArgs(argvCopy)
 		cmd.SetIn(strings.NewReader(""))
 		cmd.SetOut(&stdout)
 		cmd.SetErr(&stderr)
@@ -409,7 +410,7 @@ func executeMCPCommand(root *cobra.Command, cfg *mcpConfig, argv []string) (*byt
 		return nil, nil, root, err
 	}
 
-	root.SetArgs(argv)
+	root.SetArgs(append([]string(nil), argv...))
 	root.SetIn(strings.NewReader(""))
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
