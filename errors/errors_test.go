@@ -622,6 +622,78 @@ func TestValidationError_UnderlyingErrors_Immutability(t *testing.T) {
 	require.Equal(t, err1, validationErr.Errors[0])
 }
 
+func TestValidationError_Unwrap_ErrorsIs(t *testing.T) {
+	sentinel := errors.New("sentinel")
+	ve := &ValidationError{
+		ContextName: "cmd",
+		Errors:      []error{fmt.Errorf("wrap: %w", sentinel)},
+	}
+
+	// errors.Is should traverse through Unwrap() into the inner errors
+	assert.True(t, errors.Is(ve, sentinel))
+	// Unrelated sentinel should not match
+	assert.False(t, errors.Is(ve, errors.New("other")))
+}
+
+func TestValidationError_Unwrap_ErrorsAs(t *testing.T) {
+	inner := &InvalidBooleanTagError{
+		FieldName: "Field1",
+		TagName:   "flagcustom",
+		TagValue:  "bad",
+	}
+	ve := &ValidationError{
+		Errors: []error{inner},
+	}
+
+	// errors.As should find the typed error through Unwrap()
+	var target *InvalidBooleanTagError
+	require.True(t, errors.As(ve, &target))
+	assert.Equal(t, "Field1", target.FieldName)
+}
+
+func TestValidationError_Unwrap_MultipleSentinels(t *testing.T) {
+	s1 := errors.New("first")
+	s2 := errors.New("second")
+	ve := &ValidationError{
+		Errors: []error{s1, fmt.Errorf("wrapped: %w", s2)},
+	}
+
+	assert.True(t, errors.Is(ve, s1))
+	assert.True(t, errors.Is(ve, s2))
+}
+
+func TestValidationError_Unwrap_NilErrors(t *testing.T) {
+	ve := &ValidationError{Errors: nil}
+	assert.Nil(t, ve.Unwrap())
+}
+
+func TestValidationError_Unwrap_EmptyErrors(t *testing.T) {
+	ve := &ValidationError{Errors: []error{}}
+	assert.Empty(t, ve.Unwrap())
+}
+
+func TestValidationError_Unwrap_NilElementSkipped(t *testing.T) {
+	sentinel := errors.New("sentinel")
+	ve := &ValidationError{
+		Errors: []error{nil, sentinel},
+	}
+
+	// errors.Is skips nil elements gracefully
+	assert.True(t, errors.Is(ve, sentinel))
+}
+
+func TestValidationError_Unwrap_ErrorsAsStillMatchesSelf(t *testing.T) {
+	ve := &ValidationError{
+		ContextName: "test",
+		Errors:      []error{errors.New("inner")},
+	}
+
+	// errors.As for *ValidationError itself must still work
+	var target *ValidationError
+	require.True(t, errors.As(ve, &target))
+	assert.Equal(t, "test", target.ContextName)
+}
+
 func TestInvalidDecodeHookSignatureError_ErrorMessage(t *testing.T) {
 	err := &InvalidDecodeHookSignatureError{
 		FieldName: "ServerMode",

@@ -89,7 +89,16 @@ func (e *ValidationError) Details() []ValidationDetail {
 	return details
 }
 
-// UnderlyingErrors returns the slice of individual validation errors (immutable).
+// Unwrap returns the inner errors so that errors.Is and errors.As
+// traverse into individual validation failures.
+//
+// The returned slice is the live internal slice — callers that need
+// mutation-safe access should use [ValidationError.UnderlyingErrors] instead.
+func (e *ValidationError) Unwrap() []error {
+	return e.Errors
+}
+
+// UnderlyingErrors returns a defensive copy of the individual validation errors.
 func (e *ValidationError) UnderlyingErrors() []error {
 	if e.Errors == nil {
 		return nil
