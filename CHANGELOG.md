@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-04-14
+
+### Added
+- `flaghidden` struct tag annotation — hides flags from help/usage output while keeping them functional. Hidden flags are excluded from JSON schema generation.
+- `mcp.Options.CommandFactory` hook for building a fresh Cobra command tree per MCP `tools/call`, enabling CLIs that capture output streams at construction time (kubectl-style pattern).
+- Command factory example (`examples/mcp-command-factory`).
+
+### Changed
+- `InferDecodeHooks` now returns `(bool, error)` instead of `bool`, propagating `SetAnnotation` errors to callers.
+- Enum help-text building deduplicated into a generic `enumHelpText` helper; `sort.Ints` replaced with `slices.Sort`.
+
+### Fixed
+- `InferDecodeHooks` return value is now checked in the `flagcustom` fallback path.
+- MCP executor uses a defensive `argv` copy for `SetArgs` in both the default and factory paths.
+- Config description now signals truncation with `,...` when search paths exceed 3.
+- Removed throwaway map entry in `Groups()` that existed only for a side effect already triggered by the next call.
+
 ## [0.14.0] - 2026-04-07
 
 ### Added
@@ -107,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `ResetGlobals()` to `Reset()`.
 
-[Unreleased]: https://github.com/leodido/structcli/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/leodido/structcli/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/leodido/structcli/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/leodido/structcli/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/leodido/structcli/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/leodido/structcli/compare/v0.11.0...v0.12.0
