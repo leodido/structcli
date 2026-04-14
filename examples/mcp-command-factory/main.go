@@ -54,7 +54,7 @@ func NewRootCommand(streams Streams) *cobra.Command {
 		},
 	}
 	if err := opts.Attach(greet); err != nil {
-		panic(err)
+		log.Fatalln(err)
 	}
 	root.AddCommand(greet)
 	return root
