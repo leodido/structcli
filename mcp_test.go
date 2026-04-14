@@ -381,6 +381,80 @@ func TestRunMCPServer_ToolsCallCommandFactoryNilCommandBecomesStructuredError(t 
 	assert.Contains(t, result.Content[0].Text, `"message":"command factory returned nil command"`)
 }
 
+func TestRunMCPServer_ToolsCallCommandFactoryCommandExecutionError(t *testing.T) {
+	root := newMCPStreamCapturedRoot(t, io.Discard, io.Discard)
+	cfg := resolveMCPConfig(root, structclimcp.Options{
+		CommandFactory: func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error) {
+			factoryRoot := &cobra.Command{Use: "myapp"}
+			factoryCmd := &cobra.Command{
+				Use:   "stream",
+				Short: "Write through captured streams",
+				RunE: func(c *cobra.Command, args []string) error {
+					return fmt.Errorf("command execution failed")
+				},
+			}
+			factoryRoot.AddCommand(factoryCmd)
+			return factoryRoot, nil
+		},
+	})
+	responses := runMCPTestServer(t, root, cfg,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"stream"}}`,
+	)
+
+	require.Len(t, responses, 1)
+
+	var result structclimcp.ToolCallResult
+	mustUnmarshalJSON(t, responses[0].Result, &result)
+	require.Len(t, result.Content, 1)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content[0].Text, "command execution failed")
+}
+
+func TestRunMCPServer_ToolsCallCommandFactorySequentialCalls(t *testing.T) {
+	root := newMCPStreamCapturedRoot(t, io.Discard, io.Discard)
+	factoryCallCount := 0
+	cfg := resolveMCPConfig(root, structclimcp.Options{
+		CommandFactory: func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error) {
+			factoryCallCount++
+			callNum := factoryCallCount
+			streams := &mcpStreamCapturedOptions{out: stdout, err: stderr}
+			factoryRoot := &cobra.Command{Use: "myapp"}
+			factoryCmd := &cobra.Command{
+				Use:   "stream",
+				Short: "Write through captured streams",
+				PreRunE: func(c *cobra.Command, args []string) error {
+					return Unmarshal(c, streams)
+				},
+				Run: func(c *cobra.Command, args []string) {
+					fmt.Fprintf(streams.out, "call %d for %s", callNum, streams.Name)
+				},
+			}
+			require.NoError(t, streams.Attach(factoryCmd))
+			factoryRoot.AddCommand(factoryCmd)
+			return factoryRoot, nil
+		},
+	})
+	responses := runMCPTestServer(t, root, cfg,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"stream","arguments":{"name":"first"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"stream","arguments":{"name":"second"}}}`,
+	)
+
+	require.Len(t, responses, 2)
+	assert.Equal(t, 2, factoryCallCount, "factory should be called once per tool call")
+
+	var result1 structclimcp.ToolCallResult
+	mustUnmarshalJSON(t, responses[0].Result, &result1)
+	require.Len(t, result1.Content, 1)
+	assert.False(t, result1.IsError)
+	assert.Contains(t, result1.Content[0].Text, "call 1 for first")
+
+	var result2 structclimcp.ToolCallResult
+	mustUnmarshalJSON(t, responses[1].Result, &result2)
+	require.Len(t, result2.Content, 1)
+	assert.False(t, result2.IsError)
+	assert.Contains(t, result2.Content[0].Text, "call 2 for second")
+}
+
 func TestRunMCPServer_ToolsCallStructuredError(t *testing.T) {
 	root := newMCPLeafRoot(t)
 	responses := runMCPTestServer(t, root, resolveMCPConfig(root, structclimcp.Options{}),
