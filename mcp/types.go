@@ -10,12 +10,27 @@ import (
 // ProtocolVersion is the MCP protocol version reported by SetupMCP.
 const ProtocolVersion = "2024-11-05"
 
-// CommandFactory builds a fresh Cobra command for a single MCP tools/call.
+// CommandFactory builds a fresh Cobra command tree for a single MCP tools/call.
 //
-// argv contains the command path and flag arguments to execute, excluding the
-// root command name. stdout and stderr must receive all command output for the
-// tool call. Use this when a CLI captures output streams during command
-// construction, or when reusing and resetting the same Cobra tree is unsafe.
+// Use this when a CLI captures output streams into closures at construction
+// time, or when reusing and resetting the same Cobra tree is unsafe.
+//
+// Parameters:
+//   - argv: the command path and flag arguments (excluding the root command
+//     name). Provided for informational use or conditional subtree building.
+//     The factory must not call SetArgs — the caller handles that.
+//   - stdout, stderr: writers that must receive all command output. Wire these
+//     into any closures that capture output streams at construction time.
+//
+// After the factory returns, the caller configures the returned command:
+// SetArgs, SetIn, SetOut, SetErr, SilenceErrors, and SilenceUsage. The
+// factory must not set these. The caller's SetOut/SetErr use the same
+// buffers passed as stdout/stderr, ensuring cmd.OutOrStdout() works
+// alongside closure-captured writers.
+//
+// The returned command tree must have the same structure and flags as the
+// root command passed to [SetupMCP]. The MCP tool registry is built from
+// the original tree; the factory tree is only used for execution.
 type CommandFactory func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error)
 
 // Options configures the --mcp flag for command-line applications.
