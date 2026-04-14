@@ -18,10 +18,7 @@ const (
 //
 // It organizes flags by their group annotation, with ungrouped flags placed in a default local group.
 func Groups(c *cobra.Command) map[string]*pflag.FlagSet {
-	groups := map[string]*pflag.FlagSet{
-		"<origin>": c.LocalFlags(),
-	}
-	delete(groups, "<origin>")
+	groups := map[string]*pflag.FlagSet{}
 
 	addTo := func(f *pflag.Flag, groupID string) {
 		if groups[groupID] == nil {
