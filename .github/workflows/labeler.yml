@@ -1,0 +1,57 @@
+name: labeler
+
+on:
+  pull_request:
+    types: [opened, edited]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label PR from conventional commit prefix
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+            const prefixMap = {
+              'feat':     'enhancement',
+              'fix':      'bug',
+              'docs':     'documentation',
+              'chore':    'chore',
+              'refactor': 'enhancement',
+              'test':     'chore',
+              'ci':       'chore',
+              'build':    'chore',
+              'perf':     'enhancement',
+            };
+
+            // Match "type:" or "type(scope):"
+            const match = title.match(/^(\w+)(?:\([^)]*\))?!?:/);
+            if (!match) {
+              core.info('No conventional commit prefix found, skipping');
+              return;
+            }
+
+            const prefix = match[1].toLowerCase();
+            const label = prefixMap[prefix];
+            if (!label) {
+              core.info(`Unknown prefix "${prefix}", skipping`);
+              return;
+            }
+
+            // Check for breaking change indicator
+            const labels = [label];
+            if (title.includes('!:') || title.toLowerCase().includes('breaking')) {
+              labels.push('breaking-change');
+            }
+
+            core.info(`Prefix "${prefix}" → labels: ${labels.join(', ')}`);
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels: labels,
+            });
