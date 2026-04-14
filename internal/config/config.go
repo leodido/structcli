@@ -122,7 +122,7 @@ func Description(appName string, opts config.Options) string {
 	// Limit to first 3 examples to keep description reasonable
 	if len(templatePaths) > 3 {
 		templatePaths = templatePaths[:3]
-		return fmt.Sprintf("config file (fallbacks to: {%s}/%s.{yaml,json,toml})", strings.Join(templatePaths, ","), opts.ConfigName)
+		return fmt.Sprintf("config file (fallbacks to: {%s,...}/%s.{yaml,json,toml})", strings.Join(templatePaths, ","), opts.ConfigName)
 	}
 
 	return fmt.Sprintf("config file (fallbacks to: {%s}/%s.{yaml,json,toml})", strings.Join(templatePaths, ","), opts.ConfigName)

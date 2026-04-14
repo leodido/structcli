@@ -152,7 +152,7 @@ func TestDescription_LimitsToFirstThreePaths(t *testing.T) {
 	require.Greater(t, len(templatePaths), 3)
 
 	expected := fmt.Sprintf(
-		"config file (fallbacks to: {%s}/%s.{yaml,json,toml})",
+		"config file (fallbacks to: {%s,...}/%s.{yaml,json,toml})",
 		strings.Join(templatePaths[:3], ","),
 		opts.ConfigName,
 	)
