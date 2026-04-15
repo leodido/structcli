@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	internalenv "github.com/leodido/structcli/internal/env"
 	internalhooks "github.com/leodido/structcli/internal/hooks"
@@ -128,7 +127,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			if f.Anonymous && f.Type.Kind() == reflect.Struct && field.CanAddr() {
 				// Use reflect.NewAt to obtain an interfaceable pointer to the
 				// unexported embedded struct so we can pass it to the recursive call.
-				ptr := reflect.NewAt(f.Type, unsafe.Pointer(field.UnsafeAddr()))
+				ptr := reflect.NewAt(f.Type, field.Addr().UnsafePointer())
 				if err := define(c, ptr.Interface(), startingGroup, structPath, exclusions, defineEnv, mandatory, validateTagName, modTagName); err != nil {
 					return err
 				}
@@ -448,42 +447,42 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 		case reflect.Bool:
 			val := field.Interface().(bool)
-			ref := (*bool)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*bool)
 			c.Flags().BoolVarP(ref, name, short, val, descr)
 
 		case reflect.String:
 			val := field.Interface().(string)
-			ref := (*string)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*string)
 			c.Flags().StringVarP(ref, name, short, val, descr)
 
 		case reflect.Uint:
 			val := field.Interface().(uint)
-			ref := (*uint)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*uint)
 			c.Flags().UintVarP(ref, name, short, val, descr)
 
 		case reflect.Uint8:
 			val := field.Interface().(uint8)
-			ref := (*uint8)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*uint8)
 			c.Flags().Uint8VarP(ref, name, short, val, descr)
 
 		case reflect.Uint16:
 			val := field.Interface().(uint16)
-			ref := (*uint16)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*uint16)
 			c.Flags().Uint16VarP(ref, name, short, val, descr)
 
 		case reflect.Uint32:
 			val := field.Interface().(uint32)
-			ref := (*uint32)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*uint32)
 			c.Flags().Uint32VarP(ref, name, short, val, descr)
 
 		case reflect.Uint64:
 			val := field.Interface().(uint64)
-			ref := (*uint64)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*uint64)
 			c.Flags().Uint64VarP(ref, name, short, val, descr)
 
 		case reflect.Int:
 			val := field.Interface().(int)
-			ref := (*int)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*int)
 			if f.Tag.Get("flagtype") == "count" {
 				c.Flags().CountVarP(ref, name, short, descr)
 
@@ -497,43 +496,43 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 		case reflect.Int8:
 			val := field.Interface().(int8)
-			ref := (*int8)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*int8)
 			c.Flags().Int8VarP(ref, name, short, val, descr)
 
 		case reflect.Int16:
 			val := field.Interface().(int16)
-			ref := (*int16)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*int16)
 			c.Flags().Int16VarP(ref, name, short, val, descr)
 
 		case reflect.Int32:
 			val := field.Interface().(int32)
-			ref := (*int32)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*int32)
 			c.Flags().Int32VarP(ref, name, short, val, descr)
 
 		case reflect.Int64:
 			val := field.Interface().(int64)
-			ref := (*int64)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*int64)
 			c.Flags().Int64VarP(ref, name, short, val, descr)
 
 		case reflect.Float32:
 			val := field.Interface().(float32)
-			ref := (*float32)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*float32)
 			c.Flags().Float32VarP(ref, name, short, val, descr)
 
 		case reflect.Float64:
 			val := field.Interface().(float64)
-			ref := (*float64)(unsafe.Pointer(field.UnsafeAddr()))
+			ref := field.Addr().Interface().(*float64)
 			c.Flags().Float64VarP(ref, name, short, val, descr)
 
 		case reflect.Slice:
 			switch f.Type.Elem().Kind() {
 			case reflect.String:
 				val := field.Interface().([]string)
-				ref := (*[]string)(unsafe.Pointer(field.UnsafeAddr()))
+				ref := field.Addr().Interface().(*[]string)
 				c.Flags().StringSliceVarP(ref, name, short, val, descr)
 			case reflect.Int:
 				val := field.Interface().([]int)
-				ref := (*[]int)(unsafe.Pointer(field.UnsafeAddr()))
+				ref := field.Addr().Interface().(*[]int)
 				c.Flags().IntSliceVarP(ref, name, short, val, descr)
 			}
 			found, err := internalhooks.InferDecodeHooks(c, name, f.Type.String())
