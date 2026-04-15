@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unsafe"
 
 	structclivalues "github.com/leodido/structcli/values"
 	"github.com/spf13/cobra"
@@ -51,7 +50,10 @@ var byteSliceType = reflect.TypeOf([]byte(nil))
 func defineByteSliceValueHookFunc(newValue func(val []byte, ref *[]byte) pflag.Value) DefineHookFunc {
 	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Convert(byteSliceType).Interface().([]byte)
-		ref := (*[]byte)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		// The field may be a named type (e.g. structcli.Hex) so Addr().Interface()
+		// would yield *Hex, not *[]byte. Use reflect.NewAt to reinterpret the
+		// pointer as *[]byte, which is safe because the underlying type is []byte.
+		ref := reflect.NewAt(byteSliceType, fieldValue.Addr().UnsafePointer()).Interface().(*[]byte)
 
 		return newValue(val, ref), descr
 	}
@@ -60,7 +62,7 @@ func defineByteSliceValueHookFunc(newValue func(val []byte, ref *[]byte) pflag.V
 func defineFlagSetValueHookFunc[T any](register func(fs *pflag.FlagSet, ref *T, name, short string, val T, usage string)) DefineHookFunc {
 	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(T)
-		ref := (*T)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		ref := fieldValue.Addr().Interface().(*T)
 		fs := pflag.NewFlagSet(name, pflag.ContinueOnError)
 		register(fs, ref, name, short, val, descr)
 
@@ -125,7 +127,7 @@ func DefineBase64BytesHookFunc() DefineHookFunc {
 func DefineIPHookFunc() DefineHookFunc {
 	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(net.IP)
-		ref := (*net.IP)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		ref := fieldValue.Addr().Interface().(*net.IP)
 
 		return structclivalues.NewIP(val, ref), descr
 	}
@@ -134,7 +136,7 @@ func DefineIPHookFunc() DefineHookFunc {
 func DefineIPMaskHookFunc() DefineHookFunc {
 	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(net.IPMask)
-		ref := (*net.IPMask)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		ref := fieldValue.Addr().Interface().(*net.IPMask)
 
 		return structclivalues.NewIPMask(val, ref), descr
 	}
@@ -143,7 +145,7 @@ func DefineIPMaskHookFunc() DefineHookFunc {
 func DefineIPNetHookFunc() DefineHookFunc {
 	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(net.IPNet)
-		ref := (*net.IPNet)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		ref := fieldValue.Addr().Interface().(*net.IPNet)
 
 		return structclivalues.NewIPNet(val, ref), descr
 	}
@@ -152,7 +154,7 @@ func DefineIPNetHookFunc() DefineHookFunc {
 func DefineIPSliceHookFunc() DefineHookFunc {
 	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().([]net.IP)
-		ref := (*[]net.IP)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		ref := fieldValue.Addr().Interface().(*[]net.IP)
 
 		return structclivalues.NewIPSlice(val, ref), descr
 	}
@@ -161,7 +163,7 @@ func DefineIPSliceHookFunc() DefineHookFunc {
 func DefineTimeDurationHookFunc() DefineHookFunc {
 	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(time.Duration)
-		ref := (*time.Duration)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		ref := fieldValue.Addr().Interface().(*time.Duration)
 
 		return structclivalues.NewDuration(val, ref), descr
 	}
@@ -202,7 +204,7 @@ func DefineZapcoreLevelHookFunc() DefineHookFunc {
 
 		values, enhancedDescr := enumHelpText(logLevels, descr)
 
-		fieldPtr := (*zapcore.Level)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		fieldPtr := fieldValue.Addr().Interface().(*zapcore.Level)
 		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), logLevels, enumflag.EnumCaseInsensitive)
 
 		return WrapWithEnumValues(enumFlag, values), enhancedDescr
@@ -223,7 +225,7 @@ func DefineSlogLevelHookFunc() DefineHookFunc {
 
 		values, enhancedDescr := enumHelpText(logLevels, descr)
 
-		fieldPtr := (*slog.Level)(unsafe.Pointer(fieldValue.UnsafeAddr()))
+		fieldPtr := fieldValue.Addr().Interface().(*slog.Level)
 		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), logLevels, enumflag.EnumCaseInsensitive)
 
 		return WrapWithEnumValues(enumFlag, values), enhancedDescr
