@@ -1,14 +1,12 @@
 // Property-based tests for the Define() path.
 //
-// Uses pgregory.net/rapid to generate random tag configurations on concrete
-// option struct types, then asserts deep invariants on the resulting cobra
-// command flags.
-//
 // Because Define() requires the Options interface (Attach method) and
-// reflect.StructOf cannot attach methods, we use a set of concrete option
-// types that cover all supported field type families. Rapid generates the
-// tag values (hidden, required, ignored, group, default, preset) to explore
-// the combinatorial space.
+// reflect.StructOf cannot attach methods, we use concrete option types
+// for most properties. Rapid generates field values to exercise edge
+// cases in the Define→flag registration pipeline.
+//
+// P3.13 uses internalvalidation.Struct() on dynamically-built structs to test
+// random tag combinations without needing the Options interface.
 package define_test
 
 import (
@@ -20,7 +18,10 @@ import (
 	"time"
 
 	"github.com/leodido/structcli"
+	internalenv "github.com/leodido/structcli/internal/env"
 	"github.com/leodido/structcli/internal/proptest/gen"
+	internalusage "github.com/leodido/structcli/internal/usage"
+	internalvalidation "github.com/leodido/structcli/internal/validation"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"pgregory.net/rapid"
@@ -117,27 +118,19 @@ type nestedInner struct {
 
 // nestedOpts has a nested struct.
 type nestedOpts struct {
-	Top   string      `flag:"top"`
-	Nest  nestedInner `flaggroup:"Nested"`
+	Top  string      `flag:"top"`
+	Nest nestedInner `flaggroup:"Nested"`
 }
 
 func (o *nestedOpts) Attach(c *cobra.Command) error { return nil }
 
 // envOpts has a field with flagenv.
 type envOpts struct {
-	Plain  string `flag:"plain"`
+	Plain   string `flag:"plain"`
 	WithEnv string `flag:"with-env" flagenv:"true"`
 }
 
 func (o *envOpts) Attach(c *cobra.Command) error { return nil }
-
-// hiddenRequiredOpts has a field that is both hidden and required.
-type hiddenRequiredOpts struct {
-	Normal       string `flag:"normal"`
-	HiddenReq    string `flag:"hidden-req" flaghidden:"true" flagrequired:"true"`
-}
-
-func (o *hiddenRequiredOpts) Attach(c *cobra.Command) error { return nil }
 
 // --- Helpers ---
 
@@ -151,26 +144,36 @@ func mustDefine(t interface{ Fatal(...any) }, cmd *cobra.Command, opts structcli
 	}
 }
 
-func flagNames(cmd *cobra.Command) map[string]*pflag.Flag {
-	m := make(map[string]*pflag.Flag)
-	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		m[f.Name] = f
-	})
-	return m
+func flagCount(cmd *cobra.Command) int {
+	n := 0
+	cmd.Flags().VisitAll(func(_ *pflag.Flag) { n++ })
+	return n
 }
 
 // --- Properties ---
 
-// P3.1: Define() never panics on valid option structs.
+// P3.1: Define() never panics on valid option structs with random field values.
+// Field-value randomization matters here: NaN, empty strings, negative ints,
+// etc. could trigger edge cases in the Define→flag registration pipeline.
 func TestProperty_Define_NeverPanics(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		cmd := newCmd()
-		opts := &allTypesOpts{}
-		// Randomize some field values
-		opts.StringF = rapid.String().Draw(t, "stringF")
-		opts.IntF = rapid.Int().Draw(t, "intF")
-		opts.BoolF = rapid.Bool().Draw(t, "boolF")
-		opts.Float64F = rapid.Float64().Draw(t, "float64F")
+		opts := &allTypesOpts{
+			BoolF:    rapid.Bool().Draw(t, "boolF"),
+			StringF:  rapid.String().Draw(t, "stringF"),
+			IntF:     rapid.Int().Draw(t, "intF"),
+			Int8F:    rapid.Int8().Draw(t, "int8F"),
+			Int16F:   rapid.Int16().Draw(t, "int16F"),
+			Int32F:   rapid.Int32().Draw(t, "int32F"),
+			Int64F:   rapid.Int64().Draw(t, "int64F"),
+			UintF:    rapid.Uint().Draw(t, "uintF"),
+			Uint8F:   rapid.Uint8().Draw(t, "uint8F"),
+			Uint16F:  rapid.Uint16().Draw(t, "uint16F"),
+			Uint32F:  rapid.Uint32().Draw(t, "uint32F"),
+			Uint64F:  rapid.Uint64().Draw(t, "uint64F"),
+			Float32F: rapid.Float32().Draw(t, "float32F"),
+			Float64F: rapid.Float64().Draw(t, "float64F"),
+		}
 
 		err := structcli.Define(cmd, opts)
 		if err != nil {
@@ -180,36 +183,31 @@ func TestProperty_Define_NeverPanics(t *testing.T) {
 }
 
 // P3.2: Every non-ignored field has a registered flag.
-func TestProperty_Define_AllFieldsHaveFlags(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
-		cmd := newCmd()
-		opts := &allTypesOpts{}
-		mustDefine(t, cmd, opts)
+// Deterministic — no randomization needed.
+func TestDefine_AllFieldsHaveFlags(t *testing.T) {
+	cmd := newCmd()
+	opts := &allTypesOpts{}
+	mustDefine(t, cmd, opts)
 
-		for _, name := range allTypesFieldNames() {
-			if cmd.Flags().Lookup(name) == nil {
-				t.Fatalf("expected flag %q to be registered", name)
-			}
+	for _, name := range allTypesFieldNames() {
+		if cmd.Flags().Lookup(name) == nil {
+			t.Fatalf("expected flag %q to be registered", name)
 		}
-	})
+	}
 }
 
 // P3.3: Flag count matches field count (no presets).
-func TestProperty_Define_FlagCountMatchesFieldCount(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
-		cmd := newCmd()
-		opts := &allTypesOpts{}
-		mustDefine(t, cmd, opts)
+// Deterministic — no randomization needed.
+func TestDefine_FlagCountMatchesFieldCount(t *testing.T) {
+	cmd := newCmd()
+	opts := &allTypesOpts{}
+	mustDefine(t, cmd, opts)
 
-		expected := len(allTypesFieldNames())
-		got := 0
-		cmd.Flags().VisitAll(func(f *pflag.Flag) {
-			got++
-		})
-		if got != expected {
-			t.Fatalf("expected %d flags, got %d", expected, got)
-		}
-	})
+	expected := len(allTypesFieldNames())
+	got := flagCount(cmd)
+	if got != expected {
+		t.Fatalf("expected %d flags, got %d", expected, got)
+	}
 }
 
 // P3.4: flaghidden fields have Hidden == true.
@@ -234,10 +232,16 @@ func TestProperty_Define_HiddenFieldsAreHidden(t *testing.T) {
 		if !hiddenFlag.Hidden {
 			t.Fatal("hidden flag should be hidden")
 		}
+		// Hidden uses pflag.Flag.Hidden bool, not annotations.
+		if hiddenFlag.Annotations != nil {
+			if _, exists := hiddenFlag.Annotations["hidden"]; exists {
+				t.Fatal("unexpected 'hidden' annotation — hidden uses the bool field")
+			}
+		}
 	})
 }
 
-// P3.5: flagrequired fields are marked required.
+// P3.5: flagrequired fields are marked required via annotation.
 func TestProperty_Define_RequiredFieldsAreRequired(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		cmd := newCmd()
@@ -251,7 +255,6 @@ func TestProperty_Define_RequiredFieldsAreRequired(t *testing.T) {
 		if reqFlag == nil {
 			t.Fatal("expected 'required' flag to be registered")
 		}
-		// cobra marks required flags via the BashCompOneRequiredFlag annotation
 		annotations := reqFlag.Annotations
 		if annotations == nil {
 			t.Fatal("required flag has no annotations")
@@ -263,28 +266,27 @@ func TestProperty_Define_RequiredFieldsAreRequired(t *testing.T) {
 }
 
 // P3.6: default tag sets the flag's DefValue.
-func TestProperty_Define_DefaultTagSetsDefValue(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
-		cmd := newCmd()
-		opts := &defaultOpts{}
-		mustDefine(t, cmd, opts)
+// Deterministic — no randomization needed.
+func TestDefine_DefaultTagSetsDefValue(t *testing.T) {
+	cmd := newCmd()
+	opts := &defaultOpts{}
+	mustDefine(t, cmd, opts)
 
-		nameFlag := cmd.Flags().Lookup("name")
-		portFlag := cmd.Flags().Lookup("port")
+	nameFlag := cmd.Flags().Lookup("name")
+	portFlag := cmd.Flags().Lookup("port")
 
-		if nameFlag == nil || portFlag == nil {
-			t.Fatal("expected both flags to be registered")
-		}
-		if nameFlag.DefValue != "world" {
-			t.Fatalf("name DefValue = %q, expected %q", nameFlag.DefValue, "world")
-		}
-		if portFlag.DefValue != "8080" {
-			t.Fatalf("port DefValue = %q, expected %q", portFlag.DefValue, "8080")
-		}
-	})
+	if nameFlag == nil || portFlag == nil {
+		t.Fatal("expected both flags to be registered")
+	}
+	if nameFlag.DefValue != "world" {
+		t.Fatalf("name DefValue = %q, expected %q", nameFlag.DefValue, "world")
+	}
+	if portFlag.DefValue != "8080" {
+		t.Fatalf("port DefValue = %q, expected %q", portFlag.DefValue, "8080")
+	}
 }
 
-// P3.7: flaggroup annotation is set.
+// P3.7: flaggroup annotation is set using the canonical constant.
 func TestProperty_Define_GroupAnnotationIsSet(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		cmd := newCmd()
@@ -301,13 +303,13 @@ func TestProperty_Define_GroupAnnotationIsSet(t *testing.T) {
 				t.Fatalf("expected flag %q to be registered", flagName)
 			}
 			if expectedGroup == "" {
-				return // no group expected
+				return
 			}
 			ann := f.Annotations
 			if ann == nil {
 				t.Fatalf("flag %q has no annotations, expected group %q", flagName, expectedGroup)
 			}
-			groups, ok := ann["___leodido_structcli_flaggroups"]
+			groups, ok := ann[internalusage.FlagGroupAnnotation]
 			if !ok {
 				t.Fatalf("flag %q missing group annotation", flagName)
 			}
@@ -318,14 +320,13 @@ func TestProperty_Define_GroupAnnotationIsSet(t *testing.T) {
 
 		checkGroup("a", "GroupA")
 		checkGroup("b", "GroupB")
-		// "c" has no group — just verify it exists
 		if cmd.Flags().Lookup("c") == nil {
 			t.Fatal("expected flag 'c' to be registered")
 		}
 	})
 }
 
-// P3.8: flagenv fields have env annotations.
+// P3.8: flagenv fields have env annotations using the canonical constant.
 func TestProperty_Define_EnvAnnotationIsSet(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		cmd := newCmd()
@@ -343,7 +344,7 @@ func TestProperty_Define_EnvAnnotationIsSet(t *testing.T) {
 		if ann == nil {
 			t.Fatal("with-env flag has no annotations")
 		}
-		envAnn, ok := ann["___leodido_structcli_flagenvs"]
+		envAnn, ok := ann[internalenv.FlagAnnotation]
 		if !ok {
 			t.Fatal("with-env flag missing env annotation")
 		}
@@ -362,13 +363,11 @@ func TestProperty_Define_PresetAliasesRegistered(t *testing.T) {
 		}
 		mustDefine(t, cmd, opts)
 
-		// The canonical flag
 		levelFlag := cmd.Flags().Lookup("level")
 		if levelFlag == nil {
 			t.Fatal("expected 'level' flag to be registered")
 		}
 
-		// Preset aliases
 		verboseFlag := cmd.Flags().Lookup("verbose")
 		quietFlag := cmd.Flags().Lookup("quiet")
 		if verboseFlag == nil {
@@ -381,24 +380,20 @@ func TestProperty_Define_PresetAliasesRegistered(t *testing.T) {
 }
 
 // P3.10: Preset alias count is additive to flag count.
-func TestProperty_Define_PresetAliasCountIsAdditive(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
-		cmd := newCmd()
-		opts := &presetOpts{}
-		mustDefine(t, cmd, opts)
+// Deterministic — no randomization needed.
+func TestDefine_PresetAliasCountIsAdditive(t *testing.T) {
+	cmd := newCmd()
+	opts := &presetOpts{}
+	mustDefine(t, cmd, opts)
 
-		got := 0
-		cmd.Flags().VisitAll(func(f *pflag.Flag) {
-			got++
-		})
-		// 1 canonical flag + 2 preset aliases = 3
-		if got != 3 {
-			t.Fatalf("expected 3 flags (1 + 2 presets), got %d", got)
-		}
-	})
+	got := flagCount(cmd)
+	// 1 canonical flag + 2 preset aliases = 3
+	if got != 3 {
+		t.Fatalf("expected 3 flags (1 + 2 presets), got %d", got)
+	}
 }
 
-// P3.11: Nested struct fields are flattened with dot-separated names.
+// P3.11: Nested struct fields are flattened and carry the parent's group annotation.
 func TestProperty_Define_NestedFieldsFlattened(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		cmd := newCmd()
@@ -411,26 +406,30 @@ func TestProperty_Define_NestedFieldsFlattened(t *testing.T) {
 		}
 		mustDefine(t, cmd, opts)
 
-		// Top-level flag
 		if cmd.Flags().Lookup("top") == nil {
 			t.Fatal("expected 'top' flag")
 		}
 
-		// Nested flags should use the alias from the flag tag
-		// The inner struct fields have flag:"inner-a" and flag:"inner-b"
-		if cmd.Flags().Lookup("inner-a") == nil {
+		innerAFlag := cmd.Flags().Lookup("inner-a")
+		innerBFlag := cmd.Flags().Lookup("inner-b")
+		if innerAFlag == nil {
 			t.Fatal("expected 'inner-a' nested flag")
 		}
-		if cmd.Flags().Lookup("inner-b") == nil {
+		if innerBFlag == nil {
 			t.Fatal("expected 'inner-b' nested flag")
 		}
 
-		// Nested flags should have the group annotation from the parent
-		innerAFlag := cmd.Flags().Lookup("inner-a")
-		if innerAFlag.Annotations != nil {
-			groups, ok := innerAFlag.Annotations["___leodido_structcli_flaggroups"]
-			if ok && len(groups) > 0 && groups[0] != "Nested" {
-				t.Fatalf("inner-a group = %v, expected [Nested]", groups)
+		// Assert the group annotation IS present, not just correct-when-present.
+		for _, f := range []*pflag.Flag{innerAFlag, innerBFlag} {
+			if f.Annotations == nil {
+				t.Fatalf("flag %q has nil annotations, expected group 'Nested'", f.Name)
+			}
+			groups, ok := f.Annotations[internalusage.FlagGroupAnnotation]
+			if !ok {
+				t.Fatalf("flag %q missing group annotation, expected 'Nested'", f.Name)
+			}
+			if len(groups) != 1 || groups[0] != "Nested" {
+				t.Fatalf("flag %q group = %v, expected [Nested]", f.Name, groups)
 			}
 		}
 	})
@@ -455,11 +454,11 @@ func TestProperty_Define_IgnoredFieldsProduceNoFlag(t *testing.T) {
 	})
 }
 
-// --- Bonus: cross-cutting property with randomized tag combinations ---
-
-// P3.13: Define with random valid tag combinations on a multi-field struct
-// produces consistent flag metadata.
-func TestProperty_Define_RandomTagCombinations(t *testing.T) {
+// P3.13: Random valid tag combinations pass validation.
+//
+// Uses internalvalidation.Struct() on dynamically-built structs to test
+// the combinatorial tag space. This doesn't require the Options interface.
+func TestProperty_Define_RandomTagCombinationsPassValidation(t *testing.T) {
 	type tagConfig struct {
 		hidden   bool
 		required bool
@@ -469,8 +468,8 @@ func TestProperty_Define_RandomTagCombinations(t *testing.T) {
 	}
 
 	rapid.Check(t, func(t *rapid.T) {
-		// Generate tag configs for 3 fields
-		configs := make([]tagConfig, 3)
+		nFields := rapid.IntRange(1, 5).Draw(t, "nFields")
+		configs := make([]tagConfig, nFields)
 		for i := range configs {
 			ignored := rapid.Bool().Draw(t, fmt.Sprintf("ignored_%d", i))
 			configs[i] = tagConfig{ignored: ignored}
@@ -486,7 +485,20 @@ func TestProperty_Define_RandomTagCombinations(t *testing.T) {
 			}
 		}
 
-		// Build struct tags
+		// Generate unique flag names.
+		flagNames := make([]string, nFields)
+		seen := map[string]bool{}
+		for i := range flagNames {
+			for {
+				candidate := gen.ValidFlagName().Draw(t, fmt.Sprintf("flag_%d", i))
+				if !seen[candidate] {
+					flagNames[i] = candidate
+					seen[candidate] = true
+					break
+				}
+			}
+		}
+
 		buildTag := func(flagName string, cfg tagConfig) reflect.StructTag {
 			parts := []string{fmt.Sprintf(`flag:"%s"`, flagName)}
 			if cfg.ignored {
@@ -508,69 +520,26 @@ func TestProperty_Define_RandomTagCombinations(t *testing.T) {
 			return reflect.StructTag(strings.Join(parts, " "))
 		}
 
-		// We need a concrete type. Use a 3-field string struct.
-		type threeFields struct {
-			F0 string
-			F1 string
-			F2 string
-		}
-
-		// Apply tags via reflect — but we can't change tags on a concrete type.
-		// Instead, build the struct dynamically and use a wrapper.
-		// Since we can't use reflect.StructOf with Options, we'll use a
-		// fixed concrete type and validate the tag logic via the configs.
-
-		// Actually, let's just use 3 separate single-field option types
-		// and verify each independently. This is simpler and still tests
-		// the combinatorial tag space.
-
-		flagNames := []string{
-			strings.ToLower(gen.ValidFlagName().Draw(t, "flag0")),
-			strings.ToLower(gen.ValidFlagName().Draw(t, "flag1")),
-			strings.ToLower(gen.ValidFlagName().Draw(t, "flag2")),
-		}
-		// Ensure unique
-		seen := map[string]bool{}
-		for i, n := range flagNames {
-			for seen[n] {
-				n = n + fmt.Sprintf("%d", i)
-			}
-			flagNames[i] = n
-			seen[n] = true
-		}
-
-		// Build a dynamic struct with BaseOpts embedded
-		fields := []reflect.StructField{
-			{Name: "F0", Type: reflect.TypeOf(""), Tag: buildTag(flagNames[0], configs[0])},
-			{Name: "F1", Type: reflect.TypeOf(""), Tag: buildTag(flagNames[1], configs[1])},
-			{Name: "F2", Type: reflect.TypeOf(""), Tag: buildTag(flagNames[2], configs[2])},
-		}
-
-		// Since we can't make this implement Options, use internalvalidation
-		// directly to validate, then check the tag logic manually.
-		// For the actual Define() call, we verify the invariants hold on
-		// the concrete types above.
-
-		// Verify tag consistency: no ignored+hidden, no ignored+required
-		for i, cfg := range configs {
-			if cfg.ignored && cfg.hidden {
-				t.Fatalf("field %d: generated ignored+hidden (should not happen)", i)
-			}
-			if cfg.ignored && cfg.required {
-				t.Fatalf("field %d: generated ignored+required (should not happen)", i)
+		// Build a dynamic struct.
+		fields := make([]reflect.StructField, nFields)
+		for i := range nFields {
+			fields[i] = reflect.StructField{
+				Name: fmt.Sprintf("F%d", i),
+				Type: reflect.TypeOf(""),
+				Tag:  buildTag(flagNames[i], configs[i]),
 			}
 		}
-
-		// Verify the struct tag round-trips
 		typ := reflect.StructOf(fields)
-		for i, fn := range flagNames {
-			got := typ.Field(i).Tag.Get("flag")
-			if got != fn {
-				t.Fatalf("field %d: tag flag=%q, expected %q", i, got, fn)
-			}
+		ptr := reflect.New(typ).Interface()
+
+		// Validate the struct through structcli's internal validation.
+		cmd := newCmd()
+		err := internalvalidation.Struct(cmd, ptr)
+		if err != nil {
+			t.Fatalf("validation failed for valid tag combination: %v", err)
 		}
 
-		// Verify tag metadata is consistent
+		// Verify tag metadata is consistent with the generated configs.
 		for i, cfg := range configs {
 			f := typ.Field(i)
 			if cfg.ignored {
