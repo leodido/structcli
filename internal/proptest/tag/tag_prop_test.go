@@ -15,6 +15,9 @@ import (
 	"pgregory.net/rapid"
 )
 
+// Intentionally duplicated from internal/tag/tag.go — P1.1 cross-checks
+// IsValidFlagName against this independent copy. If the production regex
+// changes without updating this one, P1.1 will catch the drift.
 var validFlagNameRegex = regexp.MustCompile(`^[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*$`)
 
 // --- Generators ---
@@ -43,50 +46,6 @@ func genValidFlagName() *rapid.Generator[string] {
 			b.WriteString(parts[i])
 		}
 		return b.String()
-	})
-}
-
-// genArbitraryString produces arbitrary strings including edge cases.
-func genArbitraryString() *rapid.Generator[string] {
-	return rapid.OneOf(
-		rapid.String(),
-		rapid.Just(""),
-		rapid.Just(" "),
-		rapid.Just("\t"),
-		rapid.Just("\x00"),
-		rapid.StringMatching(`[^a-zA-Z0-9._-]+`),
-	)
-}
-
-// genPresetEntry produces a single "name=value" preset entry with a valid name.
-func genPresetEntry() *rapid.Generator[string] {
-	return rapid.Custom(func(t *rapid.T) string {
-		name := genValidFlagName().Draw(t, "name")
-		value := rapid.String().Draw(t, "value")
-		return name + "=" + value
-	})
-}
-
-// genValidPresetTag produces a well-formed preset tag string with N entries.
-func genValidPresetTag() *rapid.Generator[string] {
-	return rapid.Custom(func(t *rapid.T) string {
-		n := rapid.IntRange(1, 5).Draw(t, "count")
-		// Generate unique names
-		seen := make(map[string]struct{})
-		entries := make([]string, 0, n)
-		for len(entries) < n {
-			name := genValidFlagName().Draw(t, "name")
-			lower := strings.ToLower(name)
-			if _, dup := seen[lower]; dup {
-				continue
-			}
-			seen[lower] = struct{}{}
-			value := rapid.String().Draw(t, "value")
-			// Ensure value doesn't contain the separator we'll use
-			entries = append(entries, name+"="+value)
-		}
-		// Use semicolon as separator (the dominant one)
-		return strings.Join(entries, ";")
 	})
 }
 
@@ -196,6 +155,51 @@ func TestProperty_ParseFlagPresets_RoundTrip(t *testing.T) {
 	})
 }
 
+// P1.2b: ParseFlagPresets round-trip consistency with comma separator.
+func TestProperty_ParseFlagPresets_RoundTripComma(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		n := rapid.IntRange(1, 5).Draw(t, "count")
+		type entry struct {
+			name, value string
+		}
+		seen := make(map[string]struct{})
+		entries := make([]entry, 0, n)
+		for len(entries) < n {
+			name := genValidFlagName().Draw(t, "name")
+			if _, dup := seen[name]; dup {
+				continue
+			}
+			seen[name] = struct{}{}
+			// Values must not contain ',' or ';' to avoid splitting ambiguity
+			value := rapid.StringMatching(`[^,;]*`).Draw(t, "value")
+			entries = append(entries, entry{name, value})
+		}
+
+		// Build tag string with ',' separator (no ';' present)
+		parts := make([]string, len(entries))
+		for i, e := range entries {
+			parts[i] = e.name + "=" + e.value
+		}
+		tag := strings.Join(parts, ",")
+
+		presets, err := internaltag.ParseFlagPresets(tag)
+		if err != nil {
+			t.Fatalf("ParseFlagPresets(%q) returned unexpected error: %v", tag, err)
+		}
+		if len(presets) != len(entries) {
+			t.Fatalf("ParseFlagPresets(%q) returned %d presets, expected %d", tag, len(presets), len(entries))
+		}
+		for i, e := range entries {
+			if presets[i].Name != e.name {
+				t.Fatalf("preset[%d].Name = %q, expected %q", i, presets[i].Name, e.name)
+			}
+			if presets[i].Value != strings.TrimSpace(e.value) {
+				t.Fatalf("preset[%d].Value = %q, expected %q", i, presets[i].Value, strings.TrimSpace(e.value))
+			}
+		}
+	})
+}
+
 // P1.3: ParseFlagPresets never panics on arbitrary input.
 // If it succeeds, no entry has an empty Name.
 func TestProperty_ParseFlagPresets_NoPanic(t *testing.T) {
@@ -219,13 +223,9 @@ func TestProperty_ParseFlagPresets_SemicolonPrecedence(t *testing.T) {
 		// Generate 2 valid entries, join with ';', and embed a ',' in a value
 		name1 := genValidFlagName().Draw(t, "name1")
 		name2 := genValidFlagName().Draw(t, "name2")
-		// Ensure distinct names
+		// Ensure distinct names (appending "x" always keeps the name valid)
 		if name1 == name2 {
 			name2 = name2 + "x"
-			if !internaltag.IsValidFlagName(name2) {
-				// Skip if we can't make a valid distinct name
-				return
-			}
 		}
 		// Value with comma inside — should NOT be treated as separator
 		value1 := "a,b"
