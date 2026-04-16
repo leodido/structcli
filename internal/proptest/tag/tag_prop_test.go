@@ -116,8 +116,9 @@ func TestProperty_ParseFlagPresets_RoundTrip(t *testing.T) {
 				continue
 			}
 			seen[name] = struct{}{}
-			// Values must not contain ';' to avoid splitting ambiguity
-			value := rapid.StringMatching(`[^;]*`).Draw(t, "value")
+			// Values must not contain ';' or ',' to avoid splitting ambiguity
+			// (ParseFlagPresets falls back to comma when no semicolons are present)
+			value := rapid.StringMatching(`[^;,]*`).Draw(t, "value")
 			entries = append(entries, entry{name, value})
 		}
 
