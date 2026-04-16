@@ -46,7 +46,7 @@ func ValidFlagName() *rapid.Generator[string] {
 	sep := rapid.SampledFrom([]string{".", "-"})
 
 	return rapid.Custom(func(t *rapid.T) string {
-		n := rapid.IntRange(1, 3).Draw(t, "segments")
+		n := rapid.IntRange(1, 4).Draw(t, "segments")
 		parts := make([]string, n)
 		for i := range n {
 			parts[i] = segment.Draw(t, "segment")
@@ -62,11 +62,6 @@ func ValidFlagName() *rapid.Generator[string] {
 		}
 		return b.String()
 	})
-}
-
-// BoolTagValue draws a value suitable for boolean struct tags.
-func BoolTagValue() *rapid.Generator[string] {
-	return rapid.SampledFrom([]string{"true", "false", "1", "0", "TRUE", "FALSE"})
 }
 
 // InvalidBoolTagValue draws a string that is NOT a valid boolean.
@@ -90,6 +85,8 @@ type TagSet struct {
 }
 
 // ToStructTag converts a TagSet to a reflect.StructTag string.
+// Values must not contain '"' or '\\' — these break struct tag encoding
+// and cause Tag.Get to return truncated or empty results.
 func (ts TagSet) ToStructTag() reflect.StructTag {
 	var parts []string
 	add := func(key, val string) {
@@ -139,7 +136,7 @@ func ValidTagSet(flagName string) *rapid.Generator[TagSet] {
 		useIgnore := rapid.Bool().Draw(t, "useIgnore")
 		if useIgnore {
 			ts.FlagIgnore = "true"
-			// No hidden, required, or preset when ignored
+			ts.Flag = "" // ignored fields don't need a flag name
 		} else {
 			if rapid.Bool().Draw(t, "hidden") {
 				ts.FlagHidden = "true"
@@ -149,35 +146,6 @@ func ValidTagSet(flagName string) *rapid.Generator[TagSet] {
 			}
 		}
 
-		return ts
-	})
-}
-
-// ArbitraryTagSet generates a tag set with arbitrary (possibly invalid) values.
-func ArbitraryTagSet() *rapid.Generator[TagSet] {
-	return rapid.Custom(func(t *rapid.T) TagSet {
-		ts := TagSet{}
-		if rapid.Bool().Draw(t, "hasFlag") {
-			ts.Flag = rapid.String().Draw(t, "flag")
-		}
-		if rapid.Bool().Draw(t, "hasShort") {
-			ts.FlagShort = rapid.String().Draw(t, "short")
-		}
-		if rapid.Bool().Draw(t, "hasHidden") {
-			ts.FlagHidden = rapid.String().Draw(t, "hidden")
-		}
-		if rapid.Bool().Draw(t, "hasRequired") {
-			ts.FlagRequired = rapid.String().Draw(t, "required")
-		}
-		if rapid.Bool().Draw(t, "hasIgnore") {
-			ts.FlagIgnore = rapid.String().Draw(t, "ignore")
-		}
-		if rapid.Bool().Draw(t, "hasCustom") {
-			ts.FlagCustom = rapid.String().Draw(t, "custom")
-		}
-		if rapid.Bool().Draw(t, "hasEnv") {
-			ts.FlagEnv = rapid.String().Draw(t, "env")
-		}
 		return ts
 	})
 }
@@ -243,10 +211,4 @@ func IsValidFlagNameCheck(name string) bool {
 	return validFlagNameRegex.MatchString(name)
 }
 
-// FlagNameForField returns the flag name that Define/validation would use.
-func FlagNameForField(spec FieldSpec) string {
-	if spec.Tags.Flag != "" {
-		return spec.Tags.Flag
-	}
-	return strings.ToLower(spec.Name)
-}
+
