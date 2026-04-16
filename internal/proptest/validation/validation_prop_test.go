@@ -120,11 +120,11 @@ func TestProperty_Validation_AllowsHiddenAndRequired(t *testing.T) {
 	})
 }
 
-// --- P2.5: Validation rejects struct-only tags on struct-typed fields ---
+// --- P2.5: Validation rejects leaf-only tags on struct-typed fields ---
 
-func TestProperty_Validation_RejectsStructOnlyTagsOnStructFields(t *testing.T) {
+func TestProperty_Validation_RejectsLeafOnlyTagsOnStructFields(t *testing.T) {
 	// Tags like flagshort, flagcustom, flagignore, flagrequired, flaghidden
-	// are invalid on struct-typed fields.
+	// are valid only on leaf (non-struct) fields and rejected on struct fields.
 	tags := []struct {
 		name string
 		tag  string
@@ -314,22 +314,6 @@ func TestProperty_Validation_AcceptsWellFormedStructs(t *testing.T) {
 // --- P2.10: Validation errors are always well-typed ---
 
 func TestProperty_Validation_ErrorsAreWellTyped(t *testing.T) {
-	knownErrorTypes := []any{
-		(*structclierrors.InvalidBooleanTagError)(nil),
-		(*structclierrors.InvalidShorthandError)(nil),
-		(*structclierrors.InvalidTagUsageError)(nil),
-		(*structclierrors.ConflictingTagsError)(nil),
-		(*structclierrors.DuplicateFlagError)(nil),
-		(*structclierrors.InvalidFlagNameError)(nil),
-		(*structclierrors.ConflictingTypeError)(nil),
-		(*structclierrors.InputError)(nil),
-		(*structclierrors.MissingDefineHookError)(nil),
-		(*structclierrors.MissingDecodeHookError)(nil),
-		(*structclierrors.InvalidDefineHookSignatureError)(nil),
-		(*structclierrors.InvalidDecodeHookSignatureError)(nil),
-		(*structclierrors.InvalidCompleteHookSignatureError)(nil),
-	}
-
 	rapid.Check(t, func(t *rapid.T) {
 		specs := gen.UniqueFieldSpecs(4).Draw(t, "fields")
 		typ := gen.BuildStructType(specs)
@@ -340,27 +324,48 @@ func TestProperty_Validation_ErrorsAreWellTyped(t *testing.T) {
 			return // success is fine
 		}
 
-		// The error should either be a known typed error or wrap one.
 		// Validation wraps errors with fmt.Errorf("validation failed: %w", ...),
-		// so we need to unwrap.
-		unwrapped := errors.Unwrap(err)
-		if unwrapped == nil {
-			unwrapped = err
+		// so unwrap first.
+		inner := errors.Unwrap(err)
+		if inner == nil {
+			inner = err
 		}
 
-		for _, knownType := range knownErrorTypes {
-			target := reflect.New(reflect.TypeOf(knownType).Elem()).Interface()
-			if errors.As(unwrapped, &target) {
-				return // matched a known type
-			}
-		}
+		// Check against each known error type with concrete typed pointers.
+		// Using *any as the errors.As target would match everything — each
+		// check must use a concretely-typed pointer variable.
+		var (
+			invalidBoolTag     *structclierrors.InvalidBooleanTagError
+			invalidShorthand   *structclierrors.InvalidShorthandError
+			invalidTagUsage    *structclierrors.InvalidTagUsageError
+			conflictingTags    *structclierrors.ConflictingTagsError
+			duplicateFlag      *structclierrors.DuplicateFlagError
+			invalidFlagName    *structclierrors.InvalidFlagNameError
+			conflictingType    *structclierrors.ConflictingTypeError
+			inputErr           *structclierrors.InputError
+			missingDefineHook  *structclierrors.MissingDefineHookError
+			missingDecodeHook  *structclierrors.MissingDecodeHookError
+			invalidDefineSig   *structclierrors.InvalidDefineHookSignatureError
+			invalidDecodeSig   *structclierrors.InvalidDecodeHookSignatureError
+			invalidCompleteSig *structclierrors.InvalidCompleteHookSignatureError
+		)
 
-		// Also accept fmt.Errorf-wrapped errors that contain "validation failed"
-		// (these wrap the typed errors above)
-		if strings.Contains(err.Error(), "validation failed") {
-			return
+		switch {
+		case errors.As(inner, &invalidBoolTag):
+		case errors.As(inner, &invalidShorthand):
+		case errors.As(inner, &invalidTagUsage):
+		case errors.As(inner, &conflictingTags):
+		case errors.As(inner, &duplicateFlag):
+		case errors.As(inner, &invalidFlagName):
+		case errors.As(inner, &conflictingType):
+		case errors.As(inner, &inputErr):
+		case errors.As(inner, &missingDefineHook):
+		case errors.As(inner, &missingDecodeHook):
+		case errors.As(inner, &invalidDefineSig):
+		case errors.As(inner, &invalidDecodeSig):
+		case errors.As(inner, &invalidCompleteSig):
+		default:
+			t.Fatalf("validation returned unrecognized error type %T: %v", inner, inner)
 		}
-
-		t.Fatalf("validation returned unrecognized error type %T: %v", err, err)
 	})
 }
