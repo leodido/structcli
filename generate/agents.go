@@ -34,6 +34,15 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 	root := schemas[0]
 	cliName := root.Name
 
+	// Filter to callable commands only (commands with a Run/RunE handler)
+	cmdMap := buildCommandMap(rootCmd)
+	var callables []*structcli.CommandSchema
+	for _, s := range schemas {
+		if isCallableCommand(s, cmdMap[s.CommandPath]) {
+			callables = append(callables, s)
+		}
+	}
+
 	var buf bytes.Buffer
 
 	// Header
@@ -51,7 +60,7 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 	fmt.Fprintf(&buf, "## Commands\n\n")
 	fmt.Fprintf(&buf, "| Command | Description | Required Flags |\n")
 	fmt.Fprintf(&buf, "|---------|-------------|---------------|\n")
-	for _, s := range schemas {
+	for _, s := range callables {
 		reqFlags := requiredFlags(s)
 		desc := s.Description
 		if desc == "" {
@@ -63,7 +72,7 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 
 	// Flags per command
 	fmt.Fprintf(&buf, "## Configuration\n\n### Flags\n\n")
-	for _, s := range schemas {
+	for _, s := range callables {
 		if len(s.Flags) == 0 {
 			continue
 		}
@@ -85,7 +94,7 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 	}
 
 	// Environment variables (aggregated, deduplicated)
-	envRows := collectEnvVars(schemas)
+	envRows := collectEnvVars(callables)
 	if len(envRows) > 0 {
 		fmt.Fprintf(&buf, "### Environment Variables\n\n")
 		fmt.Fprintf(&buf, "| Variable | Flag | Default |\n")
