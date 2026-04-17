@@ -16,7 +16,6 @@ go install github.com/leodido/structcli/examples/full@latest
 | `full preset` | Demonstrate that flagpreset aliases are syntactic sugar and still flow through Transform and Validate |  |
 | `full srv` | Start the server with the specified configuration | `--port` |
 | `full srv version` | Print version information |  |
-| `full usr` | Commands for managing users in the server |  |
 | `full usr add` | Add a new user to the system with the specified details |  |
 
 ## Configuration
