@@ -170,6 +170,22 @@ func TestLLMsTxt_EmptyDescription(t *testing.T) {
 	assert.NotContains(t, content, "> \n")
 }
 
+func TestLLMsTxt_NonCallableCommandsExcluded(t *testing.T) {
+	// buildRunnableParentTree: root (non-callable), srv (callable), srv version (callable)
+	root := buildRunnableParentTree()
+	out, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+
+	// Non-callable root should not appear as a command section
+	assert.NotContains(t, content, "## myapp\n", "non-callable root should not have its own section")
+
+	// Callable subcommands should appear
+	assert.Contains(t, content, "## myapp srv")
+	assert.Contains(t, content, "## myapp srv version")
+}
+
 func TestLLMsTxt_EmptyFlagDescription(t *testing.T) {
 	noop := func(cmd *cobra.Command, args []string) error { return nil }
 	root := &cobra.Command{Use: "app", Short: "App", RunE: noop}
