@@ -36,6 +36,14 @@ func Skill(rootCmd *cobra.Command, opts SkillOptions) ([]byte, error) {
 	// Sort for deterministic output
 	schemas = sortedSchemas(schemas)
 
+	// Filter to callable commands only
+	var callables []*structcli.CommandSchema
+	for _, s := range schemas {
+		if isCallableCommand(s, cmdMap[s.CommandPath]) {
+			callables = append(callables, s)
+		}
+	}
+
 	rootSchema := schemas[0]
 
 	name := opts.Name
@@ -75,7 +83,7 @@ func Skill(rootCmd *cobra.Command, opts SkillOptions) ([]byte, error) {
 	fmt.Fprintf(&buf, "## Instructions\n\n")
 	fmt.Fprintf(&buf, "### Available Commands\n")
 
-	for _, schema := range schemas {
+	for _, schema := range callables {
 		cmd := cmdMap[schema.CommandPath]
 		writeCommandSection(&buf, schema, cmd)
 	}
@@ -87,7 +95,7 @@ func Skill(rootCmd *cobra.Command, opts SkillOptions) ([]byte, error) {
 	}
 
 	// Aggregate examples
-	examples := collectExamples(schemas, cmdMap)
+	examples := collectExamples(callables, cmdMap)
 	if len(examples) > 0 {
 		fmt.Fprintf(&buf, "\n### Examples\n")
 		for _, ex := range examples {
