@@ -109,6 +109,14 @@ func newCmd() *cobra.Command {
 	return &cobra.Command{Use: "bench"}
 }
 
+// mustSet sets a flag value or fails the benchmark.
+func mustSet(b testing.TB, cmd *cobra.Command, name, value string) {
+	b.Helper()
+	if err := cmd.Flags().Set(name, value); err != nil {
+		b.Fatalf("Flags().Set(%q, %q): %v", name, value, err)
+	}
+}
+
 // envVars tracks env vars set during a benchmark iteration for cleanup.
 var envVars []string
 
@@ -180,9 +188,9 @@ func BenchmarkFullCycle_Small(b *testing.B) {
 		if err := structcli.Define(cmd, opts); err != nil {
 			b.Fatal(err)
 		}
-		cmd.Flags().Set("name", "bench")
-		cmd.Flags().Set("port", "9090")
-		cmd.Flags().Set("verbose", "true")
+		mustSet(b, cmd, "name", "bench")
+		mustSet(b, cmd, "port", "9090")
+		mustSet(b, cmd, "verbose", "true")
 		if err := structcli.Unmarshal(cmd, opts); err != nil {
 			b.Fatal(err)
 		}
@@ -197,12 +205,12 @@ func BenchmarkFullCycle_Medium(b *testing.B) {
 		if err := structcli.Define(cmd, opts); err != nil {
 			b.Fatal(err)
 		}
-		cmd.Flags().Set("host", "0.0.0.0")
-		cmd.Flags().Set("port", "3000")
-		cmd.Flags().Set("log-level", "debug")
-		cmd.Flags().Set("workers", "8")
-		cmd.Flags().Set("db-url", "postgres://prod/db")
-		cmd.Flags().Set("db-timeout", "10s")
+		mustSet(b, cmd, "host", "0.0.0.0")
+		mustSet(b, cmd, "port", "3000")
+		mustSet(b, cmd, "log-level", "debug")
+		mustSet(b, cmd, "workers", "8")
+		mustSet(b, cmd, "db-url", "postgres://prod/db")
+		mustSet(b, cmd, "db-timeout", "10s")
 		benchSetEnv("HOST", "envhost")
 		benchSetEnv("LOG_FILE", "/var/log/app.log")
 		benchSetEnv("DB_MAX_CONNS", "50")
@@ -221,15 +229,15 @@ func BenchmarkFullCycle_Large(b *testing.B) {
 		if err := structcli.Define(cmd, opts); err != nil {
 			b.Fatal(err)
 		}
-		cmd.Flags().Set("string-f", "benchval")
-		cmd.Flags().Set("int-f", "99")
-		cmd.Flags().Set("float64-f", "2.718")
-		cmd.Flags().Set("dur-f", "1m")
-		cmd.Flags().Set("ip-f", "10.0.0.1")
-		cmd.Flags().Set("api-key", "key123")
-		cmd.Flags().Set("region", "eu-west-1")
-		cmd.Flags().Set("level", "5")
-		cmd.Flags().Set("bind-ip", "192.168.1.1")
+		mustSet(b, cmd, "string-f", "benchval")
+		mustSet(b, cmd, "int-f", "99")
+		mustSet(b, cmd, "float64-f", "2.718")
+		mustSet(b, cmd, "dur-f", "1m")
+		mustSet(b, cmd, "ip-f", "10.0.0.1")
+		mustSet(b, cmd, "api-key", "key123")
+		mustSet(b, cmd, "region", "eu-west-1")
+		mustSet(b, cmd, "level", "5")
+		mustSet(b, cmd, "bind-ip", "192.168.1.1")
 		benchSetEnv("STRINGS_F", "a,b,c")
 		benchSetEnv("API_KEY", "envkey")
 		benchSetEnv("SECRET", "s3cret")
