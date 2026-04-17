@@ -279,6 +279,43 @@ func TestSkill_DescriptionSkipsRootCommandTrigger(t *testing.T) {
 	assert.NotContains(t, content, "Use when you need to: a test cli application")
 }
 
+func TestSkill_NonCallableCommandsExcluded(t *testing.T) {
+	// buildRunnableParentTree: root (non-callable), srv (callable), srv version (callable)
+	root := buildRunnableParentTree()
+	out, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+
+	// Non-callable root should not appear as a command in the flags table
+	// (skill.go uses isCallableCommand to filter)
+	assert.NotContains(t, content, "### `myapp`\n", "non-callable root should not have its own command section")
+
+	// Callable subcommands should appear
+	assert.Contains(t, content, "### `myapp srv`")
+	assert.Contains(t, content, "### `myapp srv version`")
+}
+
+func TestSkill_NonCallableExamplesExcluded(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+	root := &cobra.Command{
+		Use:     "myapp",
+		Short:   "A CLI",
+		Example: "myapp --help",
+	}
+	sub := &cobra.Command{Use: "run", Short: "Run", RunE: noop,
+		Example: "myapp run --fast"}
+	root.AddCommand(sub)
+
+	out, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.NotContains(t, content, "myapp --help",
+		"non-callable root example should not appear")
+	assert.Contains(t, content, "myapp run --fast")
+}
+
 // --- helpers ---
 
 func findTableLine(section, substr string) string {

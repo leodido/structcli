@@ -149,6 +149,67 @@ func TestAgents_EmptyFlagDescription(t *testing.T) {
 	assert.Contains(t, line, "| - |")
 }
 
+func TestAgents_NonCallableCommandsExcluded(t *testing.T) {
+	// buildRunnableParentTree: root (non-callable), srv (callable, Run), srv version (callable, RunE)
+	root := buildRunnableParentTree()
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+
+	// Non-callable root should not appear in the commands table
+	assert.NotContains(t, content, "| `myapp` |", "non-callable root should not appear in commands table")
+
+	// Callable subcommands should appear
+	assert.Contains(t, content, "| `myapp srv` |")
+	assert.Contains(t, content, "| `myapp srv version` |")
+}
+
+func TestAgents_NonCallableCommandFlagsExcluded(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+
+	// Root is non-callable container with a persistent flag
+	root := &cobra.Command{Use: "app", Short: "A CLI"}
+	root.PersistentFlags().Bool("verbose", false, "Enable verbose output")
+
+	sub := &cobra.Command{Use: "run", Short: "Run something", RunE: noop}
+	sub.Flags().Int("count", 1, "Repeat count")
+	root.AddCommand(sub)
+
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+
+	// Non-callable root's flags section should not appear
+	assert.NotContains(t, content, "#### `app`", "non-callable root should not have a flags section")
+
+	// Callable sub's flags should appear
+	assert.Contains(t, content, "#### `app run`")
+	assert.Contains(t, content, "--count")
+}
+
+func TestAgents_ZeroFlagCommand(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+	root := &cobra.Command{Use: "app", Short: "A CLI", RunE: noop}
+
+	// Subcommand with no flags
+	sub := &cobra.Command{Use: "ping", Short: "Ping the server", RunE: noop}
+	root.AddCommand(sub)
+
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+
+	// Both commands should appear in the table
+	assert.Contains(t, content, "| `app` |")
+	assert.Contains(t, content, "| `app ping` |")
+
+	// No flags section for ping (zero flags)
+	assert.NotContains(t, content, "#### `app ping`")
+}
+
 // --- helpers ---
 
 func extractSection(content, heading string) string {
