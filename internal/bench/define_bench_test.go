@@ -1,8 +1,11 @@
-// Benchmarks for the Define() and Unmarshal() paths.
+// Benchmarks for the Define() and full-cycle (Define + Unmarshal) paths.
 //
-// Three struct sizes (small, medium, large) × three operations
-// (Define-only, Unmarshal-only, full cycle) = 9 benchmarks.
+// Two operations × three struct sizes = 6 benchmarks.
 // All report ns/op, B/op, and allocs/op.
+//
+// Unmarshal cannot be benchmarked in isolation because Define must run
+// per iteration (it mutates the cobra.Command by registering flags).
+// To estimate Unmarshal cost, subtract: Unmarshal ≈ FullCycle − Define.
 package bench_test
 
 import (
@@ -50,7 +53,7 @@ type mediumOpts struct {
 
 func (o *mediumOpts) Attach(c *cobra.Command) error { return nil }
 
-// --- Large: 20+ fields, nesting, all tag types, presets ---
+// --- Large: 26 fields (23 top-level + 3 nested), all tag types, presets ---
 
 type largeNetConfig struct {
 	BindIP   net.IP   `flag:"bind-ip" default:"127.0.0.1" flagenv:"true"`
@@ -106,20 +109,23 @@ func newCmd() *cobra.Command {
 	return &cobra.Command{Use: "bench"}
 }
 
-// setEnv sets an env var and returns a cleanup function.
-func setEnv(t testing.TB, key, value string) {
-	t.Helper()
+// envVars tracks env vars set during a benchmark iteration for cleanup.
+var envVars []string
+
+// benchSetEnv sets an env var and records it for cleanup.
+// Env var names follow structcli's convention: flag name → UPPER_SNAKE_CASE
+// (e.g., flag "db-max-conns" → env "DB_MAX_CONNS").
+func benchSetEnv(key, value string) {
 	os.Setenv(key, value)
+	envVars = append(envVars, key)
 }
 
-// clearEnvs removes the env vars used by benchmarks.
-func clearEnvs() {
-	for _, k := range []string{
-		"HOST", "LOG_FILE", "DB_MAX_CONNS",
-		"STRINGS_F", "API_KEY", "SECRET", "REGION", "BIND_IP",
-	} {
+// benchClearEnvs removes all env vars set via benchSetEnv.
+func benchClearEnvs() {
+	for _, k := range envVars {
 		os.Unsetenv(k)
 	}
+	envVars = envVars[:0]
 }
 
 // ---------------------------------------------------------------------------
@@ -160,102 +166,10 @@ func BenchmarkDefine_Large(b *testing.B) {
 }
 
 // ---------------------------------------------------------------------------
-// Unmarshal-only benchmarks
-//
-// Define once in setup, then benchmark Unmarshal with flag+env values.
-// Each iteration resets the command to avoid stale state.
-// ---------------------------------------------------------------------------
-
-func BenchmarkUnmarshal_Small(b *testing.B) {
-	b.ReportAllocs()
-	for b.Loop() {
-		cmd := newCmd()
-		opts := &smallOpts{}
-		if err := structcli.Define(cmd, opts); err != nil {
-			b.Fatal(err)
-		}
-
-		b.StopTimer()
-		cmd.Flags().Set("name", "bench")
-		cmd.Flags().Set("port", "9090")
-		cmd.Flags().Set("verbose", "true")
-		b.StartTimer()
-
-		if err := structcli.Unmarshal(cmd, opts); err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkUnmarshal_Medium(b *testing.B) {
-	b.ReportAllocs()
-	for b.Loop() {
-		cmd := newCmd()
-		opts := &mediumOpts{}
-		if err := structcli.Define(cmd, opts); err != nil {
-			b.Fatal(err)
-		}
-
-		b.StopTimer()
-		cmd.Flags().Set("host", "0.0.0.0")
-		cmd.Flags().Set("port", "3000")
-		cmd.Flags().Set("log-level", "debug")
-		cmd.Flags().Set("workers", "8")
-		cmd.Flags().Set("db-url", "postgres://prod/db")
-		cmd.Flags().Set("db-timeout", "10s")
-		setEnv(b, "HOST", "envhost")
-		setEnv(b, "LOG_FILE", "/var/log/app.log")
-		setEnv(b, "DB_MAX_CONNS", "50")
-		b.StartTimer()
-
-		if err := structcli.Unmarshal(cmd, opts); err != nil {
-			b.Fatal(err)
-		}
-
-		b.StopTimer()
-		clearEnvs()
-		b.StartTimer()
-	}
-}
-
-func BenchmarkUnmarshal_Large(b *testing.B) {
-	b.ReportAllocs()
-	for b.Loop() {
-		cmd := newCmd()
-		opts := &largeOpts{}
-		if err := structcli.Define(cmd, opts); err != nil {
-			b.Fatal(err)
-		}
-
-		b.StopTimer()
-		cmd.Flags().Set("string-f", "benchval")
-		cmd.Flags().Set("int-f", "99")
-		cmd.Flags().Set("float64-f", "2.718")
-		cmd.Flags().Set("dur-f", "1m")
-		cmd.Flags().Set("ip-f", "10.0.0.1")
-		cmd.Flags().Set("api-key", "key123")
-		cmd.Flags().Set("region", "eu-west-1")
-		cmd.Flags().Set("level", "5")
-		cmd.Flags().Set("bind-ip", "192.168.1.1")
-		setEnv(b, "STRINGS_F", "a,b,c")
-		setEnv(b, "API_KEY", "envkey")
-		setEnv(b, "SECRET", "s3cret")
-		setEnv(b, "REGION", "ap-south-1")
-		setEnv(b, "BIND_IP", "10.0.0.2")
-		b.StartTimer()
-
-		if err := structcli.Unmarshal(cmd, opts); err != nil {
-			b.Fatal(err)
-		}
-
-		b.StopTimer()
-		clearEnvs()
-		b.StartTimer()
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Full cycle benchmarks: Define → set flags/env → Unmarshal
+//
+// Measures the complete startup path. Unmarshal cost can be estimated
+// by subtracting the Define-only benchmark for the same struct size.
 // ---------------------------------------------------------------------------
 
 func BenchmarkFullCycle_Small(b *testing.B) {
@@ -268,6 +182,7 @@ func BenchmarkFullCycle_Small(b *testing.B) {
 		}
 		cmd.Flags().Set("name", "bench")
 		cmd.Flags().Set("port", "9090")
+		cmd.Flags().Set("verbose", "true")
 		if err := structcli.Unmarshal(cmd, opts); err != nil {
 			b.Fatal(err)
 		}
@@ -286,13 +201,15 @@ func BenchmarkFullCycle_Medium(b *testing.B) {
 		cmd.Flags().Set("port", "3000")
 		cmd.Flags().Set("log-level", "debug")
 		cmd.Flags().Set("workers", "8")
+		cmd.Flags().Set("db-url", "postgres://prod/db")
 		cmd.Flags().Set("db-timeout", "10s")
-		setEnv(b, "HOST", "envhost")
-		setEnv(b, "DB_MAX_CONNS", "50")
+		benchSetEnv("HOST", "envhost")
+		benchSetEnv("LOG_FILE", "/var/log/app.log")
+		benchSetEnv("DB_MAX_CONNS", "50")
 		if err := structcli.Unmarshal(cmd, opts); err != nil {
 			b.Fatal(err)
 		}
-		clearEnvs()
+		benchClearEnvs()
 	}
 }
 
@@ -313,14 +230,14 @@ func BenchmarkFullCycle_Large(b *testing.B) {
 		cmd.Flags().Set("region", "eu-west-1")
 		cmd.Flags().Set("level", "5")
 		cmd.Flags().Set("bind-ip", "192.168.1.1")
-		setEnv(b, "STRINGS_F", "a,b,c")
-		setEnv(b, "API_KEY", "envkey")
-		setEnv(b, "SECRET", "s3cret")
-		setEnv(b, "REGION", "ap-south-1")
-		setEnv(b, "BIND_IP", "10.0.0.2")
+		benchSetEnv("STRINGS_F", "a,b,c")
+		benchSetEnv("API_KEY", "envkey")
+		benchSetEnv("SECRET", "s3cret")
+		benchSetEnv("REGION", "ap-south-1")
+		benchSetEnv("BIND_IP", "10.0.0.2")
 		if err := structcli.Unmarshal(cmd, opts); err != nil {
 			b.Fatal(err)
 		}
-		clearEnvs()
+		benchClearEnvs()
 	}
 }
