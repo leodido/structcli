@@ -24,27 +24,25 @@ func TestInferDecodeHooks(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("durations", "", "durations")
 
-	ok, err := InferDecodeHooks(cmd, "durations", "[]time.Duration")
-	require.NoError(t, err)
+	ok := InferDecodeHooks(cmd, "durations", "[]time.Duration")
 	require.True(t, ok)
 
 	flag := cmd.Flags().Lookup("durations")
 	require.NotNil(t, flag)
 	assert.Equal(t, []string{"StringToDurationSliceHookFunc"}, flag.Annotations[FlagDecodeHookAnnotation])
 
-	found, err := InferDecodeHooks(cmd, "durations", "missing.Type")
-	require.NoError(t, err)
+	found := InferDecodeHooks(cmd, "durations", "missing.Type")
 	assert.False(t, found)
 }
 
-func TestInferDecodeHooks_ErrorOnUnknownFlag(t *testing.T) {
+func TestInferDecodeHooks_PanicsOnUnknownFlag(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
-	// Don't define a "durations" flag — SetAnnotation will fail on unknown flag
+	// Don't define a "durations" flag — SetAnnotation will panic on unknown flag
 
-	found, err := InferDecodeHooks(cmd, "durations", "[]time.Duration")
-	require.Error(t, err)
-	assert.False(t, found)
-	assert.Contains(t, err.Error(), "decode hook annotation")
+	assert.PanicsWithValue(t,
+		`structcli: SetAnnotation on just-registered flag "durations": no such flag -durations`,
+		func() { InferDecodeHooks(cmd, "durations", "[]time.Duration") },
+	)
 }
 
 func TestConvertMapInputErrors(t *testing.T) {
@@ -277,7 +275,7 @@ func TestStoreDecodeHookFunc_WrapperBehavior(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("mode", "", "mode")
 
-	err := StoreDecodeHookFunc(
+	StoreDecodeHookFunc(
 		cmd,
 		"mode",
 		reflect.ValueOf(func(input any) (any, error) {
@@ -285,7 +283,6 @@ func TestStoreDecodeHookFunc_WrapperBehavior(t *testing.T) {
 		}),
 		reflect.TypeOf(""),
 	)
-	require.NoError(t, err)
 
 	flag := cmd.Flags().Lookup("mode")
 	require.NotNil(t, flag)
@@ -310,7 +307,7 @@ func TestStoreDecodeHookFunc_WrapperPropagatesErrors(t *testing.T) {
 	cmd.Flags().String("mode", "", "mode")
 
 	expectedErr := errors.New("boom")
-	err := StoreDecodeHookFunc(
+	StoreDecodeHookFunc(
 		cmd,
 		"mode",
 		reflect.ValueOf(func(input any) (any, error) {
@@ -318,7 +315,6 @@ func TestStoreDecodeHookFunc_WrapperPropagatesErrors(t *testing.T) {
 		}),
 		reflect.TypeOf(""),
 	)
-	require.NoError(t, err)
 
 	flag := cmd.Flags().Lookup("mode")
 	require.NotNil(t, flag)
@@ -326,6 +322,6 @@ func TestStoreDecodeHookFunc_WrapperPropagatesErrors(t *testing.T) {
 	require.True(t, exists)
 	hookFunc := hook.(func(reflect.Type, reflect.Type, any) (any, error))
 
-	_, err = hookFunc(reflect.TypeOf(""), reflect.TypeOf(""), "dev")
+	_, err := hookFunc(reflect.TypeOf(""), reflect.TypeOf(""), "dev")
 	require.ErrorIs(t, err, expectedErr)
 }

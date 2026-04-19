@@ -88,8 +88,7 @@ func (suite *structcliSuite) TestStoreDecodeHookFunc() {
 	targetType := reflect.TypeOf("")
 
 	// Call StoreDecodeHookFunc
-	err := internalhooks.StoreDecodeHookFunc(cmd, "custom-field", decodeValue, targetType)
-	require.NoError(suite.T(), err)
+	internalhooks.StoreDecodeHookFunc(cmd, "custom-field", decodeValue, targetType)
 
 	// Assert the scope contains the custom decode hook with correct key
 	scope := internalscope.Get(cmd)
