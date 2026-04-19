@@ -371,6 +371,17 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					internalhooks.StoreCompletionHookFunc(c, name, completeHookFunc)
 				}
 			}
+			// Auto-register enum completion when no explicit Complete hook exists
+			if _, exists := c.GetFlagCompletionFunc(name); !exists {
+				if fl := c.Flags().Lookup(name); fl != nil {
+					if ev, ok := fl.Value.(EnumValuer); ok {
+						vals := ev.EnumValues()
+						c.RegisterFlagCompletionFunc(name, func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+							return vals, cobra.ShellCompDirectiveNoFileComp
+						})
+					}
+				}
+			}
 		}
 
 		// Flags with `flagcustom:"true"` tag (validation already done)

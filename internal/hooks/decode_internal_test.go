@@ -393,19 +393,8 @@ func TestStringToEnumHookFunc_NonStringSource(t *testing.T) {
 }
 
 func TestRegisterDecodeHook(t *testing.T) {
-	// Save and restore registry state
-	origRegistry := make(map[string]decodingAnnotation)
-	for k, v := range DecodeHookRegistry {
-		origRegistry[k] = v
-	}
-	origAnnotations := make(map[string]mapstructure.DecodeHookFunc)
-	for k, v := range AnnotationToDecodeHookRegistry {
-		origAnnotations[k] = v
-	}
-	defer func() {
-		DecodeHookRegistry = origRegistry
-		AnnotationToDecodeHookRegistry = origAnnotations
-	}()
+	snap := SnapshotDecodeRegistries()
+	defer RestoreDecodeRegistries(snap)
 
 	hook := StringToEnumHookFunc(testEnvValues())
 	RegisterDecodeHook("test.Env", "StringToTestEnvHookFunc", hook)
@@ -419,18 +408,8 @@ func TestRegisterDecodeHook(t *testing.T) {
 }
 
 func TestRegisterDecodeHook_DuplicatePanics(t *testing.T) {
-	origRegistry := make(map[string]decodingAnnotation)
-	for k, v := range DecodeHookRegistry {
-		origRegistry[k] = v
-	}
-	origAnnotations := make(map[string]mapstructure.DecodeHookFunc)
-	for k, v := range AnnotationToDecodeHookRegistry {
-		origAnnotations[k] = v
-	}
-	defer func() {
-		DecodeHookRegistry = origRegistry
-		AnnotationToDecodeHookRegistry = origAnnotations
-	}()
+	snap := SnapshotDecodeRegistries()
+	defer RestoreDecodeRegistries(snap)
 
 	hook := StringToEnumHookFunc(testEnvValues())
 	RegisterDecodeHook("test.Env", "StringToTestEnvHookFunc", hook)
