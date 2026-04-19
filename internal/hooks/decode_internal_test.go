@@ -392,6 +392,18 @@ func TestStringToEnumHookFunc_NonStringSource(t *testing.T) {
 	assert.Equal(t, 42, result)
 }
 
+func TestStringToEnumHookFunc_AliasCollisionPanics(t *testing.T) {
+	assert.PanicsWithValue(t,
+		`structcli: alias "dev" (lowercased) maps to both dev and staging`,
+		func() {
+			StringToEnumHookFunc(map[testEnv][]string{
+				testEnvDev:     {"dev"},
+				testEnvStaging: {"DEV"},
+			})
+		},
+	)
+}
+
 func TestRegisterDecodeHook(t *testing.T) {
 	snap := SnapshotDecodeRegistries()
 	defer RestoreDecodeRegistries(snap)

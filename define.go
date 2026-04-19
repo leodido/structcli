@@ -376,9 +376,11 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				if fl := c.Flags().Lookup(name); fl != nil {
 					if ev, ok := fl.Value.(EnumValuer); ok {
 						vals := ev.EnumValues()
-						c.RegisterFlagCompletionFunc(name, func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+						if err := c.RegisterFlagCompletionFunc(name, func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 							return vals, cobra.ShellCompDirectiveNoFileComp
-						})
+						}); err != nil {
+							panic(fmt.Sprintf("structcli: RegisterFlagCompletionFunc(%q): %v", name, err))
+						}
 					}
 				}
 			}
