@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"reflect"
 	"strings"
 
 	"github.com/go-playground/mold/v4/modifiers"
@@ -14,9 +13,7 @@ import (
 	"github.com/leodido/structcli/config"
 	"github.com/leodido/structcli/debug"
 	"github.com/leodido/structcli/jsonschema"
-	"github.com/leodido/structcli/values"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -27,6 +24,14 @@ const (
 	EnvStaging     Environment = "staging"
 	EnvProduction  Environment = "prod"
 )
+
+func init() {
+	structcli.RegisterEnum[Environment](map[Environment][]string{
+		EnvDevelopment: {"dev", "development"},
+		EnvStaging:    {"staging", "stage"},
+		EnvProduction: {"prod", "production"},
+	})
+}
 
 type EvenDeeper struct {
 	Setting   string `flag:"deeper-setting" default:"default-deeper-setting"`
@@ -67,7 +72,7 @@ type ServerOptions struct {
 	Database DatabaseConfig `flaggroup:"Database"`
 
 	// Custom type
-	TargetEnv Environment `flagcustom:"true" flag:"target-env" flagdescr:"Set the target environment"`
+	TargetEnv Environment `flag:"target-env" flagdescr:"Set the target environment" default:"dev"`
 
 	Deep Deeply
 }
@@ -77,51 +82,7 @@ type DatabaseConfig struct {
 	MaxConns int    `flagdescr:"Max database connections" default:"10" flagenv:"true"`
 }
 
-// DefineTargetEnv defines the custom flag for Environment with autocompletion
-func (o *ServerOptions) DefineTargetEnv(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	enhancedDesc := descr + " {dev,staging,prod}"
-	fieldPtr := fieldValue.Addr().Interface().(*Environment)
-	*fieldPtr = EnvDevelopment
 
-	// Since Environment is a string type, we cast its pointer to *string and use our string value helper.
-	return values.NewString((*string)(fieldPtr)), enhancedDesc
-}
-
-// DecodeTargetEnv converts string input to Environment type with validation
-func (o *ServerOptions) DecodeTargetEnv(input any) (any, error) {
-	var strValue string
-
-	switch v := input.(type) {
-	case string:
-		strValue = v
-	case *string:
-		if v != nil {
-			strValue = *v
-		}
-	default:
-		return nil, fmt.Errorf("expected string input for environment, got %T", input)
-	}
-
-	switch strings.ToLower(strings.TrimSpace(strValue)) {
-	case "dev", "development":
-		return EnvDevelopment, nil
-	case "staging", "stage":
-		return EnvStaging, nil
-	case "prod", "production":
-		return EnvProduction, nil
-	default:
-		return nil, fmt.Errorf("invalid environment: %s (one of: dev, staging, prod)", strValue)
-	}
-}
-
-// CompleteTargetEnv provides shell completion for the target environment flag.
-func (o *ServerOptions) CompleteTargetEnv(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return []string{
-		"dev\tDevelopment environment",
-		"staging\tStaging environment",
-		"prod\tProduction environment",
-	}, cobra.ShellCompDirectiveNoFileComp
-}
 
 // Attach makes ServerOptions implement the Options interface
 func (o *ServerOptions) Attach(c *cobra.Command) error {
