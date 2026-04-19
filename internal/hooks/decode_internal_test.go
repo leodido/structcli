@@ -430,3 +430,59 @@ func TestRegisterDecodeHook_DuplicatePanics(t *testing.T) {
 		RegisterDecodeHook("test.Env2", "StringToTestEnvHookFunc", hook)
 	})
 }
+
+type testPriority int
+
+const (
+	testPriorityLow    testPriority = 0
+	testPriorityMedium testPriority = 1
+	testPriorityHigh   testPriority = 2
+)
+
+func testPriorityValues() map[testPriority][]string {
+	return map[testPriority][]string{
+		testPriorityLow:    {"low"},
+		testPriorityMedium: {"medium", "med"},
+		testPriorityHigh:   {"high", "hi"},
+	}
+}
+
+func TestStringToIntEnumHookFunc_ValidCanonical(t *testing.T) {
+	hook := StringToIntEnumHookFunc(testPriorityValues())
+
+	result, err := execDecodeHook(t, hook, "low", reflect.TypeFor[testPriority]())
+	require.NoError(t, err)
+	assert.Equal(t, testPriorityLow, result)
+}
+
+func TestStringToIntEnumHookFunc_ValidAlias(t *testing.T) {
+	hook := StringToIntEnumHookFunc(testPriorityValues())
+
+	result, err := execDecodeHook(t, hook, "med", reflect.TypeFor[testPriority]())
+	require.NoError(t, err)
+	assert.Equal(t, testPriorityMedium, result)
+}
+
+func TestStringToIntEnumHookFunc_CaseInsensitive(t *testing.T) {
+	hook := StringToIntEnumHookFunc(testPriorityValues())
+
+	result, err := execDecodeHook(t, hook, "HIGH", reflect.TypeFor[testPriority]())
+	require.NoError(t, err)
+	assert.Equal(t, testPriorityHigh, result)
+}
+
+func TestStringToIntEnumHookFunc_InvalidValue(t *testing.T) {
+	hook := StringToIntEnumHookFunc(testPriorityValues())
+
+	_, err := execDecodeHook(t, hook, "critical", reflect.TypeFor[testPriority]())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid value "critical"`)
+}
+
+func TestStringToIntEnumHookFunc_WrongTargetType(t *testing.T) {
+	hook := StringToIntEnumHookFunc(testPriorityValues())
+
+	result, err := execDecodeHook(t, hook, "low", reflect.TypeOf(0))
+	require.NoError(t, err)
+	assert.Equal(t, "low", result)
+}

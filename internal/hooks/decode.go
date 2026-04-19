@@ -204,6 +204,37 @@ func StringToEnumHookFunc[E ~string](values map[E][]string) mapstructure.DecodeH
 	}
 }
 
+// StringToIntEnumHookFunc creates a decode hook that converts string values to
+// an integer-based enum type during configuration unmarshaling. It supports
+// case-insensitive matching and aliases.
+func StringToIntEnumHookFunc[E ~int | ~int8 | ~int16 | ~int32 | ~int64](values map[E][]string) mapstructure.DecodeHookFunc {
+	allowed := make(map[string]E)
+	for enumVal, names := range values {
+		for _, name := range names {
+			allowed[strings.ToLower(name)] = enumVal
+		}
+	}
+	targetType := reflect.TypeFor[E]()
+
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if t != targetType {
+			return data, nil
+		}
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		s, ok := data.(string)
+		if !ok {
+			return data, nil
+		}
+		if val, found := allowed[strings.ToLower(s)]; found {
+			return val, nil
+		}
+
+		return nil, fmt.Errorf("invalid value %q for %s", s, targetType.Name())
+	}
+}
+
 // StringToZapcoreLevelHookFunc creates a decode hook that converts string values
 // to zapcore.Level types during configuration unmarshaling.
 func StringToZapcoreLevelHookFunc() mapstructure.DecodeHookFunc {

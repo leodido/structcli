@@ -172,7 +172,7 @@ func DefineTimeDurationHookFunc() DefineHookFunc {
 // enumHelpText builds a sorted "{val1,val2,...}" addendum from an enum map
 // keyed by integer-typed levels. It returns the sorted value names and the
 // description with the addendum appended.
-func enumHelpText[L ~int8 | ~int](levels map[L][]string, descr string) ([]string, string) {
+func enumHelpText[L ~int | ~int8 | ~int16 | ~int32 | ~int64](levels map[L][]string, descr string) ([]string, string) {
 	keys := make([]int, 0, len(levels))
 	for k := range levels {
 		keys = append(keys, int(k))
@@ -229,6 +229,18 @@ func DefineSlogLevelHookFunc() DefineHookFunc {
 		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), logLevels, enumflag.EnumCaseInsensitive)
 
 		return WrapWithEnumValues(enumFlag, values), enhancedDescr
+	}
+}
+
+// DefineIntEnumHookFunc creates a DefineHookFunc for a registered integer-based enum.
+// It wraps enumflag/v2 and attaches EnumValuer metadata via WrapWithEnumValues.
+func DefineIntEnumHookFunc[E ~int | ~int8 | ~int16 | ~int32 | ~int64](values map[E][]string) DefineHookFunc {
+	return func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+		fieldPtr := fieldValue.Addr().Interface().(*E)
+		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), values, enumflag.EnumCaseInsensitive)
+		enumValues, enhancedDescr := enumHelpText(values, descr)
+
+		return WrapWithEnumValues(enumFlag, enumValues), enhancedDescr
 	}
 }
 

@@ -96,3 +96,60 @@ func TestDefineStringEnumHookFunc_EnumValues(t *testing.T) {
 	require.True(t, ok, "returned value should implement EnumValuer")
 	assert.Equal(t, []string{"blue", "green", "red"}, ev.EnumValues())
 }
+
+type testSeverity int
+
+const (
+	testSeverityLow    testSeverity = 0
+	testSeverityMedium testSeverity = 1
+	testSeverityHigh   testSeverity = 2
+)
+
+func TestDefineIntEnumHookFunc_CreatesFlag(t *testing.T) {
+	values := map[testSeverity][]string{
+		testSeverityLow:    {"low"},
+		testSeverityMedium: {"medium", "med"},
+		testSeverityHigh:   {"high"},
+	}
+
+	hook := DefineIntEnumHookFunc(values)
+
+	var target testSeverity = testSeverityLow
+	sf := reflect.StructField{Name: "Severity", Type: reflect.TypeFor[testSeverity]()}
+	fv := reflect.ValueOf(&target).Elem()
+
+	pflagVal, usage := hook("severity", "", "task severity", sf, fv)
+
+	require.NotNil(t, pflagVal)
+	assert.Contains(t, usage, "{low,medium,high}")
+	assert.Contains(t, usage, "task severity")
+
+	require.NoError(t, pflagVal.Set("high"))
+	assert.Equal(t, testSeverityHigh, target)
+
+	require.NoError(t, pflagVal.Set("med"))
+	assert.Equal(t, testSeverityMedium, target)
+}
+
+func TestDefineIntEnumHookFunc_EnumValues(t *testing.T) {
+	values := map[testSeverity][]string{
+		testSeverityLow:    {"low"},
+		testSeverityMedium: {"medium"},
+		testSeverityHigh:   {"high"},
+	}
+
+	hook := DefineIntEnumHookFunc(values)
+
+	var target testSeverity
+	sf := reflect.StructField{Name: "Severity", Type: reflect.TypeFor[testSeverity]()}
+	fv := reflect.ValueOf(&target).Elem()
+
+	pflagVal, _ := hook("severity", "", "severity", sf, fv)
+
+	type enumValuerIface interface {
+		EnumValues() []string
+	}
+	ev, ok := pflagVal.(enumValuerIface)
+	require.True(t, ok, "returned value should implement EnumValuer")
+	assert.Equal(t, []string{"low", "medium", "high"}, ev.EnumValues())
+}
