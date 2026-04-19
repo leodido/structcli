@@ -76,6 +76,63 @@ func TestInvalidBooleanTagError_ErrorsAs(t *testing.T) {
 	assert.Equal(t, "TestField", fieldErr.Field())
 }
 
+func TestInvalidFlagEnvTagError_ErrorMessage(t *testing.T) {
+	err := &InvalidFlagEnvTagError{
+		FieldName: "Secret",
+		TagValue:  "oops",
+	}
+
+	expected := "field 'Secret': tag 'flagenv=oops': invalid value (expected true, false, or only)"
+	assert.Equal(t, expected, err.Error())
+}
+
+func TestInvalidFlagEnvTagError_ContainsExpectedStrings(t *testing.T) {
+	err := &InvalidFlagEnvTagError{
+		FieldName: "APIKey",
+		TagValue:  "bad",
+	}
+
+	errorMsg := err.Error()
+	assert.Contains(t, errorMsg, "APIKey")
+	assert.Contains(t, errorMsg, "flagenv")
+	assert.Contains(t, errorMsg, "bad")
+	assert.Contains(t, errorMsg, "expected true, false, or only")
+}
+
+func TestInvalidFlagEnvTagError_FieldInterface(t *testing.T) {
+	err := &InvalidFlagEnvTagError{
+		FieldName: "Token",
+		TagValue:  "nope",
+	}
+
+	var fieldErr DefinitionError = err
+	assert.Equal(t, "Token", fieldErr.Field())
+}
+
+func TestInvalidFlagEnvTagError_ErrorsIs(t *testing.T) {
+	err := &InvalidFlagEnvTagError{
+		FieldName: "Secret",
+		TagValue:  "invalid",
+	}
+
+	assert.True(t, errors.Is(err, ErrInvalidFlagEnvTag))
+	assert.False(t, errors.Is(err, ErrInvalidBooleanTag))
+	assert.False(t, errors.Is(err, ErrInvalidShorthand))
+}
+
+func TestInvalidFlagEnvTagError_ErrorsAs(t *testing.T) {
+	err := NewInvalidFlagEnvTagError("Secret", "maybe")
+
+	var flagEnvErr *InvalidFlagEnvTagError
+	require.True(t, errors.As(err, &flagEnvErr))
+	assert.Equal(t, "Secret", flagEnvErr.FieldName)
+	assert.Equal(t, "maybe", flagEnvErr.TagValue)
+
+	var fieldErr DefinitionError
+	require.True(t, errors.As(err, &fieldErr))
+	assert.Equal(t, "Secret", fieldErr.Field())
+}
+
 func TestInvalidShorthandError_ErrorMessage(t *testing.T) {
 	err := &InvalidShorthandError{
 		FieldName: "VerboseFlag",
@@ -317,6 +374,15 @@ func TestNewInvalidBooleanTagError_Constructor(t *testing.T) {
 	assert.Equal(t, "TestField", boolErr.FieldName)
 	assert.Equal(t, "flagenv", boolErr.TagName)
 	assert.Equal(t, "maybe", boolErr.TagValue)
+}
+
+func TestNewInvalidFlagEnvTagError_Constructor(t *testing.T) {
+	err := NewInvalidFlagEnvTagError("Secret", "maybe")
+
+	var flagEnvErr *InvalidFlagEnvTagError
+	require.True(t, errors.As(err, &flagEnvErr))
+	assert.Equal(t, "Secret", flagEnvErr.FieldName)
+	assert.Equal(t, "maybe", flagEnvErr.TagValue)
 }
 
 func TestNewInvalidShorthandError_Constructor(t *testing.T) {

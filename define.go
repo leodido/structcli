@@ -203,7 +203,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 		// Lint: suggest flagenv:"only" when flaghidden:"true" + flagenv:"true" is used
 		// without any flag-specific tags that would be incompatible with flagenv:"only".
-		if hidden && envMode == internalenv.EnvOn && !envOnly && kind != reflect.Struct {
+		if hidden && envMode == internalenv.EnvOn && kind != reflect.Struct {
 			custom, _ := strconv.ParseBool(f.Tag.Get("flagcustom"))
 			flagType := f.Tag.Get("flagtype")
 			if short == "" && len(presets) == 0 && flagType == "" && !custom {
@@ -212,6 +212,14 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					f.Name,
 				)
 			}
+		}
+		// Lint: flaghidden:"true" is redundant with flagenv:"only" since env-only
+		// already forces the flag hidden.
+		if hidden && envOnly {
+			fmt.Fprintf(c.ErrOrStderr(),
+				"structcli: field '%s': flaghidden:\"true\" is redundant with flagenv:\"only\" (env-only fields are always hidden)\n",
+				f.Name,
+			)
 		}
 		applyFieldMetadata := func() error {
 			// Persist path metadata on each defined flag so Unmarshal can rebuild
@@ -225,9 +233,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				c.MarkFlagRequired(name)
 			}
 			if hidden {
-				// Error discarded: MarkHidden only fails on unknown flags,
-				// which cannot happen here since the flag was just defined above.
-				_ = c.Flags().MarkHidden(name)
+				if err := c.Flags().MarkHidden(name); err != nil {
+					return fmt.Errorf("couldn't hide flag %s: %w", name, err)
+				}
 			}
 
 			// Set the defaults
@@ -325,9 +333,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					}
 				}
 				if hidden {
-					// Error discarded: MarkHidden only fails on unknown flags,
-					// which cannot happen here since the alias was just defined above.
-					_ = c.Flags().MarkHidden(aliasName)
+					if err := c.Flags().MarkHidden(aliasName); err != nil {
+						return fmt.Errorf("couldn't hide alias flag %s: %w", aliasName, err)
+					}
 				}
 			}
 
@@ -352,7 +360,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			// The flag was created normally (correct type, default, etc.)
 			// but is now hidden from CLI help and marked for schema/generators.
 			if envOnly {
-				_ = c.Flags().MarkHidden(name)
+				if err := c.Flags().MarkHidden(name); err != nil {
+					return fmt.Errorf("couldn't hide env-only flag %s: %w", name, err)
+				}
 				if err := c.Flags().SetAnnotation(name, internalenv.FlagEnvOnlyAnnotation, []string{"true"}); err != nil {
 					return fmt.Errorf("couldn't set env-only annotation for flag %s: %w", name, err)
 				}

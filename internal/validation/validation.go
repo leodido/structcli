@@ -131,7 +131,7 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		flagEnvValue := structF.Tag.Get("flagenv")
 		flagEnvOnly := internalenv.IsEnvOnly(structF)
 		if !internalenv.IsValidFlagEnvTag(flagEnvValue) {
-			return structclierrors.NewInvalidBooleanTagError(fieldName, "flagenv", flagEnvValue)
+			return structclierrors.NewInvalidFlagEnvTagError(fieldName, flagEnvValue)
 		}
 
 		// flagenv:"only" is incompatible with flag-specific tags

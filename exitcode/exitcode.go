@@ -76,10 +76,8 @@ const (
 	// wrong format or type for its target flag.
 	EnvInvalidValue = 25
 
-	// EnvMissingRequired is reserved for future env-only required inputs.
-	// HandleError currently reports missing required flags/inputs as
-	// MissingRequiredFlag and may include env fallback hints in the
-	// structured error payload instead.
+	// EnvMissingRequired indicates a flagenv:"only" field with
+	// flagrequired:"true" had no environment variable set at execution time.
 	EnvMissingRequired = 26
 )
 
