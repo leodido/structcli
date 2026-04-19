@@ -179,7 +179,11 @@ func StringToEnumHookFunc[E ~string](values map[E][]string) mapstructure.DecodeH
 	allowed := make(map[string]E)
 	for enumVal, names := range values {
 		for _, name := range names {
-			allowed[strings.ToLower(name)] = enumVal
+			key := strings.ToLower(name)
+			if existing, ok := allowed[key]; ok {
+				panic(fmt.Sprintf("structcli: alias %q (lowercased) maps to both %v and %v", key, existing, enumVal))
+			}
+			allowed[key] = enumVal
 		}
 	}
 	targetType := reflect.TypeFor[E]()

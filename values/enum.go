@@ -29,7 +29,11 @@ func NewEnumString[E ~string](target *E, values map[E][]string) *EnumStringValue
 		}
 		canonical = append(canonical, names[0])
 		for _, name := range names {
-			allowed[strings.ToLower(name)] = enumVal
+			key := strings.ToLower(name)
+			if existing, ok := allowed[key]; ok {
+				panic(fmt.Sprintf("values: alias %q (lowercased) maps to both %v and %v", key, existing, enumVal))
+			}
+			allowed[key] = enumVal
 		}
 	}
 	slices.Sort(canonical)
