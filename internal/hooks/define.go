@@ -173,9 +173,9 @@ func DefineTimeDurationHookFunc() DefineHookFunc {
 // keyed by integer-typed levels. It returns the sorted value names and the
 // description with the addendum appended.
 func enumHelpText[L ~int | ~int8 | ~int16 | ~int32 | ~int64](levels map[L][]string, descr string) ([]string, string) {
-	keys := make([]int, 0, len(levels))
+	keys := make([]int64, 0, len(levels))
 	for k := range levels {
-		keys = append(keys, int(k))
+		keys = append(keys, int64(k))
 	}
 	slices.Sort(keys)
 
