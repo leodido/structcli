@@ -51,7 +51,7 @@ func SetupDebug(rootC *cobra.Command, debugOpts debug.Options) error {
 	rootC.PersistentFlags().Bool(flagName, false, "enable debug output for options")
 
 	// Add environment annotation
-	rootC.PersistentFlags().SetAnnotation(flagName, internalenv.FlagAnnotation, []string{envvName})
+	mustSetAnnotation(rootC.PersistentFlags(), flagName, internalenv.FlagAnnotation, []string{envvName})
 
 	// Ensure environment binding happens
 	cobra.OnInitialize(func() {

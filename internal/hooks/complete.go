@@ -14,12 +14,14 @@ import (
 type CompleteHookFunc func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective)
 
 // StoreCompletionHookFunc registers a validated completion hook method for a flag.
-func StoreCompletionHookFunc(c *cobra.Command, flagName string, completeM reflect.Value) error {
+// Panics if the flag does not exist (structurally impossible when called after
+// flag registration) or if completeM is invalid.
+func StoreCompletionHookFunc(c *cobra.Command, flagName string, completeM reflect.Value) {
 	if !completeM.IsValid() {
-		return fmt.Errorf("invalid completion hook for flag %q", flagName)
+		panic(fmt.Sprintf("structcli: invalid completion hook for flag %q", flagName))
 	}
 
-	return c.RegisterFlagCompletionFunc(flagName, func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if err := c.RegisterFlagCompletionFunc(flagName, func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		results := completeM.Call([]reflect.Value{
 			reflect.ValueOf(cmd),
 			reflect.ValueOf(args),
@@ -30,5 +32,7 @@ func StoreCompletionHookFunc(c *cobra.Command, flagName string, completeM reflec
 		directive, _ := results[1].Interface().(cobra.ShellCompDirective)
 
 		return suggestions, directive
-	})
+	}); err != nil {
+		panic(fmt.Sprintf("structcli: RegisterFlagCompletionFunc(%q) on just-registered flag: %v", flagName, err))
+	}
 }

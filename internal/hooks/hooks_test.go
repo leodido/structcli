@@ -116,8 +116,7 @@ func (suite *structcliSuite) TestStoreCompletionHookFunc() {
 		return []string{"dev", "prod"}, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	err := internalhooks.StoreCompletionHookFunc(cmd, "mode", reflect.ValueOf(completeMethod))
-	require.NoError(suite.T(), err)
+	internalhooks.StoreCompletionHookFunc(cmd, "mode", reflect.ValueOf(completeMethod))
 
 	completion, exists := cmd.GetFlagCompletionFunc("mode")
 	require.True(suite.T(), exists, "completion function should be registered")
@@ -127,13 +126,14 @@ func (suite *structcliSuite) TestStoreCompletionHookFunc() {
 	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
 }
 
-func (suite *structcliSuite) TestStoreCompletionHookFunc_InvalidHookValue() {
+func (suite *structcliSuite) TestStoreCompletionHookFunc_PanicsOnInvalidHookValue() {
 	cmd := &cobra.Command{Use: "testcmd"}
 	cmd.Flags().String("mode", "", "test flag")
 
-	err := internalhooks.StoreCompletionHookFunc(cmd, "mode", reflect.Value{})
-	require.Error(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "invalid completion hook")
+	assert.PanicsWithValue(suite.T(),
+		`structcli: invalid completion hook for flag "mode"`,
+		func() { internalhooks.StoreCompletionHookFunc(cmd, "mode", reflect.Value{}) },
+	)
 }
 
 type zapcoreLevelOptions struct {
