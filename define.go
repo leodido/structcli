@@ -17,6 +17,30 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// mustSetAnnotation panics if SetAnnotation fails. The only failure mode is
+// a missing flag, which is structurally impossible when called immediately
+// after flag registration.
+func mustSetAnnotation(fs *pflag.FlagSet, name, key string, values []string) {
+	if err := fs.SetAnnotation(name, key, values); err != nil {
+		panic(fmt.Sprintf("structcli: SetAnnotation(%q, %q) on just-registered flag: %v", name, key, err))
+	}
+}
+
+// mustMarkHidden panics if MarkHidden fails (same invariant as mustSetAnnotation).
+func mustMarkHidden(fs *pflag.FlagSet, name string) {
+	if err := fs.MarkHidden(name); err != nil {
+		panic(fmt.Sprintf("structcli: MarkHidden(%q) on just-registered flag: %v", name, err))
+	}
+}
+
+// mustMarkRequired panics if MarkFlagRequired fails (same invariant).
+// Note: MarkFlagRequired is on *cobra.Command, not *pflag.FlagSet.
+func mustMarkRequired(c *cobra.Command, name string) {
+	if err := c.MarkFlagRequired(name); err != nil {
+		panic(fmt.Sprintf("structcli: MarkFlagRequired(%q) on just-registered flag: %v", name, err))
+	}
+}
+
 // DefineOption configures the behavior of the Define function.
 type DefineOption func(*defineContext)
 
@@ -221,21 +245,19 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				f.Name,
 			)
 		}
-		applyFieldMetadata := func() error {
+		applyFieldMetadata := func() {
+			fs := c.Flags()
+
 			// Persist path metadata on each defined flag so Unmarshal can rebuild
 			// remapping state from the current command context (without package globals).
-			if err := c.Flags().SetAnnotation(name, flagPathAnnotation, []string{path}); err != nil {
-				return fmt.Errorf("couldn't set path annotation for flag %s: %w", name, err)
-			}
+			mustSetAnnotation(fs, name, flagPathAnnotation, []string{path})
 
 			// Marking the flag
 			if mandatory {
-				c.MarkFlagRequired(name)
+				mustMarkRequired(c, name)
 			}
 			if hidden {
-				if err := c.Flags().MarkHidden(name); err != nil {
-					return fmt.Errorf("couldn't hide flag %s: %w", name, err)
-				}
+				mustMarkHidden(fs, name)
 			}
 
 			// Set the defaults
@@ -243,28 +265,22 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				GetViper(c).SetDefault(name, defval)
 				GetViper(c).SetDefault(path, defval)
 				// This is needed for the usage help messages
-				c.Flags().Lookup(name).DefValue = defval
-				if err := c.Flags().SetAnnotation(name, flagDefaultAnnotation, []string{defval}); err != nil {
-					return fmt.Errorf("couldn't set default annotation for flag %s: %w", name, err)
-				}
+				fs.Lookup(name).DefValue = defval
+				mustSetAnnotation(fs, name, flagDefaultAnnotation, []string{defval})
 			}
 
 			if len(envs) > 0 {
-				if err := c.Flags().SetAnnotation(name, internalenv.FlagAnnotation, envs); err != nil {
-					return fmt.Errorf("couldn't set env annotation for flag %s: %w", name, err)
-				}
+				mustSetAnnotation(fs, name, internalenv.FlagAnnotation, envs)
 			}
 
 			// Set the group annotation on the current flag
 			if group != "" {
-				if err := c.Flags().SetAnnotation(name, internalusage.FlagGroupAnnotation, []string{group}); err != nil {
-					return fmt.Errorf("couldn't set group annotation for flag %s: %w", name, err)
-				}
+				mustSetAnnotation(fs, name, internalusage.FlagGroupAnnotation, []string{group})
 			}
 
 			// Store enum values as a machine-readable annotation for downstream consumers.
 			// Prefer EnumValuer interface (authoritative, type-level) over description parsing (fragile).
-			if fl := c.Flags().Lookup(name); fl != nil {
+			if fl := fs.Lookup(name); fl != nil {
 				var enumVals []string
 				if ev, ok := fl.Value.(EnumValuer); ok {
 					enumVals = ev.EnumValues()
@@ -277,41 +293,34 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					enumVals = vals
 				}
 				if len(enumVals) > 0 {
-					if err := c.Flags().SetAnnotation(name, flagEnumAnnotation, enumVals); err != nil {
-						return fmt.Errorf("couldn't set enum annotation for flag %s: %w", name, err)
-					}
+					mustSetAnnotation(fs, name, flagEnumAnnotation, enumVals)
 				}
 			}
 
 			// Store validation struct tag so downstream consumers can inspect rules
 			if validateTag := f.Tag.Get(validateTagName); validateTag != "" {
-				if err := c.Flags().SetAnnotation(name, flagValidateAnnotation, []string{validateTag}); err != nil {
-					return fmt.Errorf("couldn't set validate annotation for flag %s: %w", name, err)
-				}
+				mustSetAnnotation(fs, name, flagValidateAnnotation, []string{validateTag})
 			}
 
 			// Store transformation struct tag so downstream consumers can inspect rules
 			if modTag := f.Tag.Get(modTagName); modTag != "" {
-				if err := c.Flags().SetAnnotation(name, flagModAnnotation, []string{modTag}); err != nil {
-					return fmt.Errorf("couldn't set mod annotation for flag %s: %w", name, err)
-				}
+				mustSetAnnotation(fs, name, flagModAnnotation, []string{modTag})
 			}
-
-			return nil
 		}
-		applyPresetAliases := func() error {
+		applyPresetAliases := func() {
+			fs := c.Flags()
 			for _, preset := range presets {
 				aliasName := preset.Name
 				aliasValue := preset.Value
 				targetFlagName := name
 
 				// Avoid redefining when the same options are attached multiple times.
-				if c.Flags().Lookup(aliasName) != nil {
+				if fs.Lookup(aliasName) != nil {
 					continue
 				}
 
 				usage := fmt.Sprintf("alias for --%s=%s", targetFlagName, aliasValue)
-				c.Flags().BoolFunc(aliasName, usage, func(raw string) error {
+				fs.BoolFunc(aliasName, usage, func(raw string) error {
 					enabled, err := strconv.ParseBool(raw)
 					if err != nil {
 						return fmt.Errorf("invalid boolean value for alias --%s: %w", aliasName, err)
@@ -320,7 +329,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 						return nil
 					}
 
-					if err := c.Flags().Set(targetFlagName, aliasValue); err != nil {
+					if err := fs.Set(targetFlagName, aliasValue); err != nil {
 						return fmt.Errorf("couldn't apply alias --%s to --%s: %w", aliasName, targetFlagName, err)
 					}
 
@@ -328,14 +337,10 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				})
 
 				if group != "" {
-					if err := c.Flags().SetAnnotation(aliasName, internalusage.FlagGroupAnnotation, []string{group}); err != nil {
-						return fmt.Errorf("couldn't set group annotation for flag %s: %w", aliasName, err)
-					}
+					mustSetAnnotation(fs, aliasName, internalusage.FlagGroupAnnotation, []string{group})
 				}
 				if hidden {
-					if err := c.Flags().MarkHidden(aliasName); err != nil {
-						return fmt.Errorf("couldn't hide alias flag %s: %w", aliasName, err)
-					}
+					mustMarkHidden(fs, aliasName)
 				}
 			}
 
@@ -345,42 +350,27 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				for _, preset := range presets {
 					presetData = append(presetData, preset.Name+"="+preset.Value)
 				}
-				if err := c.Flags().SetAnnotation(name, flagPresetsAnnotation, presetData); err != nil {
-					return fmt.Errorf("couldn't set presets annotation for flag %s: %w", name, err)
-				}
+				mustSetAnnotation(fs, name, flagPresetsAnnotation, presetData)
 			}
-
-			return nil
 		}
-		finalizeFieldDefinition := func() error {
-			if err := applyFieldMetadata(); err != nil {
-				return err
-			}
+		finalizeFieldDefinition := func() {
+			applyFieldMetadata()
 			// Env-only: force hidden and set the env-only annotation.
 			// The flag was created normally (correct type, default, etc.)
 			// but is now hidden from CLI help and marked for schema/generators.
 			if envOnly {
-				if err := c.Flags().MarkHidden(name); err != nil {
-					return fmt.Errorf("couldn't hide env-only flag %s: %w", name, err)
-				}
-				if err := c.Flags().SetAnnotation(name, internalenv.FlagEnvOnlyAnnotation, []string{"true"}); err != nil {
-					return fmt.Errorf("couldn't set env-only annotation for flag %s: %w", name, err)
-				}
+				fs := c.Flags()
+				mustMarkHidden(fs, name)
+				mustSetAnnotation(fs, name, internalenv.FlagEnvOnlyAnnotation, []string{"true"})
 			}
-			if err := applyPresetAliases(); err != nil {
-				return err
-			}
+			applyPresetAliases()
 			completeHookName := fmt.Sprintf("Complete%s", f.Name)
 			completeHookFunc := structPtr.MethodByName(completeHookName)
 			if completeHookFunc.IsValid() {
 				if _, exists := c.GetFlagCompletionFunc(name); !exists {
-					if err := internalhooks.StoreCompletionHookFunc(c, name, completeHookFunc); err != nil {
-						return fmt.Errorf("couldn't register completion hook %s: %w", completeHookName, err)
-					}
+					internalhooks.StoreCompletionHookFunc(c, name, completeHookFunc)
 				}
 			}
-
-			return nil
 		}
 
 		// Flags with `flagcustom:"true"` tag (validation already done)
@@ -410,9 +400,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					// Register user's decode hook (`Unmarshal` will call it)
 					internalhooks.StoreDecodeHookFunc(c, name, decodeHookFunc, f.Type)
 
-					if err := finalizeFieldDefinition(); err != nil {
-						return err
-					}
+					finalizeFieldDefinition()
 
 					continue
 				}
@@ -424,9 +412,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					// mandatory one like the other two call sites.
 					internalhooks.InferDecodeHooks(c, name, f.Type.String())
 
-					if err := finalizeFieldDefinition(); err != nil {
-						return err
-					}
+					finalizeFieldDefinition()
 
 					continue
 				}
@@ -442,9 +428,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 			}
 
-			if err := finalizeFieldDefinition(); err != nil {
-				return err
-			}
+			finalizeFieldDefinition()
 
 			continue
 		}
@@ -455,9 +439,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		}
 
 		if c.Flags().Lookup(name) != nil {
-			if err := finalizeFieldDefinition(); err != nil {
-				return err
-			}
+			finalizeFieldDefinition()
 
 			continue
 		}
@@ -515,9 +497,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			if f.Tag.Get("flagtype") == "count" {
 				c.Flags().CountVarP(ref, name, short, descr)
 
-				if err := finalizeFieldDefinition(); err != nil {
-					return err
-				}
+				finalizeFieldDefinition()
 
 				continue
 			}
@@ -572,9 +552,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			continue
 		}
 
-		if err := finalizeFieldDefinition(); err != nil {
-			return err
-		}
+		finalizeFieldDefinition()
 	}
 
 	return nil
