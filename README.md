@@ -221,6 +221,7 @@ From the previous options struct, you get the following env vars automatically:
 - `FULL_SRV_LOGFILE`, `FULL_SRV_LOG_FILE`
 
 Every struct field with the `flagenv:"true"` tag gets an environment variable (two if the struct field also has the `flag:"..."` tag, see struct field `LogFile`).
+Use `flagenv:"only"` for fields that should be settable exclusively via environment variable or config file — CLI usage (`--flag=value`) is rejected at runtime.
 
 The prefix of the environment variable name is the CLI name plus the command name to which those options are attached to.
 
@@ -682,7 +683,7 @@ Use these tags in your struct fields to control the behavior:
 | `flagshort`    | Sets a single-character shorthand for the flag                                                                                          | `flagshort:"l"`             |
 | `flagdescr`    | Provides the help text for the flag                                                                                                     | `flagdescr:"Logging level"` |
 | `default`      | Sets the default value for the flag                                                                                                     | `default:"info"`            |
-| `flagenv`      | Enables binding to an environment variable (`"true"`/`"false"`)                                                                         | `flagenv:"true"`            |
+| `flagenv`      | Enables binding to an environment variable (`"true"`, `"false"`, or `"only"`)                                                           | `flagenv:"true"`            |
 | `flagrequired` | Marks the flag as required (`"true"`/`"false"`)                                                                                         | `flagrequired:"true"`       |
 | `flaghidden`   | Hides the flag from help/usage output and machine-readable schemas while keeping it fully functional (`"true"`/`"false"`)               | `flaghidden:"true"`         |
 | `flaggroup`    | Assigns the flag to a group in the help message                                                                                         | `flaggroup:"Database"`      |
@@ -695,6 +696,13 @@ Format: `<alias>=<value>`; multiple entries can be separated by `;` or `,`.
 Example: `flagpreset:"logeverything=5;logquiet=0"` makes `--logeverything` behave like `--loglevel=5`.
 If both alias and canonical flags are passed, the last assignment in argv wins.
 It does not bypass transform/validate flow.
+
+**`flaghidden:"true" + flagenv:"true"` vs `flagenv:"only"`:**
+
+- `flaghidden:"true" + flagenv:"true"` — hidden from help, but **accepts CLI input** via `--flag=value`. Use for flags that should be discoverable only by advanced users or scripts.
+- `flagenv:"only"` — hidden from help, **rejects CLI input** at runtime. The field is settable only via environment variable or config file. Use for secrets and deployment-time configuration that should never appear on a command line.
+
+`flagenv:"only"` is incompatible with `flagshort`, `flagpreset`, `flagtype`, and `flagcustom` (these are CLI-only concepts). It supports `flagdescr`, `flaggroup`, `flagrequired`, and `default`.
 
 ## 📖 Documentation
 
