@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/thediveo/enumflag/v2"
-	"go.uber.org/zap/zapcore"
 )
 
 // FIXME: remove short from the signature?
@@ -27,7 +26,6 @@ type DefineHookFunc func(name, short, descr string, structField reflect.StructFi
 
 // DefineHookRegistry keeps track of the built-in flag definition functions
 var DefineHookRegistry = map[string]DefineHookFunc{
-	"zapcore.Level":     DefineZapcoreLevelHookFunc(),
 	"time.Duration":     DefineTimeDurationHookFunc(),
 	"[]time.Duration":   DefineDurationSliceHookFunc(),
 	"[]bool":            DefineBoolSliceHookFunc(),
@@ -185,30 +183,6 @@ func enumHelpText[L ~int | ~int8 | ~int16 | ~int32 | ~int64](levels map[L][]stri
 	}
 
 	return values, descr + fmt.Sprintf(" {%s}", strings.Join(values, ","))
-}
-
-// DefineZapcoreLevelHookFunc creates a flag definition function for zapcore.Level.
-//
-// It returns an enum flag that implements pflag.Value.
-func DefineZapcoreLevelHookFunc() DefineHookFunc {
-	return func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-		logLevels := map[zapcore.Level][]string{
-			zapcore.DebugLevel:  {"debug"},
-			zapcore.InfoLevel:   {"info"},
-			zapcore.WarnLevel:   {"warn"},
-			zapcore.ErrorLevel:  {"error"},
-			zapcore.DPanicLevel: {"dpanic"},
-			zapcore.PanicLevel:  {"panic"},
-			zapcore.FatalLevel:  {"fatal"},
-		}
-
-		values, enhancedDescr := enumHelpText(logLevels, descr)
-
-		fieldPtr := fieldValue.Addr().Interface().(*zapcore.Level)
-		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), logLevels, enumflag.EnumCaseInsensitive)
-
-		return WrapWithEnumValues(enumFlag, values), enhancedDescr
-	}
 }
 
 // DefineSlogLevelHookFunc creates a flag definition function for slog.Level.

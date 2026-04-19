@@ -210,7 +210,15 @@ func FuzzStringToZapcoreLevel(f *testing.F) {
 	f.Add("INVALID")
 	f.Add("DEBUG")
 
-	hook := StringToZapcoreLevelHookFunc().(decodeHookFuncType)
+	hook := StringToIntEnumHookFunc(map[zapcore.Level][]string{
+		zapcore.DebugLevel:  {"debug"},
+		zapcore.InfoLevel:   {"info"},
+		zapcore.WarnLevel:   {"warn"},
+		zapcore.ErrorLevel:  {"error"},
+		zapcore.DPanicLevel: {"dpanic"},
+		zapcore.PanicLevel:  {"panic"},
+		zapcore.FatalLevel:  {"fatal"},
+	}).(decodeHookFuncType)
 	target := reflect.TypeOf(zapcore.DebugLevel)
 
 	f.Fuzz(func(t *testing.T, input string) {

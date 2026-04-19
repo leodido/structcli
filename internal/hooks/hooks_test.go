@@ -1688,7 +1688,7 @@ func (suite *structcliSuite) TestHooks_ZapcoreLevelFromYAML_InvalidLevel() {
 
 	assert.Error(suite.T(), err, "Unmarshal should return an error for invalid zapcore.Level")
 	assert.Contains(suite.T(), err.Error(), "couldn't unmarshal config to options:", "Error should be wrapped by Unmarshal")
-	assert.Contains(suite.T(), err.Error(), "invalid string for zapcore.Level 'invalidlevelstring'", "Error should contain the specific hook error message")
+	assert.Contains(suite.T(), err.Error(), "invalidlevelstring", "Error should contain the invalid input value")
 }
 
 type slogLevelOptions struct {
@@ -1875,9 +1875,17 @@ func (suite *structcliSuite) TestStringToZapcoreLevelHookFunc_TypeGuard() {
 
 	opts := &testStruct{}
 
-	// Use our zapcore hook directly with mapstructure
+	// Use the int enum hook for zapcore.Level directly with mapstructure
 	// This will force the hook to be called even for non-zapcore.Level fields
-	zapcoreHook := internalhooks.StringToZapcoreLevelHookFunc()
+	zapcoreHook := internalhooks.StringToIntEnumHookFunc(map[zapcore.Level][]string{
+		zapcore.DebugLevel:  {"debug"},
+		zapcore.InfoLevel:   {"info"},
+		zapcore.WarnLevel:   {"warn"},
+		zapcore.ErrorLevel:  {"error"},
+		zapcore.DPanicLevel: {"dpanic"},
+		zapcore.PanicLevel:  {"panic"},
+		zapcore.FatalLevel:  {"fatal"},
+	})
 
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		DecodeHook: zapcoreHook, // Force zapcore hook to be used for all fields
