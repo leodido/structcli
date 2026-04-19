@@ -191,10 +191,28 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			cName = c.Name()
 		}
 
-		envs, defineEnv := internalenv.GetEnv(f, defineEnv, path, alias, cName)
+		envs, envMode := internalenv.GetEnv(f, defineEnv, path, alias, cName)
+		// Use := to shadow the parameter, matching the original semantics where
+		// each field's own tag value drives inheritance for struct recursion
+		// but does NOT propagate to subsequent siblings.
+		defineEnv := envMode != internalenv.EnvOff
+		envOnly := envMode == internalenv.EnvOnly
 		mandatory := internaltag.IsMandatory(f) || mandatory
 
 		kind := f.Type.Kind()
+
+		// Lint: suggest flagenv:"only" when flaghidden:"true" + flagenv:"true" is used
+		// without any flag-specific tags that would be incompatible with flagenv:"only".
+		if hidden && envMode == internalenv.EnvOn && !envOnly && kind != reflect.Struct {
+			custom, _ := strconv.ParseBool(f.Tag.Get("flagcustom"))
+			flagType := f.Tag.Get("flagtype")
+			if short == "" && len(presets) == 0 && flagType == "" && !custom {
+				fmt.Fprintf(c.ErrOrStderr(),
+					"structcli: field '%s': flaghidden:\"true\" + flagenv:\"true\" can be replaced with flagenv:\"only\" (which also rejects CLI input)\n",
+					f.Name,
+				)
+			}
+		}
 		applyFieldMetadata := func() error {
 			// Persist path metadata on each defined flag so Unmarshal can rebuild
 			// remapping state from the current command context (without package globals).
@@ -329,6 +347,15 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		finalizeFieldDefinition := func() error {
 			if err := applyFieldMetadata(); err != nil {
 				return err
+			}
+			// Env-only: force hidden and set the env-only annotation.
+			// The flag was created normally (correct type, default, etc.)
+			// but is now hidden from CLI help and marked for schema/generators.
+			if envOnly {
+				_ = c.Flags().MarkHidden(name)
+				if err := c.Flags().SetAnnotation(name, internalenv.FlagEnvOnlyAnnotation, []string{"true"}); err != nil {
+					return fmt.Errorf("couldn't set env-only annotation for flag %s: %w", name, err)
+				}
 			}
 			if err := applyPresetAliases(); err != nil {
 				return err

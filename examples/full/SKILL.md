@@ -83,6 +83,8 @@ Start the server with the specified configuration
 | `FULL_SRV_LOGFILE` | `--log-file` | Log file path |
 | `FULL_SRV_LOG_FILE` | `--log-file` | Log file path |
 | `FULL_SRV_PORT` | `--port` | Server port |
+| `FULL_SRV_SECRETKEY` | *(env only)* | Secret signing key (env only) |
+| `FULL_SRV_SECRET_KEY` | *(env only)* | Secret signing key (env only) |
 | `FULL_SRV_TOKENBASE64` | `--token-base64` | Token bytes encoded as base64 |
 | `FULL_SRV_TOKEN_BASE64` | `--token-base64` | Token bytes encoded as base64 |
 | `FULL_SRV_TOKENHEX` | `--token-hex` | Token bytes encoded as hex |

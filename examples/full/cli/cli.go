@@ -46,6 +46,9 @@ type ServerOptions struct {
 	// Environment variable binding
 	APIKey string `flagenv:"true" flagdescr:"API authentication key"`
 
+	// Env-only field: settable only via environment variable, not CLI flag
+	SecretKey string `flagenv:"only" flag:"secret-key" flagdescr:"Secret signing key (env only)"`
+
 	// Same in-memory type (bytes), different textual contracts at the CLI boundary.
 	TokenHex    structcli.Hex    `flag:"token-hex" flaggroup:"Security" flagdescr:"Token bytes encoded as hex" flagenv:"true" default:"68656c6c6f"`
 	TokenBase64 structcli.Base64 `flag:"token-base64" flaggroup:"Security" flagdescr:"Token bytes encoded as base64" flagenv:"true" default:"aGVsbG8="`

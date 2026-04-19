@@ -7,6 +7,7 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 	structclierrors "github.com/leodido/structcli/errors"
 	internalconfig "github.com/leodido/structcli/internal/config"
+	internalenv "github.com/leodido/structcli/internal/env"
 	internalhooks "github.com/leodido/structcli/internal/hooks"
 	internalscope "github.com/leodido/structcli/internal/scope"
 	"github.com/spf13/cobra"
@@ -87,6 +88,11 @@ func GetConfigViper(c *cobra.Command) *viper.Viper {
 // Before decoding, Unmarshal merges command-relevant config from the root-scoped
 // config-source viper (GetConfigViper(c)).
 func Unmarshal(c *cobra.Command, opts Options, hooks ...mapstructure.DecodeHookFunc) error {
+	// Reject CLI usage of env-only flags before any resolution.
+	if err := rejectEnvOnlyCLIUsage(c); err != nil {
+		return err
+	}
+
 	scope := internalscope.Get(c)
 	vip := scope.Viper()
 
@@ -171,6 +177,25 @@ func Unmarshal(c *cobra.Command, opts Options, hooks ...mapstructure.DecodeHookF
 
 	// Automatic debug output if debug is on
 	UseDebug(c, c.OutOrStdout())
+
+	return nil
+}
+
+// rejectEnvOnlyCLIUsage checks whether any env-only flag was explicitly set
+// via the CLI (--flag=value) and returns an error if so.
+func rejectEnvOnlyCLIUsage(c *cobra.Command) error {
+	var rejected []string
+	c.Flags().VisitAll(func(f *pflag.Flag) {
+		if !f.Changed {
+			return
+		}
+		if _, ok := f.Annotations[internalenv.FlagEnvOnlyAnnotation]; ok {
+			rejected = append(rejected, f.Name)
+		}
+	})
+	if len(rejected) > 0 {
+		return &structclierrors.EnvOnlyCLIUsageError{FlagNames: rejected}
+	}
 
 	return nil
 }

@@ -34,6 +34,7 @@ type FlagSchema struct {
 	Default     string       `json:"default,omitempty"`
 	Description string       `json:"description,omitempty"`
 	Required    bool         `json:"required,omitempty"`
+	EnvOnly     bool         `json:"env_only,omitempty"`
 	EnvVars     []string     `json:"env_vars,omitempty"`
 	Group       string       `json:"group,omitempty"`
 	FieldPath   string       `json:"field_path,omitempty"`
@@ -112,8 +113,10 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 
 	// Walk all flags (local + inherited)
 	c.Flags().VisitAll(func(f *pflag.Flag) {
-		// Skip hidden and deprecated flags
-		if f.Hidden || f.Deprecated != "" {
+		_, isEnvOnly := f.Annotations[internalenv.FlagEnvOnlyAnnotation]
+
+		// Skip hidden and deprecated flags (but not env-only carrier flags)
+		if (f.Hidden && !isEnvOnly) || f.Deprecated != "" {
 			return
 		}
 
@@ -169,6 +172,11 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 			if requiredAnnotation[0] == "true" {
 				fs.Required = true
 			}
+		}
+
+		// Env-only fields
+		if isEnvOnly {
+			fs.EnvOnly = true
 		}
 
 		// Read default from structcli annotation (more reliable than pflag DefValue for custom types)

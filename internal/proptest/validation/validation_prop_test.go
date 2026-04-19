@@ -311,6 +311,68 @@ func TestProperty_Validation_AcceptsWellFormedStructs(t *testing.T) {
 	})
 }
 
+// --- P2.9b: flagenv:"only" rejects incompatible flag-specific tags ---
+
+func TestProperty_Validation_EnvOnlyRejectsIncompatibleTags(t *testing.T) {
+	incompatibleTags := []struct {
+		tagName string
+		tagVal  string
+	}{
+		{"flagshort", "x"},
+		{"flagpreset", "max=10"},
+		{"flagtype", "count"},
+	}
+
+	for _, tc := range incompatibleTags {
+		tc := tc
+		t.Run(tc.tagName, func(t *testing.T) {
+			rapid.Check(t, func(t *rapid.T) {
+				flagName := strings.ToLower(gen.ValidFlagName().Draw(t, "flagName"))
+
+				typ := reflect.StructOf([]reflect.StructField{
+					{
+						Name: "F0",
+						Type: reflect.TypeOf(""),
+						Tag:  reflect.StructTag(fmt.Sprintf(`flag:"%s" flagenv:"only" %s:"%s"`, flagName, tc.tagName, tc.tagVal)),
+					},
+				})
+				opts := reflect.New(typ).Interface()
+
+				err := internalvalidation.Struct(newCmd(), opts)
+				if err == nil {
+					t.Fatalf("expected error for flagenv='only' + %s=%q, got nil", tc.tagName, tc.tagVal)
+				}
+				var target *structclierrors.ConflictingTagsError
+				if !errors.As(err, &target) {
+					t.Fatalf("expected ConflictingTagsError for flagenv='only' + %s, got: %v", tc.tagName, err)
+				}
+			})
+		})
+	}
+}
+
+// --- P2.9c: flagenv:"only" is accepted on well-formed fields ---
+
+func TestProperty_Validation_EnvOnlyAcceptedAlone(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		flagName := strings.ToLower(gen.ValidFlagName().Draw(t, "flagName"))
+
+		typ := reflect.StructOf([]reflect.StructField{
+			{
+				Name: "F0",
+				Type: reflect.TypeOf(""),
+				Tag:  reflect.StructTag(fmt.Sprintf(`flag:"%s" flagenv:"only" flagdescr:"test"`, flagName)),
+			},
+		})
+		opts := reflect.New(typ).Interface()
+
+		err := internalvalidation.Struct(newCmd(), opts)
+		if err != nil {
+			t.Fatalf("expected nil error for flagenv='only' with valid flag name %q, got: %v", flagName, err)
+		}
+	})
+}
+
 // --- P2.10: Validation errors are always well-typed ---
 
 func TestProperty_Validation_ErrorsAreWellTyped(t *testing.T) {

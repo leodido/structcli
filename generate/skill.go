@@ -154,8 +154,21 @@ func writeCommandSection(buf *bytes.Buffer, schema *structcli.CommandSchema, cmd
 	}
 }
 
-// writeFlagsTable writes the flags markdown table.
+// writeFlagsTable writes the flags markdown table (excludes env-only fields).
 func writeFlagsTable(buf *bytes.Buffer, flags map[string]*structcli.FlagSchema) {
+	// Check if there are any non-env-only flags to render
+	hasFlags := false
+	for _, f := range flags {
+		if !f.EnvOnly {
+			hasFlags = true
+
+			break
+		}
+	}
+	if !hasFlags {
+		return
+	}
+
 	fmt.Fprintf(buf, "\n**Flags:**\n\n")
 	fmt.Fprintf(buf, "| Flag | Type | Default | Required | Description |\n")
 	fmt.Fprintf(buf, "|------|------|---------|----------|-------------|\n")
@@ -163,6 +176,9 @@ func writeFlagsTable(buf *bytes.Buffer, flags map[string]*structcli.FlagSchema) 
 	names := sortedFlagNames(flags)
 	for _, name := range names {
 		f := flags[name]
+		if f.EnvOnly {
+			continue
+		}
 		reqStr := "no"
 		if f.Required {
 			reqStr = "yes"
@@ -184,6 +200,7 @@ type envVarRow struct {
 	variable string
 	flag     string
 	descr    string
+	envOnly  bool
 }
 
 // collectEnvVarRows collects env var rows from flags that have env vars.
@@ -197,6 +214,7 @@ func collectEnvVarRows(flags map[string]*structcli.FlagSchema) []envVarRow {
 				variable: env,
 				flag:     f.Name,
 				descr:    f.Description,
+				envOnly:  f.EnvOnly,
 			})
 		}
 	}
@@ -209,7 +227,11 @@ func writeEnvVarsTable(buf *bytes.Buffer, rows []envVarRow) {
 	fmt.Fprintf(buf, "| Variable | Flag | Description |\n")
 	fmt.Fprintf(buf, "|----------|------|-------------|\n")
 	for _, r := range rows {
-		fmt.Fprintf(buf, "| `%s` | `--%s` | %s |\n", r.variable, r.flag, r.descr)
+		flag := fmt.Sprintf("`--%s`", r.flag)
+		if r.envOnly {
+			flag = "*(env only)*"
+		}
+		fmt.Fprintf(buf, "| `%s` | %s | %s |\n", r.variable, flag, r.descr)
 	}
 }
 

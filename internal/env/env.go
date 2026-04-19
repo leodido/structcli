@@ -19,7 +19,8 @@ var (
 )
 
 const (
-	FlagAnnotation = "___leodido_structcli_flagenvs"
+	FlagAnnotation        = "___leodido_structcli_flagenvs"
+	FlagEnvOnlyAnnotation = "___leodido_structcli_flagenvonly"
 )
 
 func NormEnv(str string) string {
@@ -42,14 +43,46 @@ func GetPrefix() string {
 	return ""
 }
 
-func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) ([]string, bool) {
+// EnvMode describes how a field participates in environment variable binding.
+type EnvMode int
+
+const (
+	// EnvOff means no env binding for this field.
+	EnvOff EnvMode = iota
+	// EnvOn means the field has both a CLI flag and env binding.
+	EnvOn
+	// EnvOnly means the field is settable only via env var (and config), not CLI.
+	EnvOnly
+)
+
+// IsEnvOnly returns true if the struct field's flagenv tag is set to "only".
+func IsEnvOnly(f reflect.StructField) bool {
+	return strings.EqualFold(f.Tag.Get("flagenv"), "only")
+}
+
+// IsValidFlagEnvTag validates the flagenv tag value.
+// Returns nil for valid values ("", "true", "false", "only") and an error otherwise.
+func IsValidFlagEnvTag(tagValue string) bool {
+	if tagValue == "" {
+		return true
+	}
+	if strings.EqualFold(tagValue, "only") {
+		return true
+	}
+	_, err := strconv.ParseBool(tagValue)
+
+	return err == nil
+}
+
+func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) ([]string, EnvMode) {
 	ret := []string{}
 	currentPrefix := GetPrefix()
 
 	env := f.Tag.Get("flagenv")
+	envOnly := strings.EqualFold(env, "only")
 	defineEnv, _ := strconv.ParseBool(env)
 
-	if defineEnv || inherit {
+	if defineEnv || envOnly || inherit {
 		envPath := path
 		envAlias := alias
 
@@ -72,7 +105,14 @@ func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) 
 		}
 	}
 
-	return ret, defineEnv
+	if envOnly {
+		return ret, EnvOnly
+	}
+	if defineEnv {
+		return ret, EnvOn
+	}
+
+	return ret, EnvOff
 }
 
 func BindEnv(c *cobra.Command) error {
