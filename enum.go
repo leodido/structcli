@@ -34,6 +34,42 @@ import (
 //	        EnvProd: {"prod", "production"},
 //	    })
 //	}
+// RegisterIntEnum registers an integer-based enum type for automatic flag handling.
+// Same semantics as RegisterEnum but for types with an integer underlying type
+// (e.g., custom iota-based enums). Uses enumflag/v2 internally for flag parsing.
+//
+// Must be called in init() before any Define() calls. Panics if the type
+// is already registered.
+//
+// Example:
+//
+//	type Priority int
+//	const (
+//	    PriorityLow    Priority = 0
+//	    PriorityMedium Priority = 1
+//	    PriorityHigh   Priority = 2
+//	)
+//
+//	func init() {
+//	    structcli.RegisterIntEnum[Priority](map[Priority][]string{
+//	        PriorityLow:    {"low"},
+//	        PriorityMedium: {"medium", "med"},
+//	        PriorityHigh:   {"high", "hi"},
+//	    })
+//	}
+func RegisterIntEnum[E ~int | ~int8 | ~int16 | ~int32 | ~int64](values map[E][]string) {
+	typeName := reflect.TypeFor[E]().String()
+
+	if _, exists := internalhooks.DefineHookRegistry[typeName]; exists {
+		panic(fmt.Sprintf("structcli: RegisterIntEnum: type %q is already registered", typeName))
+	}
+
+	internalhooks.DefineHookRegistry[typeName] = internalhooks.DefineIntEnumHookFunc(values)
+
+	annName := fmt.Sprintf("StringTo%sHookFunc", typeName)
+	internalhooks.RegisterDecodeHook(typeName, annName, internalhooks.StringToIntEnumHookFunc(values))
+}
+
 func RegisterEnum[E ~string](values map[E][]string) {
 	if len(values) == 0 {
 		panic("structcli: RegisterEnum: values must not be empty")

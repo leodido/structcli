@@ -279,3 +279,164 @@ func TestRegisterEnum_DescriptionEnhanced(t *testing.T) {
 	require.NotNil(t, flag)
 	assert.Contains(t, flag.Usage, "{dev,prod,staging}")
 }
+
+// --- Integer enum tests ---
+
+type testPriority int
+
+const (
+	testPriorityLow    testPriority = 0
+	testPriorityMedium testPriority = 1
+	testPriorityHigh   testPriority = 2
+)
+
+func testPriorityMap() map[testPriority][]string {
+	return map[testPriority][]string{
+		testPriorityLow:    {"low"},
+		testPriorityMedium: {"medium", "med"},
+		testPriorityHigh:   {"high", "hi"},
+	}
+}
+
+type intEnumOptions struct {
+	Priority testPriority `flag:"priority" flagdescr:"task priority"`
+}
+
+func (o *intEnumOptions) Attach(c *cobra.Command) error { return nil }
+
+type intEnumDefaultOptions struct {
+	Priority testPriority `flag:"priority" flagdescr:"task priority" default:"medium"`
+}
+
+func (o *intEnumDefaultOptions) Attach(c *cobra.Command) error { return nil }
+
+func registerTestIntEnum(t *testing.T) {
+	t.Helper()
+	saveAndRestoreRegistries(t)
+	RegisterIntEnum[testPriority](testPriorityMap())
+}
+
+func TestRegisterIntEnum_DefineAndUnmarshal(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+
+	opts := &intEnumOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{"--priority", "high"}))
+	require.NoError(t, Unmarshal(cmd, opts))
+
+	assert.Equal(t, testPriorityHigh, opts.Priority)
+}
+
+func TestRegisterIntEnum_Aliases(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+
+	opts := &intEnumOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{"--priority", "med"}))
+	require.NoError(t, Unmarshal(cmd, opts))
+
+	assert.Equal(t, testPriorityMedium, opts.Priority)
+}
+
+func TestRegisterIntEnum_CaseInsensitive(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+
+	opts := &intEnumOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{"--priority", "HIGH"}))
+	require.NoError(t, Unmarshal(cmd, opts))
+
+	assert.Equal(t, testPriorityHigh, opts.Priority)
+}
+
+func TestRegisterIntEnum_InvalidValue(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+
+	opts := &intEnumOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+
+	err := cmd.Flags().Parse([]string{"--priority", "critical"})
+	require.Error(t, err)
+}
+
+func TestRegisterIntEnum_DefaultValue(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+
+	opts := &intEnumDefaultOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{}))
+	require.NoError(t, Unmarshal(cmd, opts))
+
+	assert.Equal(t, testPriorityMedium, opts.Priority)
+}
+
+func TestRegisterIntEnum_AutoCompletion(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+
+	opts := &intEnumOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+
+	completionFunc, exists := cmd.GetFlagCompletionFunc("priority")
+	require.True(t, exists, "completion function should be auto-registered")
+
+	suggestions, directive := completionFunc(cmd, nil, "")
+	assert.Equal(t, []string{"low", "medium", "high"}, suggestions)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
+func TestRegisterIntEnum_JSONSchema(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+
+	opts := &intEnumOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+
+	schema, err := JSONSchema(cmd)
+	require.NoError(t, err)
+
+	data, err := json.Marshal(schema)
+	require.NoError(t, err)
+
+	schemaStr := string(data)
+	assert.Contains(t, schemaStr, `"enum"`)
+	assert.Contains(t, schemaStr, `"low"`)
+	assert.Contains(t, schemaStr, `"medium"`)
+	assert.Contains(t, schemaStr, `"high"`)
+}
+
+func TestRegisterIntEnum_DuplicatePanics(t *testing.T) {
+	saveAndRestoreRegistries(t)
+
+	RegisterIntEnum[testPriority](testPriorityMap())
+
+	assert.PanicsWithValue(t,
+		`structcli: RegisterIntEnum: type "structcli.testPriority" is already registered`,
+		func() { RegisterIntEnum[testPriority](testPriorityMap()) },
+	)
+}
+
+func TestRegisterIntEnum_DescriptionEnhanced(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+
+	opts := &intEnumOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+
+	flag := cmd.Flags().Lookup("priority")
+	require.NotNil(t, flag)
+	assert.Contains(t, flag.Usage, "{low,medium,high}")
+}
