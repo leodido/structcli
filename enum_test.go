@@ -254,6 +254,19 @@ func TestRegisterEnum_DuplicatePanics(t *testing.T) {
 	)
 }
 
+func TestRegisterEnum_EmptyValuesPanics(t *testing.T) {
+	saveAndRestoreRegistries(t)
+
+	assert.PanicsWithValue(t,
+		"structcli: RegisterEnum: values must not be empty",
+		func() { RegisterEnum[testEnvironment](nil) },
+	)
+	assert.PanicsWithValue(t,
+		"structcli: RegisterEnum: values must not be empty",
+		func() { RegisterEnum[testEnvironment](map[testEnvironment][]string{}) },
+	)
+}
+
 func TestRegisterEnum_DescriptionEnhanced(t *testing.T) {
 	resetEnumTestState()
 	registerTestEnum(t)
