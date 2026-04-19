@@ -133,6 +133,46 @@ func InferDecodeHooks(c *cobra.Command, name, typename string) bool {
 	return false
 }
 
+// RegisterDecodeHook registers a decode hook for a custom type. It updates both
+// DecodeHookRegistry and AnnotationToDecodeHookRegistry. Panics on duplicate
+// annotation name (consistent with init() behavior).
+func RegisterDecodeHook(typeName, annotationName string, hook mapstructure.DecodeHookFunc) {
+	if _, exists := AnnotationToDecodeHookRegistry[annotationName]; exists {
+		panic(fmt.Sprintf("duplicate annotation name '%s' in decode hook registry (type: %s)", annotationName, typeName))
+	}
+
+	DecodeHookRegistry[typeName] = decodingAnnotation{ann: annotationName, fx: hook}
+	AnnotationToDecodeHookRegistry[annotationName] = hook
+}
+
+// StringToEnumHookFunc creates a decode hook that converts string values to a
+// ~string enum type during configuration unmarshaling. It supports
+// case-insensitive matching and aliases.
+func StringToEnumHookFunc[E ~string](values map[E][]string) mapstructure.DecodeHookFunc {
+	allowed := make(map[string]E)
+	for enumVal, names := range values {
+		for _, name := range names {
+			allowed[strings.ToLower(name)] = enumVal
+		}
+	}
+	targetType := reflect.TypeFor[E]()
+
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if f.Kind() != reflect.String || t != targetType {
+			return data, nil
+		}
+		s, ok := data.(string)
+		if !ok {
+			return data, nil
+		}
+		if val, found := allowed[strings.ToLower(s)]; found {
+			return val, nil
+		}
+
+		return nil, fmt.Errorf("invalid value %q for %s", s, targetType.Name())
+	}
+}
+
 // StringToZapcoreLevelHookFunc creates a decode hook that converts string values
 // to zapcore.Level types during configuration unmarshaling.
 func StringToZapcoreLevelHookFunc() mapstructure.DecodeHookFunc {
