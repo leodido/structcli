@@ -180,7 +180,7 @@ func TestFullApplication(t *testing.T) {
 			args: []string{"srv", "-p", "1234", "--target-env", "ciao"},
 			assertFunc: func(t *testing.T, output string, err error) {
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "invalid environment: ciao")
+				assert.ErrorContains(t, err, `invalid value "ciao"`)
 			},
 		},
 		{
