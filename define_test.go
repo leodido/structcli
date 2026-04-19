@@ -1585,7 +1585,7 @@ func (suite *structcliSuite) TestFlagenv_CombinedWithOtherTags_FailureCase() {
 	require.Error(suite.T(), err, "Should return error for invalid flagenv value")
 	assert.Contains(suite.T(), err.Error(), "flagenv", "Error should mention flagenv")
 	assert.Contains(suite.T(), err.Error(), "invalid", "Error should mention the invalid value")
-	assert.Contains(suite.T(), err.Error(), "boolean", "Error should mention that the value must be boolean")
+	assert.Contains(suite.T(), err.Error(), "expected true, false, or only", "Error should list accepted values")
 }
 
 type validFlagEnvInteractionOptions struct {
@@ -1679,7 +1679,7 @@ func (suite *structcliSuite) TestFlagenv_ErrorMessages_ContainExpectedContent() 
 	assert.Contains(suite.T(), errorMsg, "BadValue", "Error should contain field name")
 	assert.Contains(suite.T(), errorMsg, "flagenv", "Error should contain tag name")
 	assert.Contains(suite.T(), errorMsg, "maybe", "Error should contain tag value")
-	assert.Contains(suite.T(), errorMsg, "invalid boolean value", "Error should contain message")
+	assert.Contains(suite.T(), errorMsg, "expected true, false, or only", "Error should list accepted values")
 }
 
 type flagIgnoreTestOptions struct {

@@ -545,3 +545,25 @@ func TestDefine_Lint_NoWarningWithoutEnv(t *testing.T) {
 		"should not warn when flagenv is not set")
 }
 
+type lintRedundantHiddenEnvOnlyOptions struct {
+	Secret string `flaghidden:"true" flagenv:"only" flag:"secret" flagdescr:"redundant hidden with env-only"`
+}
+
+func (o *lintRedundantHiddenEnvOnlyOptions) Attach(c *cobra.Command) error { return nil }
+
+func TestDefine_Lint_RedundantHiddenWithEnvOnly(t *testing.T) {
+	resetEnvOnlyTestState()
+	SetEnvPrefix("APP")
+
+	var stderr bytes.Buffer
+	cmd := &cobra.Command{Use: "app"}
+	cmd.SetErr(&stderr)
+	opts := &lintRedundantHiddenEnvOnlyOptions{}
+	require.NoError(t, Define(cmd, opts))
+
+	output := stderr.String()
+	assert.Contains(t, output, "redundant",
+		"should warn that flaghidden is redundant with flagenv:\"only\"")
+	assert.Contains(t, output, "Secret")
+}
+

@@ -265,7 +265,8 @@ func TestProperty_Validation_RejectsInvalidFlagNames(t *testing.T) {
 // --- P2.8: Validation rejects invalid boolean tag values ---
 
 func TestProperty_Validation_RejectsInvalidBooleanTagValues(t *testing.T) {
-	boolTags := []string{"flagcustom", "flagenv", "flagignore", "flagrequired", "flaghidden"}
+	// flagenv is excluded: it accepts "only" in addition to booleans and uses InvalidFlagEnvTagError.
+	boolTags := []string{"flagcustom", "flagignore", "flagrequired", "flaghidden"}
 
 	for _, tagName := range boolTags {
 		tagName := tagName
@@ -296,6 +297,33 @@ func TestProperty_Validation_RejectsInvalidBooleanTagValues(t *testing.T) {
 	}
 }
 
+// --- P2.8b: flagenv rejects invalid values with InvalidFlagEnvTagError ---
+
+func TestProperty_Validation_RejectsInvalidFlagEnvValues(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		badVal := gen.InvalidBoolTagValue().Draw(t, "badVal")
+		flagName := strings.ToLower(gen.ValidFlagName().Draw(t, "flagName"))
+
+		typ := reflect.StructOf([]reflect.StructField{
+			{
+				Name: "F0",
+				Type: reflect.TypeOf(""),
+				Tag:  reflect.StructTag(fmt.Sprintf(`flag:"%s" flagenv:"%s"`, flagName, badVal)),
+			},
+		})
+		opts := reflect.New(typ).Interface()
+
+		err := internalvalidation.Struct(newCmd(), opts)
+		if err == nil {
+			t.Fatalf("expected error for flagenv=%q, got nil", badVal)
+		}
+		var target *structclierrors.InvalidFlagEnvTagError
+		if !errors.As(err, &target) {
+			t.Fatalf("expected InvalidFlagEnvTagError for flagenv=%q, got: %v", badVal, err)
+		}
+	})
+}
+
 // --- P2.9: Validation accepts well-formed structs ---
 
 func TestProperty_Validation_AcceptsWellFormedStructs(t *testing.T) {
@@ -314,6 +342,8 @@ func TestProperty_Validation_AcceptsWellFormedStructs(t *testing.T) {
 // --- P2.9b: flagenv:"only" rejects incompatible flag-specific tags ---
 
 func TestProperty_Validation_EnvOnlyRejectsIncompatibleTags(t *testing.T) {
+	// flagcustom is omitted: it requires matching Define/Decode hook methods
+	// on the struct, which cannot be generated via reflect.StructOf.
 	incompatibleTags := []struct {
 		tagName string
 		tagVal  string

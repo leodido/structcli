@@ -79,7 +79,7 @@ type TagSet struct {
 	FlagRequired string // "true" or "false" or ""
 	FlagIgnore   string // "true" or "false" or ""
 	FlagCustom   string // "true" or "false" or ""
-	FlagEnv      string // "true" or "false" or ""
+	FlagEnv      string // "true", "false", "only", or ""
 	FlagPreset   string
 	Default      string
 }

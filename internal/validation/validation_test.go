@@ -18,7 +18,7 @@ type invalidShorthandOpts struct {
 	Name string `flagshort:"ab"`
 }
 
-type invalidBoolTagOpts struct {
+type invalidFlagEnvTagOpts struct {
 	Name string `flagenv:"oops"`
 }
 
@@ -175,7 +175,7 @@ func TestStructValidationErrors(t *testing.T) {
 		err  error
 	}{
 		{name: "invalid shorthand", opts: &invalidShorthandOpts{}, err: structclierrors.ErrInvalidShorthand},
-		{name: "invalid bool tag", opts: &invalidBoolTagOpts{}, err: structclierrors.ErrInvalidBooleanTag},
+		{name: "invalid flagenv tag", opts: &invalidFlagEnvTagOpts{}, err: structclierrors.ErrInvalidFlagEnvTag},
 		{name: "conflicting tags", opts: &conflictingTagsOpts{}, err: structclierrors.ErrConflictingTags},
 		{name: "invalid flag name", opts: &invalidFlagNameOpts{}, err: structclierrors.ErrInvalidFlagName},
 		{name: "duplicate flag", opts: &duplicateFlagOpts{}, err: structclierrors.ErrDuplicateFlag},

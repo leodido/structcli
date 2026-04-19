@@ -114,6 +114,7 @@ func (e *ValidationError) UnderlyingErrors() []error {
 // These are all DefinitionError
 var (
 	ErrInvalidBooleanTag            = errors.New("invalid boolean tag value")
+	ErrInvalidFlagEnvTag            = errors.New("invalid flagenv tag value")
 	ErrInvalidShorthand             = errors.New("invalid shorthand flag")
 	ErrMissingDefineHook            = errors.New("missing custom flag definition hook")
 	ErrMissingDecodeHook            = errors.New("missing custom flag decoding hook")
@@ -170,6 +171,31 @@ func (e *InvalidBooleanTagError) Field() string {
 
 func (e *InvalidBooleanTagError) Unwrap() error {
 	return ErrInvalidBooleanTag
+}
+
+// InvalidFlagEnvTagError represents an invalid value for the flagenv tag.
+type InvalidFlagEnvTagError struct {
+	FieldName string
+	TagValue  string
+}
+
+func (e *InvalidFlagEnvTagError) Error() string {
+	return fmt.Sprintf("field '%s': tag 'flagenv=%s': invalid value (expected true, false, or only)", e.FieldName, e.TagValue)
+}
+
+func (e *InvalidFlagEnvTagError) Field() string {
+	return e.FieldName
+}
+
+func (e *InvalidFlagEnvTagError) Unwrap() error {
+	return ErrInvalidFlagEnvTag
+}
+
+func NewInvalidFlagEnvTagError(fieldName, tagValue string) error {
+	return &InvalidFlagEnvTagError{
+		FieldName: fieldName,
+		TagValue:  tagValue,
+	}
 }
 
 // InvalidShorthandError represents an invalid shorthand flag specification
