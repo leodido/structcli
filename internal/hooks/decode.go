@@ -17,7 +17,6 @@ import (
 	internalscope "github.com/leodido/structcli/internal/scope"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -75,10 +74,6 @@ var DecodeHookRegistry = map[string]decodingAnnotation{
 	"[]net.IP": {
 		"StringToIPSliceHookFunc",
 		StringToIPSliceHookFunc(),
-	},
-	"zapcore.Level": {
-		"StringToZapcoreLevelHookFunc",
-		StringToZapcoreLevelHookFunc(),
 	},
 	"slog.Level": {
 		"StringToSlogLevelHookFunc",
@@ -236,26 +231,6 @@ func StringToIntEnumHookFunc[E ~int | ~int8 | ~int16 | ~int32 | ~int64](values m
 		}
 
 		return nil, fmt.Errorf("invalid value %q for %s", s, targetType.Name())
-	}
-}
-
-// StringToZapcoreLevelHookFunc creates a decode hook that converts string values
-// to zapcore.Level types during configuration unmarshaling.
-func StringToZapcoreLevelHookFunc() mapstructure.DecodeHookFunc {
-	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
-		if f.Kind() != reflect.String {
-			return data, nil
-		}
-		if t != reflect.TypeOf(zapcore.DebugLevel) {
-			return data, nil
-		}
-
-		level, err := zapcore.ParseLevel(data.(string))
-		if err != nil {
-			return nil, fmt.Errorf("invalid string for zapcore.Level '%s': %w", data.(string), err)
-		}
-
-		return level, nil
 	}
 }
 
