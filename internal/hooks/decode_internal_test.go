@@ -325,3 +325,117 @@ func TestStoreDecodeHookFunc_WrapperPropagatesErrors(t *testing.T) {
 	_, err := hookFunc(reflect.TypeOf(""), reflect.TypeOf(""), "dev")
 	require.ErrorIs(t, err, expectedErr)
 }
+
+type testEnv string
+
+const (
+	testEnvDev     testEnv = "dev"
+	testEnvStaging testEnv = "staging"
+	testEnvProd    testEnv = "prod"
+)
+
+func testEnvValues() map[testEnv][]string {
+	return map[testEnv][]string{
+		testEnvDev:     {"dev", "development"},
+		testEnvStaging: {"staging", "stage"},
+		testEnvProd:    {"prod", "production"},
+	}
+}
+
+func TestStringToEnumHookFunc_ValidCanonical(t *testing.T) {
+	hook := StringToEnumHookFunc(testEnvValues())
+
+	result, err := execDecodeHook(t, hook, "dev", reflect.TypeFor[testEnv]())
+	require.NoError(t, err)
+	assert.Equal(t, testEnvDev, result)
+}
+
+func TestStringToEnumHookFunc_ValidAlias(t *testing.T) {
+	hook := StringToEnumHookFunc(testEnvValues())
+
+	result, err := execDecodeHook(t, hook, "development", reflect.TypeFor[testEnv]())
+	require.NoError(t, err)
+	assert.Equal(t, testEnvDev, result)
+}
+
+func TestStringToEnumHookFunc_CaseInsensitive(t *testing.T) {
+	hook := StringToEnumHookFunc(testEnvValues())
+
+	result, err := execDecodeHook(t, hook, "STAGING", reflect.TypeFor[testEnv]())
+	require.NoError(t, err)
+	assert.Equal(t, testEnvStaging, result)
+}
+
+func TestStringToEnumHookFunc_InvalidValue(t *testing.T) {
+	hook := StringToEnumHookFunc(testEnvValues())
+
+	_, err := execDecodeHook(t, hook, "invalid", reflect.TypeFor[testEnv]())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid value "invalid"`)
+}
+
+func TestStringToEnumHookFunc_WrongTargetType(t *testing.T) {
+	hook := StringToEnumHookFunc(testEnvValues())
+
+	// When target type doesn't match, the hook passes through
+	result, err := execDecodeHook(t, hook, "dev", reflect.TypeOf(""))
+	require.NoError(t, err)
+	assert.Equal(t, "dev", result)
+}
+
+func TestStringToEnumHookFunc_NonStringSource(t *testing.T) {
+	hook := StringToEnumHookFunc(testEnvValues())
+
+	// When source is not a string, the hook passes through
+	result, err := execDecodeHook(t, hook, 42, reflect.TypeFor[testEnv]())
+	require.NoError(t, err)
+	assert.Equal(t, 42, result)
+}
+
+func TestRegisterDecodeHook(t *testing.T) {
+	// Save and restore registry state
+	origRegistry := make(map[string]decodingAnnotation)
+	for k, v := range DecodeHookRegistry {
+		origRegistry[k] = v
+	}
+	origAnnotations := make(map[string]mapstructure.DecodeHookFunc)
+	for k, v := range AnnotationToDecodeHookRegistry {
+		origAnnotations[k] = v
+	}
+	defer func() {
+		DecodeHookRegistry = origRegistry
+		AnnotationToDecodeHookRegistry = origAnnotations
+	}()
+
+	hook := StringToEnumHookFunc(testEnvValues())
+	RegisterDecodeHook("test.Env", "StringToTestEnvHookFunc", hook)
+
+	data, ok := DecodeHookRegistry["test.Env"]
+	require.True(t, ok)
+	assert.Equal(t, "StringToTestEnvHookFunc", data.ann)
+
+	_, ok = AnnotationToDecodeHookRegistry["StringToTestEnvHookFunc"]
+	assert.True(t, ok)
+}
+
+func TestRegisterDecodeHook_DuplicatePanics(t *testing.T) {
+	origRegistry := make(map[string]decodingAnnotation)
+	for k, v := range DecodeHookRegistry {
+		origRegistry[k] = v
+	}
+	origAnnotations := make(map[string]mapstructure.DecodeHookFunc)
+	for k, v := range AnnotationToDecodeHookRegistry {
+		origAnnotations[k] = v
+	}
+	defer func() {
+		DecodeHookRegistry = origRegistry
+		AnnotationToDecodeHookRegistry = origAnnotations
+	}()
+
+	hook := StringToEnumHookFunc(testEnvValues())
+	RegisterDecodeHook("test.Env", "StringToTestEnvHookFunc", hook)
+
+	assert.Panics(t, func() {
+		RegisterDecodeHook("test.Env2", "StringToTestEnvHookFunc", hook)
+	})
+}

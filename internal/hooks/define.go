@@ -232,6 +232,19 @@ func DefineSlogLevelHookFunc() DefineHookFunc {
 	}
 }
 
+// DefineStringEnumHookFunc creates a DefineHookFunc for a registered ~string enum.
+// The returned hook creates an enumStringValue that validates on Set() and
+// appends "{val1,val2,...}" to the flag description.
+func DefineStringEnumHookFunc[E ~string](values map[E][]string) DefineHookFunc {
+	return func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+		target := fieldValue.Addr().Interface().(*E)
+		ev := structclivalues.NewEnumString(target, values)
+		enhancedDescr := descr + fmt.Sprintf(" {%s}", strings.Join(ev.EnumValues(), ","))
+
+		return ev, enhancedDescr
+	}
+}
+
 // InferDefineHooks checks if there's a predefined flag definition function for the given type
 func InferDefineHooks(c *cobra.Command, name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) bool {
 	if defineFunc, ok := DefineHookRegistry[structField.Type.String()]; ok {
