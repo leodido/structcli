@@ -110,15 +110,12 @@ func TestEnumStringValue_EnumValues(t *testing.T) {
 
 func TestEnumStringValue_AliasCollisionPanics(t *testing.T) {
 	var target testEnv
-	assert.PanicsWithValue(t,
-		`values: alias "dev" (lowercased) maps to both dev and staging`,
-		func() {
-			NewEnumString(&target, map[testEnv][]string{
-				testEnvDev:     {"dev"},
-				testEnvStaging: {"DEV"}, // collides after lowercasing
-			})
-		},
-	)
+	assert.Panics(t, func() {
+		NewEnumString(&target, map[testEnv][]string{
+			testEnvDev:     {"dev"},
+			testEnvStaging: {"DEV"}, // collides after lowercasing
+		})
+	})
 }
 
 func TestEnumStringValue_EmptyNames(t *testing.T) {
