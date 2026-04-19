@@ -212,3 +212,81 @@ func TestWriteAll_ErrorOnBadDir(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "writing SKILL.md")
 }
+
+// --- Env-only field tests ---
+
+type testEnvOnlyOptions struct {
+	APIKey string `flagenv:"only" flag:"api-key" flagdescr:"API secret key" flagrequired:"true"`
+	Port   int    `flagshort:"p" flagdescr:"Server port" flagenv:"true" default:"3000"`
+}
+
+func (o *testEnvOnlyOptions) Attach(c *cobra.Command) error {
+	return structcli.Define(c, o)
+}
+
+func buildEnvOnlyTree() *cobra.Command {
+	structcli.SetEnvPrefix("APP")
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+
+	root := &cobra.Command{
+		Use:   "envapp",
+		Short: "App with env-only fields",
+		RunE:  noop,
+	}
+
+	serve := &cobra.Command{
+		Use:   "serve",
+		Short: "Start the server",
+		RunE:  noop,
+	}
+	opts := &testEnvOnlyOptions{}
+	opts.Attach(serve)
+	root.AddCommand(serve)
+
+	return root
+}
+
+func TestAgents_EnvOnlyExcludedFromFlagTable(t *testing.T) {
+	root := buildEnvOnlyTree()
+	data, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+	output := string(data)
+
+	// env-only field should NOT appear in the flag table
+	assert.NotContains(t, output, "| `--api-key`", "env-only field should not appear in flag table")
+	// normal flag should appear
+	assert.Contains(t, output, "| `--port`", "normal flag should appear in flag table")
+	// env-only field should appear in env var table with "(env only)" marker
+	assert.Contains(t, output, "*(env only)*", "env-only field should have env-only marker in env table")
+	assert.Contains(t, output, "APP_SERVE_API_KEY", "env-only field's env var should appear")
+}
+
+func TestSkill_EnvOnlyExcludedFromFlagTable(t *testing.T) {
+	root := buildEnvOnlyTree()
+	data, err := generate.Skill(root, generate.SkillOptions{})
+	require.NoError(t, err)
+	output := string(data)
+
+	// env-only field should NOT appear in the flags table
+	assert.NotContains(t, output, "| `--api-key`", "env-only field should not appear in flag table")
+	// normal flag should appear
+	assert.Contains(t, output, "| `--port`", "normal flag should appear in flag table")
+	// env-only field should appear in env var table
+	assert.Contains(t, output, "*(env only)*", "env-only field should have env-only marker")
+	assert.Contains(t, output, "APP_SERVE_API_KEY", "env-only field's env var should appear")
+}
+
+func TestLLMSTxt_EnvOnlyExcludedFromFlagSection(t *testing.T) {
+	root := buildEnvOnlyTree()
+	data, err := generate.LLMsTxt(root, generate.LLMsTxtOptions{})
+	require.NoError(t, err)
+	output := string(data)
+
+	// env-only field should NOT appear in flags section
+	assert.NotContains(t, output, "- `--api-key`", "env-only field should not appear in flags section")
+	// normal flag should appear
+	assert.Contains(t, output, "- `--port`", "normal flag should appear in flags section")
+	// env-only field should appear in env vars section
+	assert.Contains(t, output, "env only", "env-only field should have env-only marker")
+	assert.Contains(t, output, "APP_SERVE_API_KEY", "env-only field's env var should appear")
+}

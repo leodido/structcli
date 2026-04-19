@@ -88,12 +88,23 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 		// Build sorted flags once for this command
 		flagNames := sortedFlagNames(callable.schema.Flags)
 
-		// Flags section
-		if len(flagNames) > 0 {
+		// Flags section (excludes env-only fields)
+		hasFlags := false
+		for _, name := range flagNames {
+			if !callable.schema.Flags[name].EnvOnly {
+				hasFlags = true
+
+				break
+			}
+		}
+		if hasFlags {
 			fmt.Fprintf(&buf, "\n### Flags\n\n")
 
 			for _, name := range flagNames {
 				f := callable.schema.Flags[name]
+				if f.EnvOnly {
+					continue
+				}
 				parts := []string{f.Type}
 				if f.Default != "" {
 					parts = append(parts, fmt.Sprintf("default: %s", f.Default))
@@ -113,6 +124,7 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 		var envEntries []struct {
 			envVar   string
 			flagName string
+			envOnly  bool
 		}
 		for _, name := range flagNames {
 			f := callable.schema.Flags[name]
@@ -120,14 +132,19 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 				envEntries = append(envEntries, struct {
 					envVar   string
 					flagName string
-				}{envVar: envVar, flagName: f.Name})
+					envOnly  bool
+				}{envVar: envVar, flagName: f.Name, envOnly: f.EnvOnly})
 			}
 		}
 
 		if len(envEntries) > 0 {
 			fmt.Fprintf(&buf, "\n### Environment Variables\n\n")
 			for _, entry := range envEntries {
-				fmt.Fprintf(&buf, "- `%s`: maps to `--%s`\n", entry.envVar, entry.flagName)
+				if entry.envOnly {
+					fmt.Fprintf(&buf, "- `%s`: env only (no CLI flag)\n", entry.envVar)
+				} else {
+					fmt.Fprintf(&buf, "- `%s`: maps to `--%s`\n", entry.envVar, entry.flagName)
+				}
 			}
 		}
 	}

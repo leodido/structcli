@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	structclierrors "github.com/leodido/structcli/errors"
+	internalenv "github.com/leodido/structcli/internal/env"
 	internalhooks "github.com/leodido/structcli/internal/hooks"
 	internalpath "github.com/leodido/structcli/internal/path"
 	internalreflect "github.com/leodido/structcli/internal/reflect"
@@ -110,6 +111,11 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 			return structclierrors.NewInvalidTagUsageError(fieldName, "flagcustom", "flagcustom cannot be used on struct types")
 		}
 
+		// Reject flagcustom + flagenv:"only" before validating hooks (avoids confusing hook errors)
+		if flagCustomValue != nil && *flagCustomValue && internalenv.IsEnvOnly(structF) && !isStructKind {
+			return structclierrors.NewConflictingTagsError(fieldName, []string{"flagenv", "flagcustom"}, "flagcustom cannot be used with flagenv='only'")
+		}
+
 		// Validate the define and decode hooks when flagcustom is true
 		if flagCustomValue != nil && *flagCustomValue && !isStructKind {
 			// Map current field name to its custom type
@@ -122,8 +128,26 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		}
 
 		// Validate flagenv tag (can be on struct fields for inheritance)
-		if _, err := IsValidBoolTag(fieldName, "flagenv", structF.Tag.Get("flagenv")); err != nil {
-			return err
+		flagEnvValue := structF.Tag.Get("flagenv")
+		flagEnvOnly := internalenv.IsEnvOnly(structF)
+		if !internalenv.IsValidFlagEnvTag(flagEnvValue) {
+			return structclierrors.NewInvalidBooleanTagError(fieldName, "flagenv", flagEnvValue)
+		}
+
+		// flagenv:"only" is incompatible with flag-specific tags
+		if flagEnvOnly && !isStructKind {
+			if short != "" {
+				return structclierrors.NewConflictingTagsError(fieldName, []string{"flagenv", "flagshort"}, "flagshort cannot be used with flagenv='only'")
+			}
+			if len(presets) > 0 {
+				return structclierrors.NewConflictingTagsError(fieldName, []string{"flagenv", "flagpreset"}, "flagpreset cannot be used with flagenv='only'")
+			}
+			if structF.Tag.Get("flagtype") != "" {
+				return structclierrors.NewConflictingTagsError(fieldName, []string{"flagenv", "flagtype"}, "flagtype cannot be used with flagenv='only'")
+			}
+			if flagCustomValue != nil && *flagCustomValue {
+				return structclierrors.NewConflictingTagsError(fieldName, []string{"flagenv", "flagcustom"}, "flagcustom cannot be used with flagenv='only'")
+			}
 		}
 
 		// Validate flagignore tag
@@ -138,6 +162,9 @@ func Fields(val reflect.Value, prefix string, typeToFields map[reflect.Type][]st
 		}
 		if len(presets) > 0 && flagIgnoreValue != nil && *flagIgnoreValue {
 			return structclierrors.NewInvalidTagUsageError(fieldName, "flagpreset", "flagpreset cannot be used with flagignore='true'")
+		}
+		if flagEnvOnly && flagIgnoreValue != nil && *flagIgnoreValue {
+			return structclierrors.NewConflictingTagsError(fieldName, []string{"flagenv", "flagignore"}, "mutually exclusive tags")
 		}
 		if !isStructKind && !(flagIgnoreValue != nil && *flagIgnoreValue) {
 			if err := validateCompletionHook(val, methodFieldName); err != nil {

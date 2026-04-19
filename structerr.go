@@ -207,6 +207,27 @@ func classify(cmd *cobra.Command, err error) *StructuredError {
 		}
 	}
 
+	// EnvOnlyCLIUsageError from Unmarshal's post-parse check
+	var envOnlyCLIErr *structclierrors.EnvOnlyCLIUsageError
+	if errors.As(err, &envOnlyCLIErr) {
+		se := &StructuredError{
+			Error:    "env_only_cli_usage",
+			ExitCode: exitcode.InvalidFlagValue,
+			Command:  cmdPath,
+			Message:  errMsg,
+		}
+		if len(envOnlyCLIErr.FlagNames) == 1 {
+			se.Flag = envOnlyCLIErr.FlagNames[0]
+			envVars := flagEnvVars(cmd, envOnlyCLIErr.FlagNames[0])
+			if len(envVars) > 0 {
+				se.Hint = fmt.Sprintf("set %s instead", envVars[0])
+				se.EnvVar = envVars[0]
+			}
+		}
+
+		return se
+	}
+
 	// 2. Typed flag errors from SetupFlagErrors (errors.As — no regex needed)
 	// FlagError carries only the flag name, value, and kind. Metadata enrichment
 	// (expected type, enum values, env vars) happens here via the same code path
@@ -366,6 +387,23 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 	// For single-flag errors, provide enriched output with remedy hints.
 	if len(flagNames) == 1 {
 		flagName := flagNames[0]
+
+		// Env-only flags get a distinct error classification and exit code.
+		if flagIsEnvOnly(cmd, flagName) {
+			envVars := flagEnvVars(cmd, flagName)
+			se := &StructuredError{
+				Error:    "missing_required_env",
+				ExitCode: exitcode.EnvMissingRequired,
+				Command:  cmdPath,
+				Message:  structclierrors.NewMissingRequiredEnvError(flagName, envVars).Error(),
+			}
+			if len(envVars) > 0 {
+				se.EnvVar = envVars[0]
+				se.Hint = fmt.Sprintf("set %s", strings.Join(envVars, " or "))
+			}
+
+			return se
+		}
 
 		// Build hint from env fallbacks and validation rules without changing the
 		// top-level classification away from the missing required flag.
@@ -646,6 +684,19 @@ func findFlagForField(cmd *cobra.Command, fieldName string) string {
 }
 
 // flagEnvVars returns the env var names bound to a flag, or nil if none.
+func flagIsEnvOnly(cmd *cobra.Command, flagName string) bool {
+	f := cmd.Flags().Lookup(flagName)
+	if f == nil {
+		f = cmd.InheritedFlags().Lookup(flagName)
+	}
+	if f == nil || f.Annotations == nil {
+		return false
+	}
+	_, ok := f.Annotations[internalenv.FlagEnvOnlyAnnotation]
+
+	return ok
+}
+
 func flagEnvVars(cmd *cobra.Command, flagName string) []string {
 	f := cmd.Flags().Lookup(flagName)
 	if f == nil {

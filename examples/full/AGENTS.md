@@ -92,6 +92,8 @@ go install github.com/leodido/structcli/examples/full@latest
 | `FULL_SRV_LOGFILE` | `--log-file` | - |
 | `FULL_SRV_LOG_FILE` | `--log-file` | - |
 | `FULL_SRV_PORT` | `--port` | 0 |
+| `FULL_SRV_SECRETKEY` | *(env only)* | - |
+| `FULL_SRV_SECRET_KEY` | *(env only)* | - |
 | `FULL_SRV_TOKENBASE64` | `--token-base64` | aGVsbG8= |
 | `FULL_SRV_TOKENHEX` | `--token-hex` | 68656c6c6f |
 | `FULL_SRV_TOKEN_BASE64` | `--token-base64` | aGVsbG8= |

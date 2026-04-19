@@ -72,6 +72,8 @@ Start the server with the specified configuration
 - `FULL_SRV_LOGFILE`: maps to `--log-file`
 - `FULL_SRV_LOG_FILE`: maps to `--log-file`
 - `FULL_SRV_PORT`: maps to `--port`
+- `FULL_SRV_SECRETKEY`: env only (no CLI flag)
+- `FULL_SRV_SECRET_KEY`: env only (no CLI flag)
 - `FULL_SRV_TOKENBASE64`: maps to `--token-base64`
 - `FULL_SRV_TOKEN_BASE64`: maps to `--token-base64`
 - `FULL_SRV_TOKENHEX`: maps to `--token-hex`

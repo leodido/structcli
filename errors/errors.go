@@ -490,6 +490,50 @@ func NewUnsupportedTypeError(fieldName, fieldType, message string) error {
 	}
 }
 
+var ErrMissingRequiredEnv = errors.New("missing required environment variable")
+
+var ErrEnvOnlyCLIUsage = errors.New("env-only flag set via CLI")
+
+// EnvOnlyCLIUsageError represents an attempt to set an env-only flag via the CLI.
+type EnvOnlyCLIUsageError struct {
+	FlagNames []string
+}
+
+func (e *EnvOnlyCLIUsageError) Error() string {
+	return fmt.Sprintf("flag(s) %s can only be set via environment variable, not --flag",
+		strings.Join(e.FlagNames, ", "))
+}
+
+func (e *EnvOnlyCLIUsageError) Unwrap() error {
+	return ErrEnvOnlyCLIUsage
+}
+
+// MissingRequiredEnvError represents an env-only field that was not set.
+type MissingRequiredEnvError struct {
+	FieldName string
+	EnvVars   []string
+}
+
+func (e *MissingRequiredEnvError) Error() string {
+	return fmt.Sprintf("required environment variable(s) not set: %s (for field '%s')",
+		strings.Join(e.EnvVars, " or "), e.FieldName)
+}
+
+func (e *MissingRequiredEnvError) Field() string {
+	return e.FieldName
+}
+
+func (e *MissingRequiredEnvError) Unwrap() error {
+	return ErrMissingRequiredEnv
+}
+
+func NewMissingRequiredEnvError(fieldName string, envVars []string) error {
+	return &MissingRequiredEnvError{
+		FieldName: fieldName,
+		EnvVars:   envVars,
+	}
+}
+
 var ErrInputValue = errors.New("invalid input value")
 
 // InputError represents an invalid input value for flag definition

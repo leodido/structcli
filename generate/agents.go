@@ -80,6 +80,9 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 		fmt.Fprintf(&buf, "| Flag | Type | Default | Description |\n")
 		fmt.Fprintf(&buf, "|------|------|---------|-------------|\n")
 		for _, f := range sortedFlags(s) {
+			if f.EnvOnly {
+				continue
+			}
 			def := f.Default
 			if def == "" {
 				def = "-"
@@ -104,7 +107,11 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 			if def == "" {
 				def = "-"
 			}
-			fmt.Fprintf(&buf, "| `%s` | `--%s` | %s |\n", e.envVar, e.flagName, def)
+			flag := fmt.Sprintf("`--%s`", e.flagName)
+			if e.envOnly {
+				flag = "*(env only)*"
+			}
+			fmt.Fprintf(&buf, "| `%s` | %s | %s |\n", e.envVar, flag, def)
 		}
 		buf.WriteString("\n")
 	}
@@ -130,6 +137,7 @@ type envRow struct {
 	envVar   string
 	flagName string
 	defVal   string
+	envOnly  bool
 }
 
 func collectEnvVars(schemas []*structcli.CommandSchema) []envRow {
@@ -142,7 +150,7 @@ func collectEnvVars(schemas []*structcli.CommandSchema) []envRow {
 					continue
 				}
 				seen[ev] = true
-				rows = append(rows, envRow{envVar: ev, flagName: f.Name, defVal: f.Default})
+				rows = append(rows, envRow{envVar: ev, flagName: f.Name, defVal: f.Default, envOnly: f.EnvOnly})
 			}
 		}
 	}
@@ -153,7 +161,7 @@ func collectEnvVars(schemas []*structcli.CommandSchema) []envRow {
 func requiredFlags(s *structcli.CommandSchema) string {
 	var req []string
 	for _, f := range sortedFlags(s) {
-		if f.Required {
+		if f.Required && !f.EnvOnly {
 			req = append(req, fmt.Sprintf("`--%s`", f.Name))
 		}
 	}
