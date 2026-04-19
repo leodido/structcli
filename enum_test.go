@@ -428,6 +428,19 @@ func TestRegisterIntEnum_DuplicatePanics(t *testing.T) {
 	)
 }
 
+func TestRegisterIntEnum_EmptyValuesPanics(t *testing.T) {
+	saveAndRestoreRegistries(t)
+
+	assert.PanicsWithValue(t,
+		"structcli: RegisterIntEnum: values must not be empty",
+		func() { RegisterIntEnum[testPriority](nil) },
+	)
+	assert.PanicsWithValue(t,
+		"structcli: RegisterIntEnum: values must not be empty",
+		func() { RegisterIntEnum[testPriority](map[testPriority][]string{}) },
+	)
+}
+
 func TestRegisterIntEnum_DescriptionEnhanced(t *testing.T) {
 	resetEnumTestState()
 	registerTestIntEnum(t)
@@ -439,4 +452,48 @@ func TestRegisterIntEnum_DescriptionEnhanced(t *testing.T) {
 	flag := cmd.Flags().Lookup("priority")
 	require.NotNil(t, flag)
 	assert.Contains(t, flag.Usage, "{low,medium,high}")
+}
+
+type intEnumEnvVarOptions struct {
+	Priority testPriority `flag:"priority" flagdescr:"task priority" flagenv:"true"`
+}
+
+func (o *intEnumEnvVarOptions) Attach(c *cobra.Command) error { return nil }
+
+type intEnumEnvOnlyOptions struct {
+	Priority testPriority `flag:"priority" flagdescr:"task priority" flagenv:"only"`
+}
+
+func (o *intEnumEnvOnlyOptions) Attach(c *cobra.Command) error { return nil }
+
+func TestRegisterIntEnum_EnvVar(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+	SetEnvPrefix("APP")
+
+	t.Setenv("APP_PRIORITY", "high")
+
+	opts := &intEnumEnvVarOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{}))
+	require.NoError(t, Unmarshal(cmd, opts))
+
+	assert.Equal(t, testPriorityHigh, opts.Priority)
+}
+
+func TestRegisterIntEnum_EnvOnly(t *testing.T) {
+	resetEnumTestState()
+	registerTestIntEnum(t)
+	SetEnvPrefix("APP")
+
+	t.Setenv("APP_PRIORITY", "medium")
+
+	opts := &intEnumEnvOnlyOptions{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{}))
+	require.NoError(t, Unmarshal(cmd, opts))
+
+	assert.Equal(t, testPriorityMedium, opts.Priority)
 }

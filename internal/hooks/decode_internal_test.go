@@ -486,3 +486,12 @@ func TestStringToIntEnumHookFunc_WrongTargetType(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "low", result)
 }
+
+func TestStringToIntEnumHookFunc_AliasCollisionPanics(t *testing.T) {
+	assert.Panics(t, func() {
+		StringToIntEnumHookFunc(map[testPriority][]string{
+			testPriorityLow:    {"low"},
+			testPriorityMedium: {"LOW"},
+		})
+	})
+}
