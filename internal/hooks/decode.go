@@ -121,16 +121,16 @@ func init() {
 	}
 }
 
-func InferDecodeHooks(c *cobra.Command, name, typename string) (bool, error) {
+func InferDecodeHooks(c *cobra.Command, name, typename string) bool {
 	if data, ok := DecodeHookRegistry[typename]; ok {
 		if err := c.Flags().SetAnnotation(name, FlagDecodeHookAnnotation, []string{data.ann}); err != nil {
-			return false, fmt.Errorf("set decode hook annotation: %w", err)
+			panic(fmt.Sprintf("structcli: SetAnnotation on just-registered flag %q: %v", name, err))
 		}
 
-		return true, nil
+		return true
 	}
 
-	return false, nil
+	return false
 }
 
 // StringToZapcoreLevelHookFunc creates a decode hook that converts string values
@@ -865,7 +865,7 @@ func parseIPv4Mask(s string) net.IPMask {
 	return net.IPv4Mask(mask[12], mask[13], mask[14], mask[15])
 }
 
-func StoreDecodeHookFunc(c *cobra.Command, flagname string, decodeM reflect.Value, target reflect.Type) error {
+func StoreDecodeHookFunc(c *cobra.Command, flagname string, decodeM reflect.Value, target reflect.Type) {
 	s := internalscope.Get(c)
 
 	// Wrap that adapts user method to mapstructure.DecodeHookFuncType signature
@@ -899,5 +899,7 @@ func StoreDecodeHookFunc(c *cobra.Command, flagname string, decodeM reflect.Valu
 	k := fmt.Sprintf("customDecodeHook_%s_%s", c.Name(), flagname)
 	s.SetCustomDecodeHook(k, hookFunc)
 
-	return c.Flags().SetAnnotation(flagname, FlagDecodeHookAnnotation, []string{k})
+	if err := c.Flags().SetAnnotation(flagname, FlagDecodeHookAnnotation, []string{k}); err != nil {
+		panic(fmt.Sprintf("structcli: SetAnnotation on just-registered flag %q: %v", flagname, err))
+	}
 }

@@ -408,9 +408,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 					c.Flags().VarP(returnedValue, name, short, returnedUsage)
 
 					// Register user's decode hook (`Unmarshal` will call it)
-					if err := internalhooks.StoreDecodeHookFunc(c, name, decodeHookFunc, f.Type); err != nil {
-						return fmt.Errorf("couldn't register decode hook %s: %w", decodeHookName, err)
-					}
+					internalhooks.StoreDecodeHookFunc(c, name, decodeHookFunc, f.Type)
 
 					if err := finalizeFieldDefinition(); err != nil {
 						return err
@@ -424,9 +422,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				// Best-effort: attach a decode hook if one exists, but don't
 					// hard-error when missing — this is a fallback path, not a
 					// mandatory one like the other two call sites.
-					if _, err := internalhooks.InferDecodeHooks(c, name, f.Type.String()); err != nil {
-						return fmt.Errorf("couldn't infer decode hooks for flag %s: %w", name, err)
-					}
+					internalhooks.InferDecodeHooks(c, name, f.Type.String())
 
 					if err := finalizeFieldDefinition(); err != nil {
 						return err
@@ -442,11 +438,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 		// Check registry for known custom types
 		if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
-			found, err := internalhooks.InferDecodeHooks(c, name, f.Type.String())
-			if err != nil {
-				return fmt.Errorf("couldn't infer decode hooks for flag %s: %w", name, err)
-			}
-			if !found {
+			if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
 				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 			}
 
@@ -572,11 +564,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				ref := field.Addr().Interface().(*[]int)
 				c.Flags().IntSliceVarP(ref, name, short, val, descr)
 			}
-			found, err := internalhooks.InferDecodeHooks(c, name, f.Type.String())
-			if err != nil {
-				return fmt.Errorf("couldn't infer decode hooks for flag %s: %w", name, err)
-			}
-			if !found {
+			if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
 				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
 			}
 
