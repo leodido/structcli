@@ -137,7 +137,7 @@ func (suite *structcliSuite) TestStoreCompletionHookFunc_PanicsOnInvalidHookValu
 }
 
 type zapcoreLevelOptions struct {
-	LogLevel zapcore.Level `default:"info" flagcustom:"true" flagdescr:"the logging level" flagenv:"true"`
+	LogLevel zapcore.Level `default:"info" flagdescr:"the logging level" flagenv:"true"`
 }
 
 func (o *zapcoreLevelOptions) Attach(c *cobra.Command) error { return nil }
