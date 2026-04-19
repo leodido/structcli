@@ -133,6 +133,33 @@ func InferDecodeHooks(c *cobra.Command, name, typename string) bool {
 	return false
 }
 
+// DecodeRegistrySnapshot holds opaque copies of both decode registries for
+// test isolation.
+type DecodeRegistrySnapshot struct {
+	registry    map[string]decodingAnnotation
+	annotations map[string]mapstructure.DecodeHookFunc
+}
+
+// SnapshotDecodeRegistries returns a deep copy of both decode registries.
+func SnapshotDecodeRegistries() DecodeRegistrySnapshot {
+	dr := make(map[string]decodingAnnotation, len(DecodeHookRegistry))
+	for k, v := range DecodeHookRegistry {
+		dr[k] = v
+	}
+	ar := make(map[string]mapstructure.DecodeHookFunc, len(AnnotationToDecodeHookRegistry))
+	for k, v := range AnnotationToDecodeHookRegistry {
+		ar[k] = v
+	}
+
+	return DecodeRegistrySnapshot{registry: dr, annotations: ar}
+}
+
+// RestoreDecodeRegistries replaces both decode registries from a snapshot.
+func RestoreDecodeRegistries(snap DecodeRegistrySnapshot) {
+	DecodeHookRegistry = snap.registry
+	AnnotationToDecodeHookRegistry = snap.annotations
+}
+
 // RegisterDecodeHook registers a decode hook for a custom type. It updates both
 // DecodeHookRegistry and AnnotationToDecodeHookRegistry. Panics on duplicate
 // annotation name (consistent with init() behavior).
