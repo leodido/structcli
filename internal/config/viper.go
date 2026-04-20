@@ -135,6 +135,13 @@ func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]s
 					if !structHasField(t, pathParts[0]) {
 						continue
 					}
+					// When viper has already merged the flat key and the
+					// dotted path into a nested map (e.g. both "output"
+					// and "output.format" are set), the value is already
+					// a map — no restructuring needed.
+					if _, alreadyNested := aliasValue.(map[string]any); alreadyNested {
+						continue
+					}
 					// Do not override the user-provided value with the default value
 					if aliasDefaultValue, ok := defaultsMap[alias]; ok && aliasValue == aliasDefaultValue {
 						continue
