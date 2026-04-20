@@ -35,7 +35,7 @@ go install github.com/leodido/structcli/examples/full@latest
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--follow` | bool | false | Stream output continuously |
-| `--output` | string | text | Output format |
+| `--output` | string | text | Output format (text, json) |
 | `--quiet` | bool | false | Suppress non-essential output |
 | `--service` | string | - | Service name to show logs for |
 | `--timeout` | duration | 30s | Operation timeout |
@@ -62,9 +62,9 @@ go install github.com/leodido/structcli/examples/full@latest
 | `--deeper-setting` | string | default-deeper-setting | - |
 | `--host` | string | localhost | Server host |
 | `--log-file` | string | - | Log file path |
-| `--log-level` | zapcore.Level | info | Set log level |
+| `--log-level` | zapcore.Level | info | Set log level (debug, info, warn, error, dpanic, panic, fatal) |
 | `--port` | int | 0 | Server port |
-| `--target-env` | string | dev | Set the target environment |
+| `--target-env` | string | dev | Set the target environment (dev, prod, staging) |
 | `--token-base64` | bytesBase64 | aGVsbG8= | Token bytes encoded as base64 |
 | `--token-hex` | bytesHex | 68656c6c6f | Token bytes encoded as hex |
 | `--trusted-peers` | ipSlice | 127.0.0.2,127.0.0.3 | Trusted peer IPs (comma separated) |
