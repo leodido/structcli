@@ -477,55 +477,93 @@ This pattern ensures that subcommands remain decoupled while having access to a 
 
 For a complete, runnable implementation of this pattern, see the loginsvc example located in the [/examples/loginsvc](/examples/loginsvc/) directory.
 
-### 🪃 Custom Type Handlers
+### 🎯 Enum Registration
 
-Declare options (flags, env vars, config file keys) with custom types by implementing methods on your options struct.
+Register string or integer enum types once in `init()` and use them as plain struct fields — no `flagcustom:"true"`, no `Define`/`Decode` methods needed. structcli handles flag creation, help text with allowed values, shell completion, validation, and config/env decoding automatically.
 
-Implement these methods on your options structs:
-
-- `Define<FieldName>`: return a `pflag.Value` that knows how to handle your custom type, along with an enhanced description.
-- `Decode<FieldName>`: decode the input into your custom type.
-- `Complete<FieldName>` (optional): provide shell completion candidates for the generated flag value. `structcli.Define()` auto-registers it.
+#### String enums (`RegisterEnum`)
 
 ```go
 type Environment string
 
 const (
-	EnvDevelopment Environment = "dev"
-	EnvStaging     Environment = "staging"
-	EnvProduction  Environment = "prod"
+	EnvDev  Environment = "dev"
+	EnvProd Environment = "prod"
 )
 
+func init() {
+	structcli.RegisterEnum[Environment](map[Environment][]string{
+		EnvDev:  {"dev", "development"},   // first string is canonical, rest are aliases
+		EnvProd: {"prod", "production"},
+	})
+}
+
+type DeployOptions struct {
+	TargetEnv Environment `flag:"target-env" flagdescr:"Target environment" default:"dev" flagenv:"true"`
+}
+```
+
+This produces `--target-env` with help text showing `{dev,prod}`, shell completion for all values including aliases, and case-insensitive parsing that accepts both `prod` and `production`.
+
+#### Integer enums (`RegisterIntEnum`)
+
+```go
+type Priority int
+
+const (
+	PriorityLow    Priority = 0
+	PriorityMedium Priority = 1
+	PriorityHigh   Priority = 2
+)
+
+func init() {
+	structcli.RegisterIntEnum[Priority](map[Priority][]string{
+		PriorityLow:    {"low"},
+		PriorityMedium: {"medium", "med"},
+		PriorityHigh:   {"high", "hi"},
+	})
+}
+```
+
+Both functions panic on duplicate registration or empty values. Call them in `init()` before any `Define()` calls.
+
+See [full example](examples/full/cli/cli.go) for enum registration in a complete CLI.
+
+### 🪃 Custom Type Handlers
+
+For types that need custom parsing logic beyond what enum registration provides — non-enum custom types, special validation, or custom `pflag.Value` implementations — use `flagcustom:"true"` with method hooks on your options struct.
+
+Implement these methods:
+
+- `Define<FieldName>`: return a `pflag.Value` and enhanced description for the flag.
+- `Decode<FieldName>`: decode the raw input into your custom type during Unmarshal.
+- `Complete<FieldName>` (optional): provide shell completion candidates. `structcli.Define()` auto-registers it.
+
+```go
 type ServerOptions struct {
-	...
-	// Custom type
-	TargetEnv Environment `flagcustom:"true" flag:"target-env" flagdescr:"Set the target environment"`
+	// Custom type requiring special parsing logic
+	ListenAddr ListenAddress `flagcustom:"true" flag:"listen" flagdescr:"Listen address"`
 }
 
-// DefineTargetEnv returns a pflag.Value for the custom Environment type.
-func (o *ServerOptions) DefineTargetEnv(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-    enhancedDesc := descr + " {dev,staging,prod}"
-    fieldPtr := fieldValue.Addr().Interface().(*Environment)
-    *fieldPtr = "dev" // Set default
+// DefineListenAddr returns a pflag.Value for the custom ListenAddress type.
+func (o *ServerOptions) DefineListenAddr(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+    fieldPtr := fieldValue.Addr().Interface().(*ListenAddress)
+    *fieldPtr = ListenAddress{Host: "localhost", Port: 8080}
 
-    return structclivalues.NewString((*string)(fieldPtr)), enhancedDesc
+    return structclivalues.NewString((*string)(&fieldPtr.raw)), descr + " (host:port)"
 }
 
-// DecodeTargetEnv converts the string input to the Environment type.
-func (o *ServerOptions) DecodeTargetEnv(input any) (any, error) {
-	// ... (validation and conversion logic)
-    return EnvDevelopment, nil
-}
-
-// CompleteTargetEnv provides shell completion for --target-env.
-func (o *ServerOptions) CompleteTargetEnv(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-    return []string{"dev", "staging", "prod"}, cobra.ShellCompDirectiveNoFileComp
+// DecodeListenAddr converts the string input to a ListenAddress.
+func (o *ServerOptions) DecodeListenAddr(input any) (any, error) {
+    return ParseListenAddress(input.(string))
 }
 
 func (o *ServerOptions) Attach(c *cobra.Command) error {
-	return structcli.Define(c, o)
+    return structcli.Define(c, o)
 }
 ```
+
+For enum types, prefer `RegisterEnum`/`RegisterIntEnum` instead — they handle the same concerns with less boilerplate.
 
 `Complete<FieldName>` works for any field that becomes a flag (not only `flagcustom:"true"` fields).
 
