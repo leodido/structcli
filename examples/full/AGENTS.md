@@ -35,7 +35,10 @@ go install github.com/leodido/structcli/examples/full@latest
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--follow` | bool | false | Stream output continuously |
+| `--output` | string | text | Output format |
+| `--quiet` | bool | false | Suppress non-essential output |
 | `--service` | string | - | Service name to show logs for |
+| `--timeout` | duration | 30s | Operation timeout |
 
 #### `full preset`
 
@@ -89,6 +92,8 @@ go install github.com/leodido/structcli/examples/full@latest
 |----------|------|---------|
 | `FULL_DRY` | `--dry` | false |
 | `FULL_DRYRUN` | `--dry` | false |
+| `FULL_LOGS_TIMEOUT` | `--timeout` | 30s |
+| `FULL_LOGS_TIMEOUTOPT_DURATION` | `--timeout` | 30s |
 | `FULL_SRV_ADVERTISECIDR` | `--advertise-cidr` | 127.0.0.0/24 |
 | `FULL_SRV_ADVERTISE_CIDR` | `--advertise-cidr` | 127.0.0.0/24 |
 | `FULL_SRV_APIKEY` | `--apikey` | - |

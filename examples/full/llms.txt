@@ -34,7 +34,15 @@ Display logs for a service, optionally streaming with --follow
 ### Flags
 
 - `--follow` (bool, default: false): Stream output continuously
+- `--output` (string, default: text): Output format
+- `--quiet` (bool, default: false): Suppress non-essential output
 - `--service` (string, required): Service name to show logs for
+- `--timeout` (duration, default: 30s): Operation timeout
+
+### Environment Variables
+
+- `FULL_LOGS_TIMEOUTOPT_DURATION`: maps to `--timeout`
+- `FULL_LOGS_TIMEOUT`: maps to `--timeout`
 
 ## full preset
 

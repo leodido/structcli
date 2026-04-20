@@ -40,14 +40,25 @@ Display logs for a service, optionally streaming with --follow
 | Flag | Type | Default | Required | Description |
 |------|------|---------|----------|-------------|
 | `--follow` | bool | false | no | Stream output continuously |
+| `--output` | string | text | no | Output format |
+| `--quiet` | bool | false | no | Suppress non-essential output |
 | `--service` | string | - | yes | Service name to show logs for |
+| `--timeout` | duration | 30s | no | Operation timeout |
+
+**Environment Variables:**
+
+| Variable | Flag | Description |
+|----------|------|-------------|
+| `FULL_LOGS_TIMEOUTOPT_DURATION` | `--timeout` | Operation timeout |
+| `FULL_LOGS_TIMEOUT` | `--timeout` | Operation timeout |
 
 **Example:**
 
 ```
 full logs --service api
   full logs -s api --follow
-  full logs -s api -f
+  full logs -s api -f -o json --timeout 10s
+  full logs -s api --quiet
 ```
 
 #### `full preset`
@@ -161,5 +172,6 @@ All environment variables use the `FULL_` prefix.
 ```
 full logs --service api
   full logs -s api --follow
-  full logs -s api -f
+  full logs -s api -f -o json --timeout 10s
+  full logs -s api --quiet
 ```
