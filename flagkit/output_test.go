@@ -22,7 +22,7 @@ func init() {
 // --- Output tests ---
 
 func TestOutput_DefaultText(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 	require.NoError(t, cmd.Flags().Parse([]string{}))
@@ -32,7 +32,7 @@ func TestOutput_DefaultText(t *testing.T) {
 }
 
 func TestOutput_SetJSON(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 	require.NoError(t, cmd.Flags().Parse([]string{"--output", "json"}))
@@ -42,7 +42,7 @@ func TestOutput_SetJSON(t *testing.T) {
 }
 
 func TestOutput_SetYAML(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 	require.NoError(t, cmd.Flags().Parse([]string{"--output", "yaml"}))
@@ -52,7 +52,7 @@ func TestOutput_SetYAML(t *testing.T) {
 }
 
 func TestOutput_SetJSONL(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 	require.NoError(t, cmd.Flags().Parse([]string{"-o", "jsonl"}))
@@ -62,7 +62,7 @@ func TestOutput_SetJSONL(t *testing.T) {
 }
 
 func TestOutput_ShortFlag(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 	require.NoError(t, cmd.Flags().Parse([]string{"-o", "json"}))
@@ -72,7 +72,7 @@ func TestOutput_ShortFlag(t *testing.T) {
 }
 
 func TestOutput_Standalone(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -84,7 +84,7 @@ func TestOutput_Standalone(t *testing.T) {
 }
 
 func TestOutput_Annotation(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -96,7 +96,7 @@ func TestOutput_Annotation(t *testing.T) {
 }
 
 func TestOutput_Attach_ErrorOnDuplicate(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -106,7 +106,7 @@ func TestOutput_Attach_ErrorOnDuplicate(t *testing.T) {
 
 func TestOutput_Embedded(t *testing.T) {
 	type listOpts struct {
-		flagkit.OutputFmt
+		flagkit.Output
 		Limit int `flag:"limit" flagdescr:"Max results" default:"10"`
 	}
 	opts := &listOpts{}
@@ -117,12 +117,12 @@ func TestOutput_Embedded(t *testing.T) {
 	require.NoError(t, cmd.Flags().Parse([]string{"--output", "yaml", "--limit", "50"}))
 	require.NoError(t, structcli.Unmarshal(cmd, opts))
 
-	assert.Equal(t, flagkit.OutputYAML, opts.OutputFmt.Format)
+	assert.Equal(t, flagkit.OutputYAML, opts.Output.Format)
 	assert.Equal(t, 50, opts.Limit)
 }
 
 func TestOutput_JSONSchema(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -137,13 +137,13 @@ func TestOutput_JSONSchema(t *testing.T) {
 // --- ValidFormat tests ---
 
 func TestOutput_ValidFormat_Allowed(t *testing.T) {
-	opts := &flagkit.OutputFmt{Format: flagkit.OutputJSON}
+	opts := &flagkit.Output{Format: flagkit.OutputJSON}
 	err := opts.ValidFormat(flagkit.OutputJSON, flagkit.OutputText)
 	assert.NoError(t, err)
 }
 
 func TestOutput_ValidFormat_NotAllowed(t *testing.T) {
-	opts := &flagkit.OutputFmt{Format: flagkit.OutputYAML}
+	opts := &flagkit.Output{Format: flagkit.OutputYAML}
 	err := opts.ValidFormat(flagkit.OutputJSON, flagkit.OutputText)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "yaml")
@@ -151,18 +151,18 @@ func TestOutput_ValidFormat_NotAllowed(t *testing.T) {
 }
 
 func TestOutput_ValidFormat_SingleAllowed(t *testing.T) {
-	opts := &flagkit.OutputFmt{Format: flagkit.OutputText}
+	opts := &flagkit.Output{Format: flagkit.OutputText}
 	assert.NoError(t, opts.ValidFormat(flagkit.OutputText))
 }
 
 func TestOutput_ValidFormat_NoRestriction(t *testing.T) {
 	// No RestrictFormats called, no explicit args — all formats accepted.
-	opts := &flagkit.OutputFmt{Format: flagkit.OutputYAML}
+	opts := &flagkit.Output{Format: flagkit.OutputYAML}
 	assert.NoError(t, opts.ValidFormat())
 }
 
 func TestOutput_ValidFormat_UsesRestrictFormats(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -180,7 +180,7 @@ func TestOutput_ValidFormat_UsesRestrictFormats(t *testing.T) {
 }
 
 func TestOutput_ValidFormat_ExplicitOverridesStored(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -199,8 +199,8 @@ func TestOutput_ValidFormat_ExplicitOverridesStored(t *testing.T) {
 
 // --- RestrictFormats tests ---
 
-func TestOutputFmt_RestrictFormats_Usage(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+func TestOutput_RestrictFormats_Usage(t *testing.T) {
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -211,8 +211,8 @@ func TestOutputFmt_RestrictFormats_Usage(t *testing.T) {
 	assert.Equal(t, "Output format {json,text}", f.Usage)
 }
 
-func TestOutputFmt_RestrictFormats_Annotation(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+func TestOutput_RestrictFormats_Annotation(t *testing.T) {
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -225,8 +225,8 @@ func TestOutputFmt_RestrictFormats_Annotation(t *testing.T) {
 	assert.Equal(t, []string{"json", "text"}, ann)
 }
 
-func TestOutputFmt_RestrictFormats_JSONSchema(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+func TestOutput_RestrictFormats_JSONSchema(t *testing.T) {
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -241,8 +241,8 @@ func TestOutputFmt_RestrictFormats_JSONSchema(t *testing.T) {
 	assert.Equal(t, []string{"json", "text"}, fs.Enum)
 }
 
-func TestOutputFmt_RestrictFormats_NoFlag(t *testing.T) {
-	opts := &flagkit.OutputFmt{}
+func TestOutput_RestrictFormats_NoFlag(t *testing.T) {
+	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
 	// Don't call Attach — no flag registered
 	opts.RestrictFormats(cmd, flagkit.OutputJSON) // should not panic

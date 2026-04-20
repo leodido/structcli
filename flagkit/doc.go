@@ -27,10 +27,10 @@
 //	LogLevel       --log-level   info     available
 //	ZapLogLevel    --log-level   info     available
 //	SlogLogLevel   --log-level   info     available
-//	OutputFmt      --output/-o   text     available
+//	Output         --output/-o   text     available
 //	Verbose        --verbose/-v  0        available
 //	DryRun         --dry-run     false    available
-//	TimeoutOpt     --timeout     30s      available
+//	Timeout        --timeout     30s      available
 //	Quiet          --quiet/-q    false    available
 //
 // # Composition
@@ -40,7 +40,7 @@
 //	type LogOptions struct {
 //	    flagkit.Follow
 //	    flagkit.LogLevel
-//	    flagkit.OutputFmt
+//	    flagkit.Output
 //	    flagkit.Quiet
 //	    Service string `flag:"service" flagdescr:"Service name"`
 //	}
@@ -55,16 +55,9 @@
 //
 // # Naming Convention
 //
-// Most types use the flag name as the struct name (Follow, Quiet, DryRun, Verbose).
-// Two types use suffixed names to avoid a mapstructure decoding collision when
-// embedded — the flag name would match the struct name (case-insensitive) and
-// break viper Unmarshal for non-primitive field types:
-//
-//   - [OutputFmt] (not Output) — flag "output", field Format
-//   - [TimeoutOpt] (not Timeout) — flag "timeout", field Duration
-//
-// This also means generated env var names include the struct name
-// (e.g., APP_TIMEOUTOPT_DURATION). A future structcli Unmarshal fix will
-// allow natural wrapper names; see https://github.com/leodido/structcli/issues
-// for tracking.
+// Each type uses the flag name as the struct name: Follow for --follow,
+// Output for --output, Timeout for --timeout, and so on. Inner fields
+// use descriptive names (Enabled, Format, Duration, Level) so that
+// embedded access reads naturally (e.g. opts.Output.Format, not
+// opts.Output.Output).
 package flagkit

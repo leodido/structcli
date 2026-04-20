@@ -636,10 +636,10 @@ Available types:
 | `LogLevel` | `--log-level` | `info` | Log level via zapcore (alias for `ZapLogLevel`) |
 | `ZapLogLevel` | `--log-level` | `info` | Log level backed by `zapcore.Level` |
 | `SlogLogLevel` | `--log-level` | `info` | Log level backed by `slog.Level` (stdlib) |
-| `OutputFmt` | `--output` / `-o` | `text` | Output format (string enum, user-registered) |
+| `Output` | `--output` / `-o` | `text` | Output format (string enum, user-registered) |
 | `Verbose` | `--verbose` / `-v` | `0` | Verbosity count (`-v`, `-vv`, `-vvv`) |
 | `DryRun` | `--dry-run` | `false` | Preview without making changes |
-| `TimeoutOpt` | `--timeout` | `30s` | Operation timeout (`time.Duration`) |
+| `Timeout` | `--timeout` | `30s` | Operation timeout (`time.Duration`) |
 | `Quiet` | `--quiet` / `-q` | `false` | Suppress non-essential output |
 
 When the `generate` package detects flagkit annotations, it emits a "Development Notes" section in AGENTS.md guiding AI coding agents to prefer flagkit types over ad-hoc flag declarations.
