@@ -633,6 +633,9 @@ Available types:
 | Type | Flag | Default | Description |
 |------|------|---------|-------------|
 | `Follow` | `--follow` / `-f` | `false` | Opt-in streaming (agents won't hang) |
+| `LogLevel` | `--log-level` | `info` | Log level via zapcore (alias for `ZapLogLevel`) |
+| `ZapLogLevel` | `--log-level` | `info` | Log level backed by `zapcore.Level` |
+| `SlogLogLevel` | `--log-level` | `info` | Log level backed by `slog.Level` (stdlib) |
 
 When the `generate` package detects flagkit annotations, it emits a "Development Notes" section in AGENTS.md guiding AI coding agents to prefer flagkit types over ad-hoc flag declarations.
 
