@@ -109,6 +109,60 @@ func TestUnmarshal_NonCollidingEmbeddedStruct_Explicit(t *testing.T) {
 	assert.Equal(t, 10, opts.Limit)
 }
 
+// --- Config file tests for collision scenario ---
+//
+// Config files must use the nested form for embedded struct fields.
+// A flat key like "output: yaml" won't reach the inner Format field
+// because viper merges it with the struct-path key, producing a map
+// that mapstructure decodes into the embedded struct.
+
+func TestUnmarshal_EmbeddedCollision_ConfigNested(t *testing.T) {
+	// Nested YAML form: output: { format: json }
+	// This is the correct way to set embedded struct fields via config.
+	opts := &CollisionOpts{}
+	root := &cobra.Command{Use: "app"}
+	cmd := &cobra.Command{Use: "test", RunE: func(cmd *cobra.Command, args []string) error { return nil }}
+	root.AddCommand(cmd)
+	require.NoError(t, structcli.Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{}))
+
+	// Simulate a config file with nested output.format
+	configVip := structcli.GetConfigViper(cmd)
+	configVip.Set("test.output.format", "json")
+
+	err := structcli.Unmarshal(cmd, opts)
+	require.NoError(t, err)
+
+	assert.Equal(t, OutputJSON, opts.Output.Format)
+	assert.Equal(t, 10, opts.Limit)
+}
+
+func TestUnmarshal_EmbeddedCollision_ConfigFlat(t *testing.T) {
+	// Flat YAML form: output: json
+	// This does NOT work for embedded structs — the flat key collides
+	// with the struct name and mapstructure can't decode a string into
+	// a struct. This test documents the expected behavior.
+	opts := &CollisionOpts{}
+	root := &cobra.Command{Use: "app"}
+	cmd := &cobra.Command{Use: "test", RunE: func(cmd *cobra.Command, args []string) error { return nil }}
+	root.AddCommand(cmd)
+	require.NoError(t, structcli.Define(cmd, opts))
+	require.NoError(t, cmd.Flags().Parse([]string{}))
+
+	// Simulate a config file with flat output key
+	configVip := structcli.GetConfigViper(cmd)
+	configVip.Set("test.output", "json")
+
+	// Unmarshal succeeds but the flat value can't be decoded into the
+	// embedded struct — Format ends up zero-valued.
+	err := structcli.Unmarshal(cmd, opts)
+	require.NoError(t, err)
+
+	// Format is empty, not "json" — the flat config key can't reach the
+	// inner field. Use the nested form (output.format) instead.
+	assert.Equal(t, OutputFormat(""), opts.Output.Format)
+}
+
 // Timeout collision: struct name matches flag name for a duration field.
 type Timeout struct {
 	Duration time.Duration `flag:"timeout" flagdescr:"Operation timeout" default:"30s"`
