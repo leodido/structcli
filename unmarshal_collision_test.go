@@ -111,10 +111,9 @@ func TestUnmarshal_NonCollidingEmbeddedStruct_Explicit(t *testing.T) {
 
 // --- Config file tests for collision scenario ---
 //
-// Config files must use the nested form for embedded struct fields.
-// A flat key like "output: yaml" won't reach the inner Format field
-// because viper merges it with the struct-path key, producing a map
-// that mapstructure decodes into the embedded struct.
+// Both flat (output: json) and nested (output: { format: json }) config
+// forms work for embedded struct fields. The KeyRemappingHook restructures
+// flat keys into the nested form before mapstructure decodes them.
 
 func TestUnmarshal_EmbeddedCollision_ConfigNested(t *testing.T) {
 	// Nested YAML form: output: { format: json }
@@ -139,9 +138,8 @@ func TestUnmarshal_EmbeddedCollision_ConfigNested(t *testing.T) {
 
 func TestUnmarshal_EmbeddedCollision_ConfigFlat(t *testing.T) {
 	// Flat YAML form: output: json
-	// This does NOT work for embedded structs — the flat key collides
-	// with the struct name and mapstructure can't decode a string into
-	// a struct. This test documents the expected behavior.
+	// The KeyRemappingHook restructures this into the nested form
+	// (output.format: json) before mapstructure decodes it.
 	opts := &CollisionOpts{}
 	root := &cobra.Command{Use: "app"}
 	cmd := &cobra.Command{Use: "test", RunE: func(cmd *cobra.Command, args []string) error { return nil }}
@@ -153,14 +151,13 @@ func TestUnmarshal_EmbeddedCollision_ConfigFlat(t *testing.T) {
 	configVip := structcli.GetConfigViper(cmd)
 	configVip.Set("test.output", "json")
 
-	// Unmarshal succeeds but the flat value can't be decoded into the
-	// embedded struct — Format ends up zero-valued.
+	// The KeyRemappingHook restructures the flat key into the nested
+	// form, so both flat and nested config keys work for embedded structs.
 	err := structcli.Unmarshal(cmd, opts)
 	require.NoError(t, err)
 
-	// Format is empty, not "json" — the flat config key can't reach the
-	// inner field. Use the nested form (output.format) instead.
-	assert.Equal(t, OutputFormat(""), opts.Output.Format)
+	assert.Equal(t, OutputJSON, opts.Output.Format)
+	assert.Equal(t, 10, opts.Limit)
 }
 
 // Timeout collision: struct name matches flag name for a duration field.
