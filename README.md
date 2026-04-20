@@ -563,7 +563,7 @@ func (o *ServerOptions) Attach(c *cobra.Command) error {
 }
 ```
 
-For enum types, prefer `RegisterEnum`/`RegisterIntEnum` instead — they handle the same concerns with less boilerplate.
+For enum types, prefer `RegisterEnum`/`RegisterIntEnum` instead. They handle the same concerns with less boilerplate.
 
 `Complete<FieldName>` works for any field that becomes a flag (not only `flagcustom:"true"` fields).
 
