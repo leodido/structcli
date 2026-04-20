@@ -30,8 +30,8 @@
 //	OutputFmt      --output/-o   text     available
 //	Verbose        --verbose/-v  0        available
 //	DryRun         --dry-run     false    available
-//	TimeoutOpt     --timeout     30s      planned (PR 5)
-//	Quiet          --quiet/-q    false    planned (PR 5)
+//	TimeoutOpt     --timeout     30s      available
+//	Quiet          --quiet/-q    false    available
 //
 // # Composition
 //
@@ -39,6 +39,9 @@
 //
 //	type LogOptions struct {
 //	    flagkit.Follow
+//	    flagkit.LogLevel
+//	    flagkit.OutputFmt
+//	    flagkit.Quiet
 //	    Service string `flag:"service" flagdescr:"Service name"`
 //	}
 //
