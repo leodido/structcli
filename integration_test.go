@@ -2258,7 +2258,7 @@ func (o *customDecodeHookOptions) Attach(c *cobra.Command) error { return struct
 type mixedHooksOptions struct {
 	ServerMode ServerMode1   `flagcustom:"true" flag:"server-mode" flagdescr:"Server mode"`
 	Timeout    time.Duration `flag:"timeout" flagdescr:"Request timeout"`
-	LogLevel   zapcore.Level `flagcustom:"true" flag:"log-level" flagdescr:"Log level"`
+	LogLevel   zapcore.Level `flag:"log-level" flagdescr:"Log level"`
 }
 
 // Implement the custom methods for ServerMode

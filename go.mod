@@ -13,6 +13,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/thediveo/enumflag/v2 v2.0.7
 	go.uber.org/zap v1.27.0
+	pgregory.net/rapid v1.2.0
 )
 
 require (
@@ -40,5 +41,4 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	pgregory.net/rapid v1.2.0 // indirect
 )

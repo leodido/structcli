@@ -436,7 +436,7 @@ const (
 )
 
 type comprehensiveCustomOptions struct {
-	LogLevel   zapcore.Level `flagcustom:"true" flagdescr:"log level"`
+	LogLevel   zapcore.Level `flagdescr:"log level"`
 	ServerMode serverMode    `flagcustom:"true" flag:"server-mode" flagshort:"m" flagdescr:"set server mode"`
 	SomeConfig string        `flagcustom:"true" flag:"some-config" flagshort:"c" flagdescr:"config file path"`
 	NormalFlag string        `flag:"normal-flag" flagdescr:"normal description"`
@@ -3530,14 +3530,14 @@ func (suite *structcliSuite) TestDefine_EnumAnnotation_BuiltInZapcoreLevel() {
 }
 
 type enumCustomHookOptions struct {
-	LogLevel zapcore.Level `flagcustom:"true" flagdescr:"log level"`
+	LogLevel zapcore.Level `flagdescr:"log level"`
 }
 
 func (o *enumCustomHookOptions) Attach(c *cobra.Command) error { return nil }
 
-func (suite *structcliSuite) TestDefine_EnumAnnotation_CustomHookFallbackToBuiltIn() {
-	// When flagcustom:"true" is set but no DefineLogLevel method exists,
-	// the built-in zapcore.Level hook is used (which adds the enum pattern).
+func (suite *structcliSuite) TestDefine_EnumAnnotation_BuiltInHook() {
+	// zapcore.Level is registered via RegisterEnum, so the built-in hook
+	// handles it without flagcustom:"true".
 	opts := &enumCustomHookOptions{}
 	cmd := &cobra.Command{Use: "test"}
 
