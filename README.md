@@ -636,6 +636,7 @@ Available types:
 | `LogLevel` | `--log-level` | `info` | Log level via zapcore (alias for `ZapLogLevel`) |
 | `ZapLogLevel` | `--log-level` | `info` | Log level backed by `zapcore.Level` |
 | `SlogLogLevel` | `--log-level` | `info` | Log level backed by `slog.Level` (stdlib) |
+| `OutputFmt` | `--output` / `-o` | `text` | Output format (string enum, user-registered) |
 
 When the `generate` package detects flagkit annotations, it emits a "Development Notes" section in AGENTS.md guiding AI coding agents to prefer flagkit types over ad-hoc flag declarations.
 

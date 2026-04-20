@@ -27,7 +27,7 @@
 //	LogLevel       --log-level   info     available
 //	ZapLogLevel    --log-level   info     available
 //	SlogLogLevel   --log-level   info     available
-//	OutputFmt      --output/-o   text     planned (PR 3)
+//	OutputFmt      --output/-o   text     available
 //	Verbose        --verbose/-v  0        planned (PR 4)
 //	DryRun         --dry-run     false    planned (PR 4)
 //	TimeoutOpt     --timeout     30s      planned (PR 5)
