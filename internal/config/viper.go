@@ -169,8 +169,12 @@ func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]s
 					finalKey := pathParts[len(pathParts)-1]
 					currentMap[finalKey] = aliasValue
 
-					// Delete the original flattened key as it has been moved
-					delete(configMap, alias)
+					// Delete the original flattened key — unless the alias
+					// is the same as the first path segment, in which case
+					// the restructured map lives under that key.
+					if alias != pathParts[0] {
+						delete(configMap, alias)
+					}
 				}
 			}
 		}
