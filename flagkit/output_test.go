@@ -155,6 +155,48 @@ func TestOutput_ValidFormat_SingleAllowed(t *testing.T) {
 	assert.NoError(t, opts.ValidFormat(flagkit.OutputText))
 }
 
+func TestOutput_ValidFormat_NoRestriction(t *testing.T) {
+	// No RestrictFormats called, no explicit args — all formats accepted.
+	opts := &flagkit.OutputFmt{Format: flagkit.OutputYAML}
+	assert.NoError(t, opts.ValidFormat())
+}
+
+func TestOutput_ValidFormat_UsesRestrictFormats(t *testing.T) {
+	opts := &flagkit.OutputFmt{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, opts.Attach(cmd))
+
+	opts.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
+
+	// Set format to an allowed value — should pass with no args.
+	opts.Format = flagkit.OutputJSON
+	assert.NoError(t, opts.ValidFormat())
+
+	// Set format to a disallowed value — should fail with no args.
+	opts.Format = flagkit.OutputYAML
+	err := opts.ValidFormat()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "yaml")
+}
+
+func TestOutput_ValidFormat_ExplicitOverridesStored(t *testing.T) {
+	opts := &flagkit.OutputFmt{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, opts.Attach(cmd))
+
+	// Restrict to json+text via RestrictFormats.
+	opts.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
+
+	// Explicit args override the stored set — yaml is allowed here.
+	opts.Format = flagkit.OutputYAML
+	assert.NoError(t, opts.ValidFormat(flagkit.OutputYAML, flagkit.OutputJSON))
+
+	// But text is not in the explicit set.
+	opts.Format = flagkit.OutputText
+	err := opts.ValidFormat(flagkit.OutputYAML, flagkit.OutputJSON)
+	assert.Error(t, err)
+}
+
 // --- RestrictFormats tests ---
 
 func TestOutputFmt_RestrictFormats_Usage(t *testing.T) {
