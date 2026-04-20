@@ -210,6 +210,44 @@ func TestAgents_ZeroFlagCommand(t *testing.T) {
 	assert.NotContains(t, content, "#### `app ping`")
 }
 
+func TestAgents_FlagKitDevNotes(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+	root := &cobra.Command{Use: "app", Short: "A CLI", RunE: noop}
+	root.Flags().Bool("follow", false, "Stream output continuously")
+	// Simulate flagkit annotation
+	require.NoError(t, root.Flags().SetAnnotation("follow", "___leodido_structcli_flagkit", []string{"true"}))
+
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "## Development Notes")
+	assert.Contains(t, content, "flagkit")
+	assert.Contains(t, content, "go doc github.com/leodido/structcli/flagkit")
+}
+
+func TestAgents_NoFlagKitDevNotes(t *testing.T) {
+	root := buildTestTree()
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(out), "## Development Notes")
+}
+
+func TestAgents_FlagKitDevNotesOnSubcommand(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+	root := &cobra.Command{Use: "app", Short: "A CLI"}
+	sub := &cobra.Command{Use: "logs", Short: "Show logs", RunE: noop}
+	sub.Flags().Bool("follow", false, "Stream output continuously")
+	require.NoError(t, sub.Flags().SetAnnotation("follow", "___leodido_structcli_flagkit", []string{"true"}))
+	root.AddCommand(sub)
+
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	assert.Contains(t, string(out), "## Development Notes")
+}
+
 // --- helpers ---
 
 func extractSection(content, heading string) string {

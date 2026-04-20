@@ -1,7 +1,7 @@
 ---
 name: full
 description: |
-  A demonstration of the structcli library with beautiful CLI features. Use when you need to: demonstrate that flagpreset aliases are syntactic sugar and still flow through transform and validate, start the server with the specified configuration, print version information, add a new user to the system with the specified details.
+  A demonstration of the structcli library with beautiful CLI features. Use when you need to: display logs for a service, optionally streaming with --follow, demonstrate that flagpreset aliases are syntactic sugar and still flow through transform and validate, start the server with the specified configuration, print version information, add a new user to the system with the specified details.
 metadata:
   author: leodido
   version: 0.15.0
@@ -30,6 +30,25 @@ A demonstration of the structcli library with beautiful CLI features
 |----------|------|-------------|
 | `FULL_DRYRUN` | `--dry` |  |
 | `FULL_DRY` | `--dry` |  |
+
+#### `full logs`
+
+Display logs for a service, optionally streaming with --follow
+
+**Flags:**
+
+| Flag | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `--follow` | bool | false | no | Stream output continuously |
+| `--service` | string | - | yes | Service name to show logs for |
+
+**Example:**
+
+```
+full logs --service api
+  full logs -s api --follow
+  full logs -s api -f
+```
 
 #### `full preset`
 
@@ -134,3 +153,13 @@ Add a new user to the system with the specified details
 ### Environment Variable Prefix
 
 All environment variables use the `FULL_` prefix.
+
+### Examples
+
+#### full logs
+
+```
+full logs --service api
+  full logs -s api --follow
+  full logs -s api -f
+```

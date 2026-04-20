@@ -7,6 +7,7 @@ https://github.com/leodido/structcli/examples/full
 ## Commands
 
 - [full](#full): A demonstration of the structcli library with beautiful CLI features
+- [full logs](#full-logs): Display logs for a service, optionally streaming with --follow
 - [full preset](#full-preset): Demonstrate that flagpreset aliases are syntactic sugar and still flow through Transform and Validate
 - [full srv](#full-srv): Start the server with the specified configuration
 - [full srv version](#full-srv-version): Print version information
@@ -25,6 +26,15 @@ A demonstration of the structcli library with beautiful CLI features
 
 - `FULL_DRYRUN`: maps to `--dry`
 - `FULL_DRY`: maps to `--dry`
+
+## full logs
+
+Display logs for a service, optionally streaming with --follow
+
+### Flags
+
+- `--follow` (bool, default: false): Stream output continuously
+- `--service` (string, required): Service name to show logs for
 
 ## full preset
 

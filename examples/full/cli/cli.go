@@ -12,6 +12,7 @@ import (
 	"github.com/leodido/structcli"
 	"github.com/leodido/structcli/config"
 	"github.com/leodido/structcli/debug"
+	"github.com/leodido/structcli/flagkit"
 	"github.com/leodido/structcli/jsonschema"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
@@ -282,6 +283,50 @@ func makePresetC() *cobra.Command {
 	return presetC
 }
 
+// LogsOptions demonstrates flagkit.Follow composition.
+type LogsOptions struct {
+	flagkit.Follow
+	Service string `flag:"service" flagshort:"s" flagdescr:"Service name to show logs for" flagrequired:"true"`
+}
+
+func (o *LogsOptions) Attach(c *cobra.Command) error {
+	if err := structcli.Define(c, o); err != nil {
+		return err
+	}
+	flagkit.AnnotateCommand(c)
+
+	return nil
+}
+
+func makeLogsC() *cobra.Command {
+	opts := &LogsOptions{}
+
+	logsC := &cobra.Command{
+		Use:   "logs",
+		Short: "Show service logs",
+		Long:  "Display logs for a service, optionally streaming with --follow",
+		Example: `  full logs --service api
+  full logs -s api --follow
+  full logs -s api -f`,
+		RunE: func(c *cobra.Command, args []string) error {
+			if err := structcli.Unmarshal(c, opts); err != nil {
+				return err
+			}
+			if opts.Follow.Enabled {
+				fmt.Fprintf(c.OutOrStdout(), "Streaming logs for service %q...\n", opts.Service)
+			} else {
+				fmt.Fprintf(c.OutOrStdout(), "Showing recent logs for service %q\n", opts.Service)
+			}
+			fmt.Fprintln(c.OutOrStdout(), pretty(opts))
+
+			return nil
+		},
+	}
+	opts.Attach(logsC)
+
+	return logsC
+}
+
 var _ structcli.ContextOptions = (*UtilityFlags)(nil)
 
 type UtilityFlags struct {
@@ -362,6 +407,7 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 	rootC.AddCommand(makeSrvC())
 	rootC.AddCommand(makeUsrC())
 	rootC.AddCommand(makePresetC())
+	rootC.AddCommand(makeLogsC())
 
 	// This single line enables the debugging global flag
 	if err := structcli.SetupDebug(rootC, debug.Options{Exit: exitOnDebug}); err != nil {
