@@ -58,6 +58,11 @@ func RegisterOutputFormats(formats ...OutputFormat) {
 // The default is text. You must register the supported formats before use
 // via [RegisterOutputFormats] or [structcli.RegisterEnum].
 //
+// In config files, use the nested form to set the format:
+//
+//	output:
+//	  format: json
+//
 // For CLIs where different commands support different format subsets,
 // register the superset globally, then call [Output.RestrictFormats] after
 // Attach. RestrictFormats is the single source of truth — it narrows help,

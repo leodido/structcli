@@ -16,6 +16,11 @@ func init() {
 // The default is 30s. Accepts any value parseable by [time.ParseDuration].
 // This is agent-friendly — operations won't hang indefinitely.
 //
+// In config files, use the nested form to set the duration:
+//
+//	timeout:
+//	  duration: 5m
+//
 // Usage:
 //
 //	type Options struct {
