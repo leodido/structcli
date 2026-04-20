@@ -53,63 +53,48 @@ func RegisterOutputFormats(formats ...OutputFormat) {
 	structcli.RegisterEnum[OutputFormat](m)
 }
 
-// Output provides a --output/-o flag for selecting output format.
+// OutputFmt provides a --output/-o flag for selecting output format.
 //
 // The default is text. You must register the supported formats before use
 // via [RegisterOutputFormats] or [structcli.RegisterEnum].
 //
 // For CLIs where different commands support different format subsets,
 // register the superset globally, then call [OutputFmt.RestrictFormats] after
-// Attach to narrow help/completion/schema, and [OutputFmt.ValidFormat] in RunE:
+// Attach. RestrictFormats is the single source of truth — it narrows help,
+// JSON Schema, and runtime validation in one call:
 //
 //	func init() {
-//	    // Global: register all formats the CLI knows about
 //	    flagkit.RegisterOutputFormats(flagkit.OutputJSON, flagkit.OutputText, flagkit.OutputYAML)
 //	}
 //
-//	// Per-command: restrict help/completion/schema, then validate at runtime
 //	opts.Attach(cmd)
 //	opts.OutputFmt.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputYAML)
 //
-//	func (o *ExportOptions) RunE(cmd *cobra.Command, args []string) error {
-//	    if err := o.ValidFormat(flagkit.OutputJSON, flagkit.OutputYAML); err != nil {
-//	        return err
-//	    }
-//	    // ...
+//	// In RunE — no args needed, uses the set from RestrictFormats:
+//	if err := opts.OutputFmt.ValidFormat(); err != nil {
+//	    return err
 //	}
 type OutputFmt struct {
-	Format OutputFormat `flag:"output" flagshort:"o" flagdescr:"Output format" default:"text"`
+	Format  OutputFormat `flag:"output" flagshort:"o" flagdescr:"Output format" default:"text"`
+	allowed []OutputFormat
 }
 
-// ValidFormat returns nil if the current output format is one of the allowed
-// formats, or an error describing the mismatch. Use this for per-command
-// format validation when different commands support different subsets.
-func (o *OutputFmt) ValidFormat(allowed ...OutputFormat) error {
-	for _, a := range allowed {
-		if o.Format == a {
-			return nil
-		}
-	}
-
-	names := make([]string, len(allowed))
-	for i, a := range allowed {
-		names[i] = string(a)
-	}
-
-	return fmt.Errorf("unsupported output format %q (allowed: %v)", o.Format, names)
-}
-
-// RestrictFormats narrows the --output flag's help text and enum annotation
-// to only the given formats. Call this after [Attach] or [structcli.Define]
-// to make the command's declared contract (help, JSON Schema) match what
-// [ValidFormat] will accept at runtime.
+// RestrictFormats narrows the --output flag's help text, enum annotation,
+// and runtime validation to only the given formats. Call this after [Attach]
+// or [structcli.Define].
+//
+// This is the single source of truth for per-command format subsets.
+// After calling RestrictFormats, [ValidFormat] with no arguments enforces
+// the same set, eliminating the need to repeat the allowed list.
 //
 // Shell completion may still show the globally registered superset because
 // cobra does not support overriding completion functions after registration.
 //
 //	opts.Attach(cmd)
-//	opts.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
+//	opts.OutputFmt.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
 func (o *OutputFmt) RestrictFormats(c *cobra.Command, allowed ...OutputFormat) {
+	o.allowed = allowed
+
 	f := c.Flags().Lookup("output")
 	if f == nil {
 		return
@@ -125,6 +110,37 @@ func (o *OutputFmt) RestrictFormats(c *cobra.Command, allowed ...OutputFormat) {
 
 	// Update the enum annotation used by JSON Schema generation.
 	_ = c.Flags().SetAnnotation("output", flagEnumAnnotation, names)
+}
+
+// ValidFormat returns nil if the current output format is allowed, or an
+// error describing the mismatch.
+//
+// When called with no arguments, it validates against the set stored by
+// [RestrictFormats]. When called with explicit arguments, it validates
+// against those instead (and ignores any stored restriction).
+//
+// If neither RestrictFormats was called nor explicit arguments are provided,
+// ValidFormat returns nil (all formats accepted).
+func (o *OutputFmt) ValidFormat(allowed ...OutputFormat) error {
+	if len(allowed) == 0 {
+		allowed = o.allowed
+	}
+	if len(allowed) == 0 {
+		return nil // no restriction
+	}
+
+	for _, a := range allowed {
+		if o.Format == a {
+			return nil
+		}
+	}
+
+	names := make([]string, len(allowed))
+	for i, a := range allowed {
+		names[i] = string(a)
+	}
+
+	return fmt.Errorf("unsupported output format %q (allowed: %v)", o.Format, names)
 }
 
 // Attach implements [structcli.Options].

@@ -321,8 +321,8 @@ func makeLogsC() *cobra.Command {
 			if err := structcli.Unmarshal(c, opts); err != nil {
 				return err
 			}
-			// Per-command format validation: logs only supports text and json
-			if err := opts.OutputFmt.ValidFormat(flagkit.OutputText, flagkit.OutputJSON); err != nil {
+			// Per-command format validation — uses the set from RestrictFormats
+			if err := opts.OutputFmt.ValidFormat(); err != nil {
 				return err
 			}
 			if !opts.Quiet.Enabled {
