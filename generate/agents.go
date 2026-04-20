@@ -9,7 +9,12 @@ import (
 	"github.com/leodido/structcli"
 	"github.com/leodido/structcli/jsonschema"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
+
+// flagKitAnnotation mirrors [flagkit.FlagKitAnnotation] to avoid a dependency
+// from the generate package on the flagkit package.
+const flagKitAnnotation = "___leodido_structcli_flagkit"
 
 // AgentsOptions configures the AGENTS.md generator.
 type AgentsOptions struct {
@@ -129,6 +134,16 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 	if opts.IncludeMCP {
 		fmt.Fprintf(&buf, "- MCP server: `%s --mcp`\n", cliName)
 	}
+	buf.WriteString("\n")
+
+	// Development Notes — emitted when flagkit types are detected
+	if hasFlagKitFlags(rootCmd) {
+		buf.WriteString("## Development Notes\n\n")
+		buf.WriteString("This CLI uses [structcli](https://github.com/leodido/structcli) with the `flagkit` package\n")
+		buf.WriteString("for common flag patterns. When extending this CLI, prefer embedding `flagkit` types over\n")
+		buf.WriteString("declaring ad-hoc flags for standard concerns (log level, output format, follow/streaming, etc.).\n\n")
+		buf.WriteString("See `go doc github.com/leodido/structcli/flagkit` for available types.\n")
+	}
 
 	return buf.Bytes(), nil
 }
@@ -169,6 +184,30 @@ func requiredFlags(s *structcli.CommandSchema) string {
 		return ""
 	}
 	return strings.Join(req, ", ")
+}
+
+// hasFlagKitFlags walks the command tree and returns true if any flag carries
+// the flagkit annotation, indicating the CLI uses flagkit types.
+func hasFlagKitFlags(root *cobra.Command) bool {
+	found := false
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		if found {
+			return
+		}
+		c.Flags().VisitAll(func(f *pflag.Flag) {
+			if f.Annotations != nil {
+				if _, ok := f.Annotations[flagKitAnnotation]; ok {
+					found = true
+				}
+			}
+		})
+		for _, sub := range c.Commands() {
+			walk(sub)
+		}
+	}
+	walk(root)
+	return found
 }
 
 // findConfigFlagName checks if the root command has a config flag registered

@@ -607,6 +607,37 @@ limits:
 counts: "ok=10,fail=3"
 ```
 
+### 🧰 Reusable Flag Kits
+
+The `flagkit` package provides pre-built, embeddable flag structs that standardize common CLI flag declarations. Each type encapsulates one flag with an opinionated name, type, and default matching industry conventions. This gives AI agents and scripts a consistent vocabulary across CLIs built with structcli.
+
+```go
+import "github.com/leodido/structcli/flagkit"
+
+type LogsOptions struct {
+    flagkit.Follow                                                    // --follow/-f (default: false)
+    Service string `flag:"service" flagshort:"s" flagdescr:"Service name" flagrequired:"true"`
+}
+
+func (o *LogsOptions) Attach(c *cobra.Command) error {
+    if err := structcli.Define(c, o); err != nil {
+        return err
+    }
+    flagkit.AnnotateCommand(c) // marks flagkit-owned flags for doc generation
+    return nil
+}
+```
+
+Available types:
+
+| Type | Flag | Default | Description |
+|------|------|---------|-------------|
+| `Follow` | `--follow` / `-f` | `false` | Opt-in streaming (agents won't hang) |
+
+When the `generate` package detects flagkit annotations, it emits a "Development Notes" section in AGENTS.md guiding AI coding agents to prefer flagkit types over ad-hoc flag declarations.
+
+See `go doc github.com/leodido/structcli/flagkit` for the full taxonomy and composition examples.
+
 ### 🎨 Beautiful, Organized Help Output
 
 Organize your `--help` output into logical groups for better readability.

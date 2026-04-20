@@ -13,6 +13,7 @@ go install github.com/leodido/structcli/examples/full@latest
 | Command | Description | Required Flags |
 |---------|-------------|---------------|
 | `full` | A demonstration of the structcli library with beautiful CLI features |  |
+| `full logs` | Display logs for a service, optionally streaming with --follow | `--service` |
 | `full preset` | Demonstrate that flagpreset aliases are syntactic sugar and still flow through Transform and Validate |  |
 | `full srv` | Start the server with the specified configuration | `--port` |
 | `full srv version` | Print version information |  |
@@ -28,6 +29,13 @@ go install github.com/leodido/structcli/examples/full@latest
 |------|------|---------|-------------|
 | `--dry` | bool | false | - |
 | `--verbose` | count | 0 | - |
+
+#### `full logs`
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--follow` | bool | false | Stream output continuously |
+| `--service` | string | - | Service name to show logs for |
 
 #### `full preset`
 
@@ -109,3 +117,11 @@ Supports YAML/JSON/TOML config files. Use `--config` to specify path.
 
 - JSON Schema: `full --jsonschema`
 - Structured errors: JSON on stderr with semantic exit codes
+
+## Development Notes
+
+This CLI uses [structcli](https://github.com/leodido/structcli) with the `flagkit` package
+for common flag patterns. When extending this CLI, prefer embedding `flagkit` types over
+declaring ad-hoc flags for standard concerns (log level, output format, follow/streaming, etc.).
+
+See `go doc github.com/leodido/structcli/flagkit` for available types.
