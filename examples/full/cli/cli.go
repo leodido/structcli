@@ -32,6 +32,10 @@ func init() {
 		EnvStaging:    {"staging", "stage"},
 		EnvProduction: {"prod", "production"},
 	})
+
+	// Register the output formats this CLI supports (superset across all commands).
+	// Individual commands use ValidFormat() to restrict to their subset.
+	flagkit.RegisterOutputFormats(flagkit.OutputJSON, flagkit.OutputText, flagkit.OutputYAML)
 }
 
 type EvenDeeper struct {
@@ -283,9 +287,13 @@ func makePresetC() *cobra.Command {
 	return presetC
 }
 
-// LogsOptions demonstrates flagkit.Follow composition.
+// LogsOptions demonstrates flagkit composition with multiple types.
+// Combines Follow, OutputFmt, TimeoutOpt, and Quiet with an app-specific Service flag.
 type LogsOptions struct {
 	flagkit.Follow
+	flagkit.OutputFmt
+	flagkit.TimeoutOpt
+	flagkit.Quiet
 	Service string `flag:"service" flagshort:"s" flagdescr:"Service name to show logs for" flagrequired:"true"`
 }
 
@@ -307,15 +315,24 @@ func makeLogsC() *cobra.Command {
 		Long:  "Display logs for a service, optionally streaming with --follow",
 		Example: `  full logs --service api
   full logs -s api --follow
-  full logs -s api -f`,
+  full logs -s api -f -o json --timeout 10s
+  full logs -s api --quiet`,
 		RunE: func(c *cobra.Command, args []string) error {
 			if err := structcli.Unmarshal(c, opts); err != nil {
 				return err
 			}
-			if opts.Follow.Enabled {
-				fmt.Fprintf(c.OutOrStdout(), "Streaming logs for service %q...\n", opts.Service)
-			} else {
-				fmt.Fprintf(c.OutOrStdout(), "Showing recent logs for service %q\n", opts.Service)
+			// Per-command format validation: logs only supports text and json
+			if err := opts.OutputFmt.ValidFormat(flagkit.OutputText, flagkit.OutputJSON); err != nil {
+				return err
+			}
+			if !opts.Quiet.Enabled {
+				if opts.Follow.Enabled {
+					fmt.Fprintf(c.OutOrStdout(), "Streaming logs for service %q (timeout %s, format %s)...\n",
+						opts.Service, opts.TimeoutOpt.Duration, opts.OutputFmt.Format)
+				} else {
+					fmt.Fprintf(c.OutOrStdout(), "Showing recent logs for service %q (format %s)\n",
+						opts.Service, opts.OutputFmt.Format)
+				}
 			}
 			fmt.Fprintln(c.OutOrStdout(), pretty(opts))
 
