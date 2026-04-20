@@ -53,13 +53,13 @@ func RegisterOutputFormats(formats ...OutputFormat) {
 	structcli.RegisterEnum[OutputFormat](m)
 }
 
-// OutputFmt provides a --output/-o flag for selecting output format.
+// Output provides a --output/-o flag for selecting output format.
 //
 // The default is text. You must register the supported formats before use
 // via [RegisterOutputFormats] or [structcli.RegisterEnum].
 //
 // For CLIs where different commands support different format subsets,
-// register the superset globally, then call [OutputFmt.RestrictFormats] after
+// register the superset globally, then call [Output.RestrictFormats] after
 // Attach. RestrictFormats is the single source of truth — it narrows help,
 // JSON Schema, and runtime validation in one call:
 //
@@ -68,13 +68,13 @@ func RegisterOutputFormats(formats ...OutputFormat) {
 //	}
 //
 //	opts.Attach(cmd)
-//	opts.OutputFmt.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputYAML)
+//	opts.Output.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputYAML)
 //
 //	// In RunE — no args needed, uses the set from RestrictFormats:
-//	if err := opts.OutputFmt.ValidFormat(); err != nil {
+//	if err := opts.Output.ValidFormat(); err != nil {
 //	    return err
 //	}
-type OutputFmt struct {
+type Output struct {
 	Format  OutputFormat `flag:"output" flagshort:"o" flagdescr:"Output format" default:"text"`
 	allowed []OutputFormat
 }
@@ -91,8 +91,8 @@ type OutputFmt struct {
 // cobra does not support overriding completion functions after registration.
 //
 //	opts.Attach(cmd)
-//	opts.OutputFmt.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
-func (o *OutputFmt) RestrictFormats(c *cobra.Command, allowed ...OutputFormat) {
+//	opts.Output.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
+func (o *Output) RestrictFormats(c *cobra.Command, allowed ...OutputFormat) {
 	o.allowed = allowed
 
 	f := c.Flags().Lookup("output")
@@ -121,7 +121,7 @@ func (o *OutputFmt) RestrictFormats(c *cobra.Command, allowed ...OutputFormat) {
 //
 // If neither RestrictFormats was called nor explicit arguments are provided,
 // ValidFormat returns nil (all formats accepted).
-func (o *OutputFmt) ValidFormat(allowed ...OutputFormat) error {
+func (o *Output) ValidFormat(allowed ...OutputFormat) error {
 	if len(allowed) == 0 {
 		allowed = o.allowed
 	}
@@ -148,7 +148,7 @@ func (o *OutputFmt) ValidFormat(allowed ...OutputFormat) error {
 // Returns an error if the --output flag was not created, which typically
 // means [RegisterOutputFormats] (or [structcli.RegisterEnum]) was not
 // called before Attach.
-func (o *OutputFmt) Attach(c *cobra.Command) error {
+func (o *Output) Attach(c *cobra.Command) error {
 	if err := structcli.Define(c, o); err != nil {
 		return err
 	}

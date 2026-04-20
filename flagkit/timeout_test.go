@@ -14,7 +14,7 @@ import (
 // --- Timeout tests ---
 
 func TestTimeout_Default30s(t *testing.T) {
-	opts := &flagkit.TimeoutOpt{}
+	opts := &flagkit.Timeout{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 	require.NoError(t, cmd.Flags().Parse([]string{}))
@@ -24,7 +24,7 @@ func TestTimeout_Default30s(t *testing.T) {
 }
 
 func TestTimeout_Set10s(t *testing.T) {
-	opts := &flagkit.TimeoutOpt{}
+	opts := &flagkit.Timeout{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 	require.NoError(t, cmd.Flags().Parse([]string{"--timeout", "10s"}))
@@ -34,7 +34,7 @@ func TestTimeout_Set10s(t *testing.T) {
 }
 
 func TestTimeout_Set5m(t *testing.T) {
-	opts := &flagkit.TimeoutOpt{}
+	opts := &flagkit.Timeout{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 	require.NoError(t, cmd.Flags().Parse([]string{"--timeout", "5m"}))
@@ -44,7 +44,7 @@ func TestTimeout_Set5m(t *testing.T) {
 }
 
 func TestTimeout_Standalone(t *testing.T) {
-	opts := &flagkit.TimeoutOpt{}
+	opts := &flagkit.Timeout{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -56,7 +56,7 @@ func TestTimeout_Standalone(t *testing.T) {
 }
 
 func TestTimeout_Annotation(t *testing.T) {
-	opts := &flagkit.TimeoutOpt{}
+	opts := &flagkit.Timeout{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -68,7 +68,7 @@ func TestTimeout_Annotation(t *testing.T) {
 }
 
 func TestTimeout_Attach_ErrorOnDuplicate(t *testing.T) {
-	opts := &flagkit.TimeoutOpt{}
+	opts := &flagkit.Timeout{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 
@@ -78,7 +78,7 @@ func TestTimeout_Attach_ErrorOnDuplicate(t *testing.T) {
 
 func TestTimeout_Embedded(t *testing.T) {
 	type fetchOpts struct {
-		flagkit.TimeoutOpt
+		flagkit.Timeout
 		URL string `flag:"url" flagdescr:"URL to fetch" flagrequired:"true"`
 	}
 	opts := &fetchOpts{}
@@ -88,12 +88,12 @@ func TestTimeout_Embedded(t *testing.T) {
 	require.NoError(t, cmd.Flags().Parse([]string{"--timeout", "2m", "--url", "https://example.com"}))
 	require.NoError(t, structcli.Unmarshal(cmd, opts))
 
-	assert.Equal(t, 2*time.Minute, opts.TimeoutOpt.Duration)
+	assert.Equal(t, 2*time.Minute, opts.Timeout.Duration)
 	assert.Equal(t, "https://example.com", opts.URL)
 }
 
 func TestTimeout_JSONSchema(t *testing.T) {
-	opts := &flagkit.TimeoutOpt{}
+	opts := &flagkit.Timeout{}
 	cmd := &cobra.Command{Use: "app"}
 	require.NoError(t, opts.Attach(cmd))
 

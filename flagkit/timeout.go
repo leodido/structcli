@@ -19,18 +19,18 @@ func init() {
 // Usage:
 //
 //	type Options struct {
-//	    flagkit.TimeoutOpt
+//	    flagkit.Timeout
 //	}
 //
 //	// In RunE:
-//	ctx, cancel := context.WithTimeout(ctx, opts.TimeoutOpt.Duration)
+//	ctx, cancel := context.WithTimeout(ctx, opts.Timeout.Duration)
 //	defer cancel()
-type TimeoutOpt struct {
+type Timeout struct {
 	Duration time.Duration `flag:"timeout" flagdescr:"Operation timeout" default:"30s" flagenv:"true"`
 }
 
 // Attach implements [structcli.Options].
-func (o *TimeoutOpt) Attach(c *cobra.Command) error {
+func (o *Timeout) Attach(c *cobra.Command) error {
 	if err := structcli.Define(c, o); err != nil {
 		return err
 	}

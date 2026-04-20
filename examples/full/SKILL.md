@@ -49,7 +49,7 @@ Display logs for a service, optionally streaming with --follow
 
 | Variable | Flag | Description |
 |----------|------|-------------|
-| `FULL_LOGS_TIMEOUTOPT_DURATION` | `--timeout` | Operation timeout |
+| `FULL_LOGS_TIMEOUT_DURATION` | `--timeout` | Operation timeout |
 | `FULL_LOGS_TIMEOUT` | `--timeout` | Operation timeout |
 
 **Example:**

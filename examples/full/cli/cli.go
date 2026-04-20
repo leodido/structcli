@@ -288,11 +288,11 @@ func makePresetC() *cobra.Command {
 }
 
 // LogsOptions demonstrates flagkit composition with multiple types.
-// Combines Follow, OutputFmt, TimeoutOpt, and Quiet with an app-specific Service flag.
+// Combines Follow, Output, Timeout, and Quiet with an app-specific Service flag.
 type LogsOptions struct {
 	flagkit.Follow
-	flagkit.OutputFmt
-	flagkit.TimeoutOpt
+	flagkit.Output
+	flagkit.Timeout
 	flagkit.Quiet
 	Service string `flag:"service" flagshort:"s" flagdescr:"Service name to show logs for" flagrequired:"true"`
 }
@@ -322,16 +322,16 @@ func makeLogsC() *cobra.Command {
 				return err
 			}
 			// Per-command format validation — uses the set from RestrictFormats
-			if err := opts.OutputFmt.ValidFormat(); err != nil {
+			if err := opts.Output.ValidFormat(); err != nil {
 				return err
 			}
 			if !opts.Quiet.Enabled {
 				if opts.Follow.Enabled {
 					fmt.Fprintf(c.OutOrStdout(), "Streaming logs for service %q (timeout %s, format %s)...\n",
-						opts.Service, opts.TimeoutOpt.Duration, opts.OutputFmt.Format)
+						opts.Service, opts.Timeout.Duration, opts.Output.Format)
 				} else {
 					fmt.Fprintf(c.OutOrStdout(), "Showing recent logs for service %q (format %s)\n",
-						opts.Service, opts.OutputFmt.Format)
+						opts.Service, opts.Output.Format)
 				}
 			}
 			fmt.Fprintln(c.OutOrStdout(), pretty(opts))
@@ -341,7 +341,7 @@ func makeLogsC() *cobra.Command {
 	}
 	opts.Attach(logsC)
 	// Narrow help/completion/schema to the formats this command supports.
-	opts.OutputFmt.RestrictFormats(logsC, flagkit.OutputText, flagkit.OutputJSON)
+	opts.Output.RestrictFormats(logsC, flagkit.OutputText, flagkit.OutputJSON)
 
 	return logsC
 }
