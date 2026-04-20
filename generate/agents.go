@@ -96,6 +96,9 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 			if desc == "" {
 				desc = "-"
 			}
+			if len(f.Enum) > 0 {
+				desc += fmt.Sprintf(" (%s)", strings.Join(f.Enum, ", "))
+			}
 			fmt.Fprintf(&buf, "| `--%s` | %s | %s | %s |\n", f.Name, f.Type, def, desc)
 		}
 		buf.WriteString("\n")

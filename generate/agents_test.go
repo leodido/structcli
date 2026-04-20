@@ -210,6 +210,20 @@ func TestAgents_ZeroFlagCommand(t *testing.T) {
 	assert.NotContains(t, content, "#### `app ping`")
 }
 
+func TestAgents_EnumValuesInDescription(t *testing.T) {
+	noop := func(cmd *cobra.Command, args []string) error { return nil }
+	root := &cobra.Command{Use: "app", Short: "A CLI", RunE: noop}
+	root.Flags().String("output", "text", "Output format")
+	// Simulate enum annotation (as structcli sets it for registered enums)
+	require.NoError(t, root.Flags().SetAnnotation("output", "___leodido_structcli_flagenum", []string{"json", "text", "yaml"}))
+
+	out, err := generate.Agents(root, generate.AgentsOptions{})
+	require.NoError(t, err)
+
+	content := string(out)
+	assert.Contains(t, content, "Output format (json, text, yaml)")
+}
+
 func TestAgents_FlagKitDevNotes(t *testing.T) {
 	noop := func(cmd *cobra.Command, args []string) error { return nil }
 	root := &cobra.Command{Use: "app", Short: "A CLI", RunE: noop}
