@@ -29,6 +29,11 @@ func registerFlag(name string) {
 // For embedded usage, [structcli.Define] traverses into the embedded
 // struct but does not call its Attach method, so AnnotateCommand
 // must be called explicitly to set the annotation.
+//
+// Matching is by flag name, not by type. If the command defines a
+// non-flagkit flag whose name collides with a flagkit flag name
+// (e.g. a custom --follow), it will be incorrectly annotated.
+// Only call this on commands that embed flagkit types.
 func AnnotateCommand(c *cobra.Command) {
 	for _, name := range flagKitFlags {
 		if f := c.Flags().Lookup(name); f != nil {

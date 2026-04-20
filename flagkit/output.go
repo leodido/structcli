@@ -144,14 +144,21 @@ func (o *OutputFmt) ValidFormat(allowed ...OutputFormat) error {
 }
 
 // Attach implements [structcli.Options].
+//
+// Returns an error if the --output flag was not created, which typically
+// means [RegisterOutputFormats] (or [structcli.RegisterEnum]) was not
+// called before Attach.
 func (o *OutputFmt) Attach(c *cobra.Command) error {
 	if err := structcli.Define(c, o); err != nil {
 		return err
 	}
 
-	if f := c.Flags().Lookup("output"); f != nil {
-		_ = c.Flags().SetAnnotation("output", FlagKitAnnotation, []string{"true"})
+	f := c.Flags().Lookup("output")
+	if f == nil {
+		return fmt.Errorf("flagkit: --output flag not created; call RegisterOutputFormats in init() before Attach")
 	}
+
+	_ = c.Flags().SetAnnotation("output", FlagKitAnnotation, []string{"true"})
 
 	return nil
 }
