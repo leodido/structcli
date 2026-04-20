@@ -358,3 +358,46 @@ func (suite *structcliSuite) TestKeyRemappingHook_NestedAliasKey() {
 	out := converted.(map[string]any)
 	assert.Equal(suite.T(), "postgres://nested", out["url"])
 }
+
+// testOutputFormat is a custom string enum for testing name collisions.
+type testOutputFormat string
+
+// testOutput is an embedded struct whose name collides with the flag name "output".
+type testOutput struct {
+	Format testOutputFormat `flag:"output"`
+}
+
+type testOutputOpts struct {
+	testOutput
+	Limit int `flag:"limit"`
+}
+
+func (suite *structcliSuite) TestKeyRemappingHook_AlreadyNestedMap() {
+	// When viper merges "output" (flag default) and "output.format" (path
+	// default) into a single nested map, the hook must not re-restructure it.
+	aliasToPathMap := map[string]string{"output": "testoutput.format"}
+	defaultsMap := map[string]string{"output": "text"}
+	hook := KeyRemappingHook(aliasToPathMap, defaultsMap)
+
+	// Simulate what viper.AllSettings() returns when both "output" and
+	// "output.format" defaults are set — a nested map, not a flat string.
+	input := map[string]any{
+		"output": map[string]any{"format": "text"},
+		"limit":  10,
+	}
+	converted, err := mapstructure.DecodeHookExec(
+		hook,
+		reflect.ValueOf(input),
+		reflect.New(reflect.TypeOf(testOutputOpts{})).Elem(),
+	)
+	assert.NoError(suite.T(), err)
+
+	out := converted.(map[string]any)
+	// The nested map should be preserved, not mangled.
+	nested, ok := out["output"].(map[string]any)
+	assert.True(suite.T(), ok, "output should still be a nested map")
+	assert.Equal(suite.T(), "text", nested["format"])
+	assert.Equal(suite.T(), 10, out["limit"])
+}
+
+
