@@ -24,9 +24,9 @@
 //	Type           Flag          Default  Status
 //	─────────────  ────────────  ───────  ────────
 //	Follow         --follow/-f   false    available
-//	LogLevel       --log-level   info     planned (PR 2)
-//	ZapLogLevel    --log-level   info     planned (PR 2)
-//	SlogLogLevel   --log-level   info     planned (PR 2)
+//	LogLevel       --log-level   info     available
+//	ZapLogLevel    --log-level   info     available
+//	SlogLogLevel   --log-level   info     available
 //	OutputFmt      --output/-o   text     planned (PR 3)
 //	Verbose        --verbose/-v  0        planned (PR 4)
 //	DryRun         --dry-run     false    planned (PR 4)
