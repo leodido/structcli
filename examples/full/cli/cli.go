@@ -340,6 +340,8 @@ func makeLogsC() *cobra.Command {
 		},
 	}
 	opts.Attach(logsC)
+	// Narrow help/completion/schema to the formats this command supports.
+	opts.OutputFmt.RestrictFormats(logsC, flagkit.OutputText, flagkit.OutputJSON)
 
 	return logsC
 }

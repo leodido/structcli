@@ -155,6 +155,57 @@ func TestOutput_ValidFormat_SingleAllowed(t *testing.T) {
 	assert.NoError(t, opts.ValidFormat(flagkit.OutputText))
 }
 
+// --- RestrictFormats tests ---
+
+func TestOutputFmt_RestrictFormats_Usage(t *testing.T) {
+	opts := &flagkit.OutputFmt{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, opts.Attach(cmd))
+
+	opts.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
+
+	f := cmd.Flags().Lookup("output")
+	require.NotNil(t, f)
+	assert.Equal(t, "Output format {json,text}", f.Usage)
+}
+
+func TestOutputFmt_RestrictFormats_Annotation(t *testing.T) {
+	opts := &flagkit.OutputFmt{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, opts.Attach(cmd))
+
+	opts.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
+
+	f := cmd.Flags().Lookup("output")
+	require.NotNil(t, f)
+	ann, ok := f.Annotations["___leodido_structcli_flagenum"]
+	assert.True(t, ok, "enum annotation should be set")
+	assert.Equal(t, []string{"json", "text"}, ann)
+}
+
+func TestOutputFmt_RestrictFormats_JSONSchema(t *testing.T) {
+	opts := &flagkit.OutputFmt{}
+	cmd := &cobra.Command{Use: "app"}
+	require.NoError(t, opts.Attach(cmd))
+
+	opts.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
+
+	schemas, err := structcli.JSONSchema(cmd)
+	require.NoError(t, err)
+	require.Len(t, schemas, 1)
+
+	fs, ok := schemas[0].Flags["output"]
+	require.True(t, ok)
+	assert.Equal(t, []string{"json", "text"}, fs.Enum)
+}
+
+func TestOutputFmt_RestrictFormats_NoFlag(t *testing.T) {
+	opts := &flagkit.OutputFmt{}
+	cmd := &cobra.Command{Use: "app"}
+	// Don't call Attach — no flag registered
+	opts.RestrictFormats(cmd, flagkit.OutputJSON) // should not panic
+}
+
 // --- RegisterOutputFormats tests ---
 
 func TestRegisterOutputFormats_PanicsOnDuplicate(t *testing.T) {
