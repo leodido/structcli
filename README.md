@@ -558,6 +558,11 @@ func (o *ServerOptions) DecodeListenAddr(input any) (any, error) {
     return ParseListenAddress(input.(string))
 }
 
+// CompleteListenAddr provides shell completion for --listen.
+func (o *ServerOptions) CompleteListenAddr(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+    return []string{"localhost:8080", "0.0.0.0:8080", "0.0.0.0:443"}, cobra.ShellCompDirectiveNoFileComp
+}
+
 func (o *ServerOptions) Attach(c *cobra.Command) error {
     return structcli.Define(c, o)
 }
