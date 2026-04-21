@@ -1,15 +1,20 @@
 package structcli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/leodido/structcli/debug"
 	internalcmd "github.com/leodido/structcli/internal/cmd"
 	internaldebug "github.com/leodido/structcli/internal/debug"
 	internalenv "github.com/leodido/structcli/internal/env"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 // SetupDebug creates the --debug-options global flag and sets up debug behavior.
@@ -87,20 +92,136 @@ func IsDebugActive(c *cobra.Command) bool {
 
 // UseDebug manually triggers debug output for the given options.
 //
+// When --debug-options=json, output goes to w as a JSON object.
+// When --debug-options or --debug-options=text, output goes to w
+// as a human-readable table.
+//
 // Debug output is automatically triggered when the debug flag is enabled.
 func UseDebug(c *cobra.Command, w io.Writer) {
-	if !IsDebugActive(c) {
+	format := internaldebug.GetFormat(c)
+	if format == "" {
 		return
 	}
 
-	var dest io.Writer
-	dest = os.Stdout
-	if w != nil {
-		dest = w
+	v := GetViper(c)
+	configV := GetConfigViper(c)
+
+	switch format {
+	case "json":
+		writeDebugJSON(c, v, configV, w)
+	default:
+		writeDebugText(c, v, configV, w)
+	}
+}
+
+// debugFlagState represents a single flag's resolved state.
+type debugFlagState struct {
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+	Default string `json:"default"`
+	Changed bool   `json:"changed"`
+	Source  string `json:"source"`
+}
+
+// debugOutput is the top-level JSON structure for debug output.
+type debugOutput struct {
+	Command string            `json:"command"`
+	Flags   []debugFlagState  `json:"flags"`
+	Values  map[string]any    `json:"values"`
+}
+
+func collectFlagStates(c *cobra.Command, configV *viper.Viper) []debugFlagState {
+	var states []debugFlagState
+
+	c.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Hidden {
+			return
+		}
+		source := internaldebug.ResolveFlagSource(f, configV)
+		states = append(states, debugFlagState{
+			Name:    f.Name,
+			Value:   f.Value.String(),
+			Default: f.DefValue,
+			Changed: f.Changed,
+			Source:  string(source),
+		})
+	})
+
+	// Sort by name for deterministic output.
+	sort.Slice(states, func(i, j int) bool {
+		return states[i].Name < states[j].Name
+	})
+
+	return states
+}
+
+func writeDebugJSON(c *cobra.Command, v *viper.Viper, configV *viper.Viper, w io.Writer) {
+	out := debugOutput{
+		Command: c.CommandPath(),
+		Flags:   collectFlagStates(c, configV),
+		Values:  v.AllSettings(),
 	}
 
-	// The action of printing debug info is local
-	v := GetViper(c)
-	v.DebugTo(dest)
-	fmt.Fprintf(dest, "Values:\n%#v\n", v.AllSettings())
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(out)
+}
+
+func writeDebugText(c *cobra.Command, v *viper.Viper, configV *viper.Viper, w io.Writer) {
+	fmt.Fprintf(w, "Command: %s\n\n", c.CommandPath())
+
+	states := collectFlagStates(c, configV)
+
+	if len(states) > 0 {
+		// Compute column widths for alignment.
+		maxName, maxVal := 0, 0
+		for _, s := range states {
+			flagStr := "--" + s.Name
+			if len(flagStr) > maxName {
+				maxName = len(flagStr)
+			}
+			if len(s.Value) > maxVal {
+				maxVal = len(s.Value)
+			}
+		}
+
+		fmt.Fprintln(w, "Flags:")
+		for _, s := range states {
+			flagStr := "--" + s.Name
+			sourceStr := formatSource(s, c)
+			fmt.Fprintf(w, "  %-*s  %-*s  (%s)\n", maxName, flagStr, maxVal, s.Value, sourceStr)
+		}
+		fmt.Fprintln(w)
+	}
+
+	settings := v.AllSettings()
+	if len(settings) > 0 {
+		keys := make([]string, 0, len(settings))
+		for k := range settings {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		fmt.Fprintln(w, "Values:")
+		for _, k := range keys {
+			fmt.Fprintf(w, "  %s: %v\n", k, settings[k])
+		}
+	}
+}
+
+// formatSource returns a human-readable source label for text output.
+// For env sources, it includes the env var name.
+func formatSource(s debugFlagState, c *cobra.Command) string {
+	if s.Source != "env" {
+		return s.Source
+	}
+
+	// Look up the env var name from the flag annotation.
+	if f := c.Flags().Lookup(s.Name); f != nil {
+		if envs, ok := f.Annotations[internalenv.FlagAnnotation]; ok && len(envs) > 0 {
+			return "env: " + strings.Join(envs, ", ")
+		}
+	}
+
+	return "env"
 }

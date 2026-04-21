@@ -98,12 +98,10 @@ func TestFullApplication(t *testing.T) {
 			args: []string{"srv", "--debug-options", "-p", "3333"},
 			assertFunc: func(t *testing.T, output string, err error) {
 				require.NoError(t, err)
-				assert.Contains(t, output, "Aliases:")
-				assert.Contains(t, output, "PFlags:")
-				assert.Contains(t, output, "Env:")
-				assert.Contains(t, output, "Config:")
-				assert.Contains(t, output, "Defaults:")
+				assert.Contains(t, output, "Command: full srv")
+				assert.Contains(t, output, "Flags:")
 				assert.Contains(t, output, "Values:")
+				assert.Contains(t, output, "--port")
 			},
 		},
 		{
@@ -112,7 +110,7 @@ func TestFullApplication(t *testing.T) {
 			envs: map[string]string{"FULL_DEBUG_OPTIONS": "true"},
 			assertFunc: func(t *testing.T, output string, err error) {
 				require.NoError(t, err)
-				assert.Contains(t, output, "Aliases:")
+				assert.Contains(t, output, "Command: full srv")
 				assert.Contains(t, output, "Values:")
 			},
 		},
