@@ -164,3 +164,85 @@ func TestUseDebug_Inactive(t *testing.T) {
 
 	assert.Empty(t, buf.String(), "no debug output when flag not set")
 }
+
+func TestIsDebugActive(t *testing.T) {
+	root, _ := setupDebugCmd(t, []string{"serve", "--debug-options"})
+	require.NoError(t, root.Execute())
+
+	// The public wrapper should reflect the internal state.
+	cmd, _, _ := root.Find([]string{"serve"})
+	assert.True(t, structcli.IsDebugActive(cmd))
+}
+
+func TestIsDebugActive_False(t *testing.T) {
+	root, _ := setupDebugCmd(t, []string{"serve"})
+	require.NoError(t, root.Execute())
+
+	cmd, _, _ := root.Find([]string{"serve"})
+	assert.False(t, structcli.IsDebugActive(cmd))
+}
+
+func TestUseDebug_HiddenFlagsExcluded(t *testing.T) {
+	var buf bytes.Buffer
+	opts := &debugTestOptions{}
+
+	root := &cobra.Command{Use: "testapp"}
+	cmd := &cobra.Command{
+		Use: "serve",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return structcli.Unmarshal(cmd, opts)
+		},
+	}
+	root.AddCommand(cmd)
+
+	structcli.SetupDebug(root, debug.Options{AppName: "testapp"})
+	require.NoError(t, opts.Attach(cmd))
+
+	// Add a hidden flag after Define.
+	cmd.Flags().String("internal-token", "", "internal use only")
+	cmd.Flags().MarkHidden("internal-token")
+
+	root.SetOut(&buf)
+	root.SetArgs([]string{"serve", "--debug-options", "--internal-token", "secret"})
+	require.NoError(t, root.Execute())
+
+	output := buf.String()
+	assert.NotContains(t, output, "internal-token", "hidden flags should not appear in debug output")
+	assert.NotContains(t, output, "secret", "hidden flag values should not appear in debug output")
+	// Non-hidden flags should still be present.
+	assert.Contains(t, output, "--port")
+}
+
+func TestUseDebug_JSONOutput_HiddenFlagsExcluded(t *testing.T) {
+	// Verify hidden flags are also excluded from JSON output.
+	var buf bytes.Buffer
+	opts := &debugTestOptions{}
+
+	root := &cobra.Command{Use: "testapp"}
+	cmd := &cobra.Command{
+		Use: "serve",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return structcli.Unmarshal(cmd, opts)
+		},
+	}
+	root.AddCommand(cmd)
+
+	structcli.SetupDebug(root, debug.Options{AppName: "testapp"})
+	require.NoError(t, opts.Attach(cmd))
+
+	cmd.Flags().String("internal-token", "", "internal use only")
+	require.NoError(t, cmd.Flags().MarkHidden("internal-token"))
+
+	root.SetOut(&buf)
+	root.SetArgs([]string{"serve", "--debug-options=json", "--internal-token", "secret"})
+	require.NoError(t, root.Execute())
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
+
+	flags := result["flags"].([]any)
+	for _, f := range flags {
+		fm := f.(map[string]any)
+		assert.NotEqual(t, "internal-token", fm["name"], "hidden flags should not appear in JSON output")
+	}
+}
