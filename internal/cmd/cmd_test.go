@@ -21,7 +21,7 @@ func TestRecursivelyWrapRun_SkipsRunWhenDebugActive(t *testing.T) {
 		},
 	}
 	root.AddCommand(run)
-	internalscope.Get(root).Viper().Set("debug-options", true)
+	internalscope.Get(root).Viper().Set("debug-options", "text")
 
 	RecursivelyWrapRun(root)
 	root.SetArgs([]string{"run"})
@@ -41,7 +41,7 @@ func TestRecursivelyWrapRun_SkipsRunEWhenDebugActive(t *testing.T) {
 		},
 	}
 	root.AddCommand(run)
-	internalscope.Get(root).Viper().Set("debug-options", true)
+	internalscope.Get(root).Viper().Set("debug-options", "text")
 
 	RecursivelyWrapRun(root)
 	root.SetArgs([]string{"run"})

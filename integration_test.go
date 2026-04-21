@@ -1857,7 +1857,7 @@ func TestSetupOrdering_CustomOptions(t *testing.T) {
 	assert.NotNil(t, persistentFlags.Lookup("debug-mode"))
 	assert.NotNil(t, persistentFlags.Lookup("settings"))
 
-	assert.True(t, v.GetBool("debug-mode"), "The 'debug-mode' flag should be true because of CUSTOM_DEBUG env var")
+	assert.NotEmpty(t, v.GetString("debug-mode"), "The 'debug-mode' flag should be set because of CUSTOM_DEBUG env var")
 
 	assert.Equal(t, "test-level", v.GetString("log-level"), "Viper should load the value from the config file given via CUSTOM_CONFIG env var")
 }
@@ -2005,7 +2005,7 @@ verbose: false`
 
 		// Verify descriptions are present
 		assert.Contains(t, usageString, "config file", "Usage should contain config flag description")
-		assert.Contains(t, usageString, "enable debug output", "Usage should contain debug flag description")
+		assert.Contains(t, usageString, "debug output format", "Usage should contain debug flag description")
 
 		// Verify persistent flags appear in Global Flags section
 		assert.Contains(t, usageString, "Global Flags:", "Usage should contain Global Flags section")
