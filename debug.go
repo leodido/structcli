@@ -47,8 +47,11 @@ func SetupDebug(rootC *cobra.Command, debugOpts debug.Options) error {
 	}
 	rootC.Annotations[internaldebug.FlagAnnotation] = flagName
 
-	// Add persistent flag to root command
-	rootC.PersistentFlags().Bool(flagName, false, "enable debug output for options")
+	// Add persistent flag to root command.
+	// NoOptDefVal makes bare --debug-options (no value) default to "text",
+	// preserving backward compatibility with the old bool flag.
+	rootC.PersistentFlags().String(flagName, "", "debug output format (text, json)")
+	rootC.PersistentFlags().Lookup(flagName).NoOptDefVal = "text"
 
 	// Add environment annotation
 	mustSetAnnotation(rootC.PersistentFlags(), flagName, internalenv.FlagAnnotation, []string{envvName})
