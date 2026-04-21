@@ -1987,12 +1987,13 @@ verbose: false`
 
 	t.Run("debug_functionality", func(t *testing.T) {
 		// Debug output should be present since TESTAPP_DEBUG_OPTIONS=true
-		assert.Contains(t, output, "Values:", "Debug output should be triggered by environment variable and show final values")
-		assert.Contains(t, output, "Env:", "Debug output should contain env information")
-		assert.Contains(t, output, "\"timeout\":[]string{\"TESTAPP_TIMEOUT\"}", "Debug output should contain timeout env information")
-		assert.Contains(t, output, "\"log-level\":[]string{\"TESTAPP_LOGLEVEL\", \"TESTAPP_LOG_LEVEL\"}", "Debug output should contain log-level env information")
-		assert.Contains(t, output, "\"log-level\":\"debug\"", "Debug output should contain log-level final value")
-		assert.Contains(t, output, "\"debug-options\":\"true\"", "Debug output should contain debug-options final value")
+		assert.Contains(t, output, "Command: testapp", "Debug output should show command path")
+		assert.Contains(t, output, "Flags:", "Debug output should contain flags section")
+		assert.Contains(t, output, "Values:", "Debug output should contain values section")
+		assert.Contains(t, output, "(env: TESTAPP_TIMEOUT)", "Debug output should show timeout env source")
+		assert.Contains(t, output, "(env: TESTAPP_LOGLEVEL, TESTAPP_LOG_LEVEL)", "Debug output should show log-level env source")
+		assert.Contains(t, output, "log-level: debug", "Debug output should contain log-level final value")
+		assert.Contains(t, output, "debug-options: true", "Debug output should contain debug-options final value")
 	})
 
 	t.Run("usage_contains_persistent_flags", func(t *testing.T) {
