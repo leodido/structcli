@@ -65,6 +65,7 @@ That single `Define` call creates the CLI surface from your struct, and `Unmarsh
 #   myapp [flags]
 #
 # Flags:
+#   -h, --help                     help for myapp
 #       --loglevel zapcore.Level    {debug,info,warn,error,dpanic,panic,fatal} (default info)
 #       --port int
 ```
@@ -80,12 +81,19 @@ type Options struct {
 
 ```bash
 ❯ go run examples/simple/main.go -h
+# A simple CLI example
+#
 # Usage:
 #   myapp [flags]
 #
 # Flags:
+#   -h, --help                  help for myapp
 #       --level zapcore.Level   Set logging level {debug,info,warn,error,dpanic,panic,fatal} (default info)
 #   -p, --port int              Server port (default 3000)
+#
+# Global Flags:
+#       --jsonschema   output JSON Schema for this command and exit
+#       --mcp          serve MCP over stdio
 ```
 
 ```bash
@@ -384,32 +392,64 @@ See a full working example [here](examples/full/cli/cli.go).
 
 ### 🚧 Automatic Debugging Support
 
-Create a `--debug-options` flag (plus a `FULL_DEBUG_OPTIONS` env var) for troubleshooting config/env/flags resolution.
+Create a `--debug-options` flag (plus a matching env var) for troubleshooting config/env/flags resolution.
 
 ```go
 structcli.SetupDebug(rootCmd, debug.Options{})
 ```
 
+The flag accepts `text` (default when used bare) or `json` for machine-readable output. Truthy values like `true`, `1`, `yes` are treated as `text` for backward compatibility.
+
+**Text output** — an aligned table showing each flag's resolved value and where it came from:
+
 ```bash
 ❯ go run examples/full/main.go srv --debug-options --config examples/full/config.yaml -p 3333
+# ...
+# Command: full srv
 #
-# Aliases:
-# map[string]string{"database.url":"db-url", "logfile":"log-file", "loglevel":"log-level", "targetenv":"target-env"}
-# Override:
-# map[string]interface {}{}
-# PFlags:
-# map[string]viper.FlagValue{"apikey":viper.pflagValue{flag:(*pflag.Flag)(0x14000109ea0)}, "database.maxconns":viper.pflagValue{flag:(*pflag.Flag)(0x140002181e0)}, "db-url":viper.pflagValue{flag:(*pflag.Flag)(0x14000218140)}, "host":viper.pflagValue{flag:(*pflag.Flag)(0x14000109d60)}, "log-file":viper.pflagValue{flag:(*pflag.Flag)(0x140002180a0)}, "log-level":viper.pflagValue{flag:(*pflag.Flag)(0x14000218000)}, "port":viper.pflagValue{flag:(*pflag.Flag)(0x14000109e00)}, "target-env":viper.pflagValue{flag:(*pflag.Flag)(0x14000218320)}}
-# Env:
-# map[string][]string{"apikey":[]string{"SRV_APIKEY"}, "database.maxconns":[]string{"SRV_DATABASE_MAXCONNS"}, "log-file":[]string{"SRV_LOGFILE", "SRV_LOG_FILE"}}
-# Key/Value Store:
-# map[string]interface {}{}
-# Config:
-# map[string]interface {}{"apikey":"secret-api-key", "database":map[string]interface {}{"maxconns":3}, "db-url":"postgres://user:pass@localhost/mydb", "host":"production-server", "log-file":"/var/log/mysrv.log", "log-level":"debug", "port":8443}
-# Defaults:
-# map[string]interface {}{"database":map[string]interface {}{"maxconns":"10"}, "host":"localhost"}
+# Flags:
+#   --apikey                 secret-api-key                       (default)
+#   --config                 examples/full/config.yaml            (flag)
+#   --database.maxconns      3                                    (default)
+#   --db-url                 postgres://user:pass@localhost/mydb  (default)
+#   --debug-options          text                                 (flag)
+#   --host                   production-server                    (default)
+#   --log-file               /var/log/mysrv.log                   (default)
+#   --log-level              debug                                (default)
+#   --port                   3333                                 (flag)
+#   --target-env             dev                                  (default)
+#   ...
+#
 # Values:
-# map[string]interface {}{"apikey":"secret-api-key", "database":map[string]interface {}{"maxconns":3, "url":"postgres://user:pass@localhost/mydb"}, "db-url":"postgres://user:pass@localhost/mydb", "host":"production-server", "log-file":"/var/log/mysrv.log", "log-level":"debug", "logfile":"/var/log/mysrv.log", "loglevel":"debug", "port":3333, "target-env":"dev", "targetenv":"dev"}
+#   apikey: secret-api-key
+#   host: production-server
+#   log-level: debug
+#   port: 3333
+#   ...
 ```
+
+**JSON output** — structured data for AI agents and tooling:
+
+```bash
+❯ go run examples/full/main.go srv --debug-options=json --config examples/full/config.yaml -p 3333
+# ...
+# {
+#   "command": "full srv",
+#   "flags": [
+#     ...
+#     {"name": "config", "value": "examples/full/config.yaml", "default": "", "changed": true, "source": "flag"},
+#     {"name": "db-url", "value": "postgres://user:pass@localhost/mydb", "default": "", "changed": false, "source": "default"},
+#     {"name": "log-level", "value": "debug", "default": "info", "changed": false, "source": "default"},
+#     {"name": "port", "value": "3333", "default": "0", "changed": true, "source": "flag"},
+#     ...
+#   ],
+#   "values": {"apikey": "secret-api-key", "host": "production-server", "log-level": "debug", "port": 3333, ...}
+# }
+```
+
+Source attribution resolves each flag to `flag` (CLI), `env`, `config`, or `default`. For env-sourced flags, the text output includes the variable name (e.g., `(env: MYAPP_LOG_LEVEL)`).
+
+The flag can also be activated via environment variable: `FULL_DEBUG_OPTIONS=json`.
 
 ### ↪️ Sharing Options Between Commands
 
@@ -704,16 +744,22 @@ Organize your `--help` output into logical groups for better readability.
 # Available Commands:
 #   completion  Generate the autocompletion script for the specified shell
 #   help        Help about any command
+#   logs        Show service logs
+#   preset      Demonstrate flag presets with validation and transformation
 #   srv         Start the server
 #   usr         User management
 #
-# Global Flags:
-#       --config string   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full}/config.{yaml,json,toml})
-#       --debug-options   enable debug output for options
+# Flags:
+#   -h, --help   help for full
 #
 # Utility Flags:
-#       --dry-run
+#       --dry             
 #   -v, --verbose count
+#
+# Global Flags:
+#       --config string                   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full,...}/config.{yaml,json,toml})
+#       --debug-options string[="text"]   debug output format (text, json)
+#       --jsonschema                      output JSON Schema for this command and exit
 ```
 
 ```bash
@@ -728,10 +774,14 @@ Organize your `--help` output into logical groups for better readability.
 #   version     Print version information
 #
 # Flags:
-#       --apikey string       API authentication key
-#       --host string         Server host (default "localhost")
-#   -p, --port int            Server port
-#       --target-env string   Set the target environment {dev,staging,prod} (default "dev")
+#       --apikey string                  API authentication key
+#       --deep-setting string             (default "default-deep-setting")
+#       --deep.deeper.nodefault string
+#       --deeper-setting string           (default "default-deeper-setting")
+#   -h, --help                           help for srv
+#       --host string                    Server host (default "localhost")
+#   -p, --port int                       Server port
+#       --target-env string              Set the target environment {dev,prod,staging} (default "dev")
 #
 # Database Flags:
 #       --database.maxconns int   Max database connections (default 10)
@@ -742,14 +792,19 @@ Organize your `--help` output into logical groups for better readability.
 #       --log-level zapcore.Level   Set log level {debug,info,warn,error,dpanic,panic,fatal} (default info)
 #
 # Network Flags:
-#       --advertise-cidr ipNet      Advertised service subnet (CIDR) (default 127.0.0.0/24)
-#       --bind-ip ip                Bind interface IP (default 127.0.0.1)
-#       --bind-mask ipMask          Bind interface mask (default ffffff00)
-#       --trusted-peers ipSlice     Trusted peer IPs (comma separated) (default [127.0.0.2,127.0.0.3])
+#       --advertise-cidr ipNet    Advertised service subnet (CIDR) (default 127.0.0.0/24)
+#       --bind-ip ip              Bind interface IP (default 127.0.0.1)
+#       --bind-mask ipMask        Bind interface mask (default ffffff00)
+#       --trusted-peers ipSlice   Trusted peer IPs (comma separated) (default 127.0.0.2,127.0.0.3)
+#
+# Security Flags:
+#       --token-base64 bytesBase64   Token bytes encoded as base64 (default aGVsbG8=)
+#       --token-hex bytesHex         Token bytes encoded as hex (default 68656c6c6f)
 #
 # Global Flags:
-#       --config string   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full}/config.{yaml,json,toml})
-#       --debug-options   enable debug output for options
+#       --config string                   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full,...}/config.{yaml,json,toml})
+#       --debug-options string[="text"]   debug output format (text, json)
+#       --jsonschema                      output JSON Schema for this command and exit
 #
 # Use "full srv [command] --help" for more information about a command.
 ```
