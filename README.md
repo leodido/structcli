@@ -33,11 +33,15 @@ type Options struct {
 	Port     int
 }
 
+func (o *Options) Attach(c *cobra.Command) error {
+	return structcli.Define(c, o)
+}
+
 func main() {
 	opts := &Options{}
 	cli := &cobra.Command{Use: "myapp"}
 
-	if err := structcli.Define(cli, opts); err != nil {
+	if err := opts.Attach(cli); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -201,8 +205,8 @@ type ServerOptions struct {
 	// Nested structs for organization
 	Database DatabaseConfig `flaggroup:"Database"`
 
-	// Custom type
-	TargetEnv Environment `flagcustom:"true" flag:"target-env" flagdescr:"Set the target environment"`
+	// Enum type (registered via RegisterEnum)
+	TargetEnv Environment `flag:"target-env" flagdescr:"Set the target environment" default:"dev"`
 }
 
 type DatabaseConfig struct {
