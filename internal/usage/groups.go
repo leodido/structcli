@@ -49,5 +49,10 @@ func Groups(c *cobra.Command) map[string]*pflag.FlagSet {
 		})
 	}
 
+	// Include inherited persistent flags (from parent commands) as global flags.
+	c.InheritedFlags().VisitAll(func(f *pflag.Flag) {
+		addTo(f, globalGroupID)
+	})
+
 	return groups
 }
