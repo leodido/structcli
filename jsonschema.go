@@ -51,6 +51,7 @@ type CommandSchema struct {
 	Groups      map[string][]string    `json:"groups,omitempty"`
 	Subcommands []string               `json:"subcommands,omitempty"`
 	EnvPrefix   string                 `json:"env_prefix,omitempty"`
+	ConfigFlag  string                 `json:"config_flag,omitempty"`
 	Example     string                 `json:"example,omitempty"`    // Usage examples from cobra.Command.Example
 	Aliases     []string               `json:"aliases,omitempty"`    // Command aliases from cobra.Command.Aliases
 	ValidArgs   []string               `json:"valid_args,omitempty"` // Valid positional arguments from cobra.Command.ValidArgs
@@ -109,6 +110,10 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 	jsonSchemaFlagName := ""
 	if rootAnnotations := c.Root().Annotations; rootAnnotations != nil {
 		jsonSchemaFlagName = rootAnnotations[jsonSchemaFlagAnnotation]
+
+		if cfgFlag, ok := rootAnnotations[configFlagAnnotation]; ok && cfgFlag != "" {
+			schema.ConfigFlag = cfgFlag
+		}
 	}
 
 	// Walk all flags (local + inherited)
@@ -218,8 +223,11 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 		schema.Groups = groups
 	}
 
-	// Collect subcommand names
+	// Collect subcommand names (excluding help topic reference commands).
 	for _, sub := range c.Commands() {
+		if IsHelpTopicCommand(sub) {
+			continue
+		}
 		if !sub.IsAvailableCommand() && sub.Name() != "help" {
 			continue
 		}
@@ -242,6 +250,9 @@ func jsonSchemaTree(rootC *cobra.Command, cfg *jsonschema.Config) ([]*CommandSch
 		schemas = append(schemas, schema)
 
 		for _, sub := range c.Commands() {
+			if IsHelpTopicCommand(sub) {
+				continue
+			}
 			if !sub.IsAvailableCommand() && sub.Name() != "help" {
 				continue
 			}
@@ -270,6 +281,7 @@ type jsonSchemaProperty struct {
 
 	// x-structcli extensions
 	EnvVars   []string     `json:"x-structcli-env-vars,omitempty"`
+	EnvOnly   bool         `json:"x-structcli-env-only,omitempty"`
 	Shorthand string       `json:"x-structcli-shorthand,omitempty"`
 	Group     string       `json:"x-structcli-group,omitempty"`
 	FieldPath string       `json:"x-structcli-field-path,omitempty"`
@@ -288,6 +300,7 @@ type jsonSchema struct {
 	// x-structcli extensions at root level
 	Subcommands []string            `json:"x-structcli-subcommands,omitempty"`
 	EnvPrefix   string              `json:"x-structcli-env-prefix,omitempty"`
+	ConfigFlag  string              `json:"x-structcli-config-flag,omitempty"`
 	Groups      map[string][]string `json:"x-structcli-groups,omitempty"`
 }
 
@@ -400,6 +413,9 @@ func (cs *CommandSchema) ToJSONSchema() ([]byte, error) {
 	if cs.EnvPrefix != "" {
 		schema.EnvPrefix = cs.EnvPrefix
 	}
+	if cs.ConfigFlag != "" {
+		schema.ConfigFlag = cs.ConfigFlag
+	}
 	if len(cs.Subcommands) > 0 {
 		schema.Subcommands = cs.Subcommands
 	}
@@ -428,6 +444,9 @@ func (cs *CommandSchema) ToJSONSchema() ([]byte, error) {
 		}
 		if len(fs.EnvVars) > 0 {
 			prop.EnvVars = fs.EnvVars
+		}
+		if fs.EnvOnly {
+			prop.EnvOnly = true
 		}
 		if fs.Group != "" {
 			prop.Group = fs.Group
@@ -470,7 +489,8 @@ func SetupJSONSchema(rootC *cobra.Command, opts jsonschema.Options) error {
 	schemaOpts := opts.SchemaOpts
 	cfg := jsonschema.Apply(schemaOpts...)
 
-	rootC.PersistentFlags().Bool(flagName, false, "output JSON Schema for this command and exit")
+	rootC.PersistentFlags().String(flagName, "", "output JSON Schema and exit (bare: this command, =tree: full subtree)")
+	rootC.PersistentFlags().Lookup(flagName).NoOptDefVal = "true"
 
 	// Store the flag name in root annotations for lookup
 	if rootC.Annotations == nil {
@@ -501,13 +521,16 @@ func renderJSONSchemaIfRequested(c *cobra.Command, flagName string, cfg *jsonsch
 		c.Root().PersistentFlags(),
 	}
 
+	var flagValue string
 	flagChanged := false
 	for _, fs := range flagSets {
 		if fs == nil {
 			continue
 		}
-		if flag := fs.Lookup(flagName); flag != nil && flag.Changed {
+		if f := fs.Lookup(flagName); f != nil && f.Changed {
 			flagChanged = true
+			flagValue = f.Value.String()
+
 			break
 		}
 	}
@@ -516,7 +539,14 @@ func renderJSONSchemaIfRequested(c *cobra.Command, flagName string, cfg *jsonsch
 		return false, nil, nil
 	}
 
-	schemas, err := JSONSchema(c, schemaOptsFromConfig(cfg)...)
+	opts := schemaOptsFromConfig(cfg)
+
+	// "tree" walks from the current command downward.
+	if strings.EqualFold(flagValue, "tree") {
+		opts = append(opts, jsonschema.WithFullTree())
+	}
+
+	schemas, err := JSONSchema(c, opts...)
 	if err != nil {
 		return true, nil, fmt.Errorf("couldn't generate JSON Schema: %w", err)
 	}
