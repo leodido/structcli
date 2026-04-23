@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-04-23
+
+### Added
+- `RegisterEnum` for declarative string enum types — handles flag creation, help text, shell completion, validation, and config/env decoding from a single `init()` call.
+- `RegisterIntEnum` for integer-based enum types with the same declarative registration pattern.
+- `flagenv:"only"` struct tag value — fields settable only via environment variable or config file, rejecting CLI input at runtime.
+- `SetupHelpTopics` adds `env-vars` and `config-keys` reference commands listing every environment variable binding and config file key across the command tree. Accepts `helptopics.Options{ReferenceSection: true}` to move them into a dedicated "Reference:" section in `--help` output.
+- `--jsonschema=tree` mode — dumps JSON Schema for the entire command subtree in a single call via `NoOptDefVal` backward-compatible flag migration from bool to string.
+- `x-structcli-env-only` JSON Schema extension marking env-only flags.
+- `x-structcli-config-flag` JSON Schema extension exposing the config flag name from `SetupConfig`.
+- `flagkit` package with 9 reusable embeddable flag structs: `Follow`, `LogLevel`, `ZapLogLevel`, `SlogLogLevel`, `Output`, `Verbose`, `DryRun`, `Timeout`, `Quiet`.
+- `--debug-options` text and JSON output with source attribution (`flag`, `env`, `config`, `default`) for each resolved flag value.
+- `ValidationError.Unwrap()` for `errors.Is`/`errors.As` support.
+- Property-based tests (rapid) for tag parsing, struct validation, and `Define()` paths.
+- Fuzz tests for decode hooks.
+- Benchmarks for `Define()` and full-cycle paths across 3 struct sizes.
+
+### Changed
+- `SetupHelpTopics` now requires a `helptopics.Options` parameter (breaking). Pass `helptopics.Options{}` for default behavior.
+- `--debug-options` changed from bool to string flag, accepting `text` (default when bare), `json`, or truthy values for backward compatibility.
+- `flagkit.OutputFmt` renamed to `Output`; `flagkit.TimeoutOpt` renamed to `Timeout`.
+- `zapcore.Level` define/decode hooks migrated to `RegisterIntEnum` internally.
+- `unsafe.Pointer` usage in the define path replaced with safe reflect.
+
+### Fixed
+- Inherited persistent flags now appear in subcommand `--help` output (`Groups()` walks `InheritedFlags()`).
+- `--jsonschema` on help topic commands returns a clear error instead of an empty schema.
+- Unknown `--jsonschema` values (e.g. `--jsonschema=xml`) now return an error instead of silently falling through.
+- `WithFullTree` no longer double-added when `SchemaOpts` and `--jsonschema=tree` both request it.
+- Help topic commands excluded from `x-structcli-subcommands` in JSON Schema output.
+- Viper-merged nested maps preserved correctly in `KeyRemappingHook` when alias matches first path segment.
+- Non-callable commands filtered from `generate` output (agents.go, skill.go).
+- Preset round-trip excludes comma from values.
+- Alias collision in `RegisterEnum` now panics instead of silently overwriting.
+- Discarded completion registration error now surfaced.
+
 ## [0.15.0] - 2026-04-14
 
 ### Added
@@ -124,7 +160,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `ResetGlobals()` to `Reset()`.
 
-[Unreleased]: https://github.com/leodido/structcli/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/leodido/structcli/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/leodido/structcli/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/leodido/structcli/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/leodido/structcli/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/leodido/structcli/compare/v0.12.0...v0.13.0
