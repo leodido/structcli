@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Makefile` with `make release VERSION=X.Y.Z` target — bumps version constant, updates example go.mod, regenerates files, commits, tags, and pushes.
 
 ### Fixed
-- CI workflows no longer fail after a release due to Go checksum DB lag (`GONOSUMCHECK` for self-referencing example module).
+- CI workflows no longer fail after a release due to Go checksum DB lag (`GONOSUMDB` + `GONOSUMCHECK` for self-referencing example module).
 - Release process now regenerates `SKILL.md` and stages `go.work.sum` to prevent stale generated files.
 
 ## [0.16.0] - 2026-04-23
