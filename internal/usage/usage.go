@@ -29,6 +29,16 @@ func tmpl(w io.Writer, text string) error {
 	return err
 }
 
+// isHelpTopicCommand returns true if the command was registered by SetupHelpTopics.
+func isHelpTopicCommand(c *cobra.Command) bool {
+	if c.Annotations == nil {
+		return false
+	}
+	_, ok := c.Annotations[HelpTopicAnnotation]
+
+	return ok
+}
+
 // Setup generates and sets a dynamic usage function for the command.
 //
 // It also groups flags based on the `flaggroup` annotation.
@@ -64,9 +74,18 @@ func Setup(c *cobra.Command) {
 		}
 
 		// Available Commands
+		// When ReferenceSection is set, help topic commands are collected into a
+		// separate "Reference:" section instead of appearing here.
+		showRef := c.Annotations != nil && c.Annotations[HelpTopicReferenceSection] == "true"
+		var refCmds []*cobra.Command
 		if c.HasAvailableSubCommands() {
 			b.WriteString("\nAvailable Commands:\n")
 			for _, cmd := range c.Commands() {
+				if showRef && isHelpTopicCommand(cmd) {
+					refCmds = append(refCmds, cmd)
+
+					continue
+				}
 				if !cmd.IsAvailableCommand() && cmd.Name() != "help" {
 					continue
 				}
@@ -108,7 +127,15 @@ func Setup(c *cobra.Command) {
 			b.WriteString(flagUsages(gFlags))
 		}
 
-		// Help Topics and "use" command
+		// Reference commands (help topics with RunE)
+		if len(refCmds) > 0 {
+			b.WriteString("\nReference:\n")
+			for _, cmd := range refCmds {
+				b.WriteString(fmt.Sprintf("  %s %s\n", rpad(cmd.Name(), c.NamePadding()), cmd.Short))
+			}
+		}
+
+		// Help Topics (Long-only commands without RunE)
 		if c.HasHelpSubCommands() {
 			b.WriteString("\nAdditional help topics:\n")
 			for _, cmd := range c.Commands() {

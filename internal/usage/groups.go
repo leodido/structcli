@@ -11,7 +11,9 @@ var (
 )
 
 const (
-	FlagGroupAnnotation = "___leodido_structcli_flaggroups"
+	FlagGroupAnnotation       = "___leodido_structcli_flaggroups"
+	HelpTopicAnnotation       = "___leodido_structcli_helptopic"
+	HelpTopicReferenceSection       = "___leodido_structcli_helptopic_refsection"
 )
 
 // Groups returns a map of flag groups for the given command.
