@@ -31,7 +31,8 @@ endif
 	@# 3. Regenerate
 	@(cd examples/full && go generate ./...)
 	@# 4. Commit, tag, push
-	@git add version.go examples/mcp-command-factory/go.mod examples/full/
+	@git add version.go examples/mcp-command-factory/go.mod examples/full/ go.work.sum
+	@git diff --quiet || (echo "error: unstaged changes remain after regeneration — stage them and retry" && git diff --stat && exit 1)
 	@git commit -m "chore: bump Version constant to $(VERSION)" \
 		-m "Also bump the mcp-command-factory example go.mod require to v$(VERSION)." \
 		--trailer "Co-authored-by: Ona <no-reply@ona.com>"
