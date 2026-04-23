@@ -45,9 +45,7 @@ jobs:
         env:
           # The mcp-command-factory example requires the parent module at the
           # latest tag which may not be on sum.golang.org yet after a release.
-          # The go.work workspace resolves it locally; skip sumdb lookup and
-          # checksum verification for the self-referencing module.
-          GONOSUMDB: github.com/leodido/structcli
+          # The go.work workspace resolves it locally; skip checksum verification.
           GONOSUMCHECK: github.com/leodido/structcli
         run: |
           PKGS=$(go list ./... | tr '\n' ',')
@@ -84,7 +82,6 @@ jobs:
 
       - name: Verify generated files are up to date
         env:
-          GONOSUMDB: github.com/leodido/structcli
           GONOSUMCHECK: github.com/leodido/structcli
         run: |
           (cd examples/full && go generate ./...)
