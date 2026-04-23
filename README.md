@@ -96,7 +96,7 @@ type Options struct {
 #   -p, --port int              Server port (default 3000)
 #
 # Global Flags:
-#       --jsonschema   output JSON Schema for this command and exit
+#       --jsonschema string[="true"]   output JSON Schema and exit (bare: this command, =tree: full subtree)
 #       --mcp          serve MCP over stdio
 ```
 
@@ -130,7 +130,7 @@ Instead of scraping `--help` and guessing, an agent can discover the contract, c
 
 ```go
 structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
-structcli.SetupHelpTopics(rootCmd)  // "mycli help env-vars" and "mycli help config-keys"
+structcli.SetupHelpTopics(rootCmd, helptopics.Options{ReferenceSection: true})  // "mycli env-vars" and "mycli config-keys"
 structcli.SetupFlagErrors(rootCmd)  // Optional, but recommended for typed flag-parse errors
 structcli.SetupMCP(rootCmd, mcp.Options{}) // Optional, exposes the CLI as an MCP server over stdio
 structcli.ExecuteOrExit(rootCmd)
@@ -138,8 +138,8 @@ structcli.ExecuteOrExit(rootCmd)
 
 With that wiring:
 
-- `--jsonschema` exposes flags, defaults, required inputs, enums, and env bindings across the command tree
-- `help env-vars` and `help config-keys` list every environment variable binding and config file key across the command tree
+- `--jsonschema` exposes flags, defaults, required inputs, enums, and env bindings for the current command; `--jsonschema=tree` dumps the entire subtree in one call
+- `mycli env-vars` and `mycli config-keys` list every environment variable binding and config file key across the command tree
 - `HandleError` / `ExecuteOrExit` emit structured JSON errors instead of forcing callers to parse human-oriented output
 - `--mcp` exposes the same command tree as MCP tools over stdio, with typed inputs and structured tool-call failures
 - semantic exit codes tell the caller whether it should fix input, fix config, retry, or escalate to a human
@@ -154,14 +154,27 @@ $ mycli srv --jsonschema
       "type": "integer",
       "default": 3000,
       "x-structcli-env-vars": ["MYCLI_SRV_PORT"]
+    },
+    "secret-key": {
+      "type": "string",
+      "x-structcli-env-vars": ["MYCLI_SRV_SECRET_KEY"],
+      "x-structcli-env-only": true
     }
-  }
+  },
+  "x-structcli-config-flag": "config"
 }
+```
+
+Use `--jsonschema=tree` to dump the entire command subtree in a single call — no need to invoke each subcommand separately:
+
+```console
+$ mycli --jsonschema=tree   # JSON array of schemas for all commands
+$ mycli srv --jsonschema=tree  # schemas for srv + its subcommands
 ```
 
 No `--help` parsing. No guessing what failed. Just a CLI that can explain itself and fail in machine-actionable ways.
 
-Use `exitcode.Category(code)` and `exitcode.IsRetryable(code)` to decide what to do next. See `jsonschema.WithFullTree()` and `jsonschema.WithEnumInDescription()` for schema customization, and pass the same schema options through `SetupJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
+Use `exitcode.Category(code)` and `exitcode.IsRetryable(code)` to decide what to do next. See `jsonschema.WithEnumInDescription()` for schema customization, and pass schema options through `SetupJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
 
 For CLIs that capture output streams during command construction, configure `mcp.Options.CommandFactory` so each MCP tool call builds a fresh command with the tool-call stdout and stderr writers. This keeps MCP protocol output separate from command output while preserving the existing command tree schema. If the command constructor requires stdin, the factory can wire a non-interactive reader such as `strings.NewReader("")`.
 
@@ -462,12 +475,14 @@ The flag can also be activated via environment variable: `FULL_DEBUG_OPTIONS=jso
 `SetupHelpTopics` adds two help topic commands that list every environment variable binding and every valid configuration file key across the command tree.
 
 ```go
-structcli.SetupHelpTopics(rootCmd)
+structcli.SetupHelpTopics(rootCmd, helptopics.Options{})
 ```
 
 Call this after all subcommands and flags are defined (typically right before `ExecuteOrExit`).
 
-**Environment variable listing** — `mycli help env-vars`:
+By default the commands appear as regular subcommands under "Available Commands:". Set `ReferenceSection: true` to move them into a dedicated "Reference:" section instead.
+
+**Environment variable listing** — `mycli env-vars`:
 
 ```
 Environment Variables
@@ -480,7 +495,7 @@ Environment Variables
     MYCLI_SERVE_PORT  --port  int            8080
 ```
 
-**Configuration key listing** — `mycli help config-keys`:
+**Configuration key listing** — `mycli config-keys`:
 
 ```
 Configuration Keys
@@ -500,7 +515,9 @@ Configuration Keys
   Keys can be nested under the command name in the config file.
 ```
 
-Both topics appear under "Additional help topics:" in `--help` output. Flags marked `flagenv:"only"` show an `(env-only)` suffix in the env-vars listing and are excluded from config-keys (since they are hidden). Config keys derived from embedded struct field paths appear as aliases (e.g., `database.maxconns` → `alias for --database.maxconns`).
+With `ReferenceSection: true`, both topics appear under "Reference:" in `--help` output instead of "Available Commands:". Flags marked `flagenv:"only"` show an `(env-only)` suffix in the env-vars listing and are excluded from config-keys (since they are hidden). Config keys derived from embedded struct field paths appear as aliases (e.g., `database.maxconns` → `alias for --database.maxconns`).
+
+For machine-readable cross-tree data, use `--jsonschema=tree` instead — it provides the same information in structured JSON.
 
 ### ↪️ Sharing Options Between Commands
 
@@ -810,7 +827,11 @@ Organize your `--help` output into logical groups for better readability.
 # Global Flags:
 #       --config string                   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full,...}/config.{yaml,json,toml})
 #       --debug-options string[="text"]   debug output format (text, json)
-#       --jsonschema                      output JSON Schema for this command and exit
+#       --jsonschema string[="true"]      output JSON Schema and exit (bare: this command, =tree: full subtree)
+#
+# Reference:
+#   config-keys List all configuration file keys
+#   env-vars    List all environment variable bindings
 ```
 
 ```bash
@@ -855,7 +876,7 @@ Organize your `--help` output into logical groups for better readability.
 # Global Flags:
 #       --config string                   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full,...}/config.{yaml,json,toml})
 #       --debug-options string[="text"]   debug output format (text, json)
-#       --jsonschema                      output JSON Schema for this command and exit
+#       --jsonschema string[="true"]      output JSON Schema and exit (bare: this command, =tree: full subtree)
 #
 # Use "full srv [command] --help" for more information about a command.
 ```
