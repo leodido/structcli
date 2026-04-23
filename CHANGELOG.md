@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-04-23
+
+### Added
+- `Makefile` with `make release VERSION=X.Y.Z` target — bumps version constant, updates example go.mod, regenerates files, commits, tags, and pushes.
+
+### Fixed
+- CI workflows no longer fail after a release due to Go checksum DB lag (`GONOSUMCHECK` for self-referencing example module).
+- Release process now regenerates `SKILL.md` and stages `go.work.sum` to prevent stale generated files.
+
 ## [0.16.0] - 2026-04-23
 
 ### Added
@@ -160,7 +169,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `ResetGlobals()` to `Reset()`.
 
-[Unreleased]: https://github.com/leodido/structcli/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/leodido/structcli/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/leodido/structcli/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/leodido/structcli/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/leodido/structcli/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/leodido/structcli/compare/v0.13.0...v0.14.0
