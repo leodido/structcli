@@ -97,7 +97,7 @@ type Options struct {
 #
 # Global Flags:
 #       --jsonschema string[="true"]   output JSON Schema and exit (bare: this command, =tree: full subtree)
-#       --mcp          serve MCP over stdio
+#       --mcp                          serve MCP over stdio
 ```
 
 ```bash
