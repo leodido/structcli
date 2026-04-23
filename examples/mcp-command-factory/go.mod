@@ -3,7 +3,7 @@ module github.com/leodido/structcli/examples/mcp-command-factory
 go 1.24.0
 
 require (
-	github.com/leodido/structcli v0.16.0
+	github.com/leodido/structcli v0.16.1
 	github.com/spf13/cobra v1.9.1
 )
 
