@@ -542,7 +542,8 @@ func renderJSONSchemaIfRequested(c *cobra.Command, flagName string, cfg *jsonsch
 	opts := schemaOptsFromConfig(cfg)
 
 	// "tree" walks from the current command downward.
-	if strings.EqualFold(flagValue, "tree") {
+	// Skip if cfg already has FullTree to avoid adding the option twice.
+	if strings.EqualFold(flagValue, "tree") && (cfg == nil || !cfg.FullTree) {
 		opts = append(opts, jsonschema.WithFullTree())
 	}
 
