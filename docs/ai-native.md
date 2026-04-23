@@ -10,7 +10,7 @@ Agents do not need to scrape `--help` and guess. They can ask the CLI for its co
 rootCmd := &cobra.Command{Use: "mycli"}
 
 structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
-structcli.SetupHelpTopics(rootCmd)  // "mycli help env-vars" and "mycli help config-keys"
+structcli.SetupHelpTopics(rootCmd, helptopics.Options{ReferenceSection: true})  // "mycli env-vars" and "mycli config-keys"
 structcli.SetupFlagErrors(rootCmd)  // Optional, but recommended
 structcli.SetupMCP(rootCmd, mcp.Options{}) // Optional, exposes the CLI as an MCP server over stdio
 structcli.ExecuteOrExit(rootCmd)
@@ -20,16 +20,26 @@ Use `ExecuteOrExit` when you want the simplest production `main()`. Use `HandleE
 
 ## Machine-readable self-description
 
-`SetupJSONSchema` adds a `--jsonschema` flag to the root command. When requested, structcli prints a JSON Schema (draft 2020-12) for the command being invoked.
+`SetupJSONSchema` adds a `--jsonschema` persistent flag to the root command. When requested, structcli prints a JSON Schema (draft 2020-12) for the command being invoked.
 
-That schema can describe:
+That schema includes:
 
 - flag names and types
 - defaults
 - required inputs
 - enum constraints
-- env var bindings
-- command-aware tree structure
+- env var bindings (`x-structcli-env-vars`)
+- env-only markers (`x-structcli-env-only`)
+- config flag name (`x-structcli-config-flag`)
+- struct field paths (`x-structcli-field-path`)
+
+Use `--jsonschema=tree` to dump the entire command subtree in a single call:
+
+```console
+$ mycli --jsonschema=tree     # all commands
+$ mycli srv --jsonschema=tree # srv + its subcommands
+$ mycli srv --jsonschema      # srv only (default)
+```
 
 Example excerpt:
 
@@ -40,8 +50,14 @@ Example excerpt:
       "type": "integer",
       "default": 3000,
       "x-structcli-env-vars": ["MYCLI_SRV_PORT"]
+    },
+    "secret-key": {
+      "type": "string",
+      "x-structcli-env-vars": ["MYCLI_SRV_SECRET_KEY"],
+      "x-structcli-env-only": true
     }
   },
+  "x-structcli-config-flag": "config",
   "required": ["port"]
 }
 ```
@@ -54,13 +70,13 @@ Programmatic APIs:
 
 ## Human-readable help topics
 
-`SetupHelpTopics` adds two help topic commands to the root: `help env-vars` and `help config-keys`. These list every environment variable binding and every valid configuration file key across the command tree.
+`SetupHelpTopics` adds two reference commands to the root: `env-vars` and `config-keys`. These list every environment variable binding and every valid configuration file key across the command tree.
 
 Unlike `--jsonschema` (machine-readable), help topics produce plain text grouped by command with aligned columns — useful for humans and for agents that prefer scanning text over parsing JSON.
 
-- Flags with `flagenv:"only"` show an `(env-only)` suffix in `help env-vars` and are excluded from `help config-keys`.
+- Flags with `flagenv:"only"` show an `(env-only)` suffix in `env-vars` and are excluded from `config-keys`.
 - Config keys derived from embedded struct paths appear as aliases.
-- Both topics appear under "Additional help topics:" in `--help` output.
+- By default, help topics appear as regular subcommands. Set `ReferenceSection: true` to move them into a dedicated "Reference:" section in `--help` output.
 
 Call `SetupHelpTopics` after all subcommands and flags are defined.
 
@@ -216,8 +232,9 @@ See the [structured error example](../examples/structerr/README.md) for a runnab
 
 | Need | Tool |
 |------|------|
-| Runtime self-description | `SetupJSONSchema` |
-| Env var / config key reference | `SetupHelpTopics` |
+| Runtime self-description (single command) | `--jsonschema` |
+| Cross-tree structured data (all commands) | `--jsonschema=tree` |
+| Env var / config key reference (human-readable) | `SetupHelpTopics` |
 | Live agent tool access | `SetupMCP` |
 | Better flag-parse errors | `SetupFlagErrors` |
 | Manual error formatting | `HandleError` |
