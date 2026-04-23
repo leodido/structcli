@@ -438,6 +438,11 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 		return nil, err
 	}
 
+	// Add "help env-vars" and "help config-keys" help topics
+	if err := structcli.SetupHelpTopics(rootC); err != nil {
+		return nil, err
+	}
+
 	return rootC, nil
 }
 

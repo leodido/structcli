@@ -130,7 +130,8 @@ Instead of scraping `--help` and guessing, an agent can discover the contract, c
 
 ```go
 structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
-structcli.SetupFlagErrors(rootCmd) // Optional, but recommended for typed flag-parse errors
+structcli.SetupHelpTopics(rootCmd)  // "mycli help env-vars" and "mycli help config-keys"
+structcli.SetupFlagErrors(rootCmd)  // Optional, but recommended for typed flag-parse errors
 structcli.SetupMCP(rootCmd, mcp.Options{}) // Optional, exposes the CLI as an MCP server over stdio
 structcli.ExecuteOrExit(rootCmd)
 ```
@@ -138,6 +139,7 @@ structcli.ExecuteOrExit(rootCmd)
 With that wiring:
 
 - `--jsonschema` exposes flags, defaults, required inputs, enums, and env bindings across the command tree
+- `help env-vars` and `help config-keys` list every environment variable binding and config file key across the command tree
 - `HandleError` / `ExecuteOrExit` emit structured JSON errors instead of forcing callers to parse human-oriented output
 - `--mcp` exposes the same command tree as MCP tools over stdio, with typed inputs and structured tool-call failures
 - semantic exit codes tell the caller whether it should fix input, fix config, retry, or escalate to a human
@@ -454,6 +456,51 @@ The flag accepts `text` (default when used bare) or `json` for machine-readable 
 Source attribution resolves each flag to `flag` (CLI), `env`, `config`, or `default`. For env-sourced flags, the text output includes the variable name (e.g., `(env: MYAPP_LOG_LEVEL)`).
 
 The flag can also be activated via environment variable: `FULL_DEBUG_OPTIONS=json`.
+
+### 📋 Self-Documenting Help Topics
+
+`SetupHelpTopics` adds two help topic commands that list every environment variable binding and every valid configuration file key across the command tree.
+
+```go
+structcli.SetupHelpTopics(rootCmd)
+```
+
+Call this after all subcommands and flags are defined (typically right before `ExecuteOrExit`).
+
+**Environment variable listing** — `mycli help env-vars`:
+
+```
+Environment Variables
+
+  mycli (global):
+    MYCLI_VERBOSE  --verbose  bool           false
+
+  mycli serve:
+    MYCLI_SERVE_HOST  --host  string         localhost
+    MYCLI_SERVE_PORT  --port  int            8080
+```
+
+**Configuration key listing** — `mycli help config-keys`:
+
+```
+Configuration Keys
+
+  Config flag: --config
+  Supported formats: yaml, json, toml. Searches: $HOME/.mycli, /etc/mycli
+
+  mycli (global):
+    output   --output   string         text
+    verbose  --verbose  bool           false
+
+  mycli serve:
+    host      --host      string         localhost
+    port      --port      int            8080
+    tls-cert  --tls-cert  string         ""
+
+  Keys can be nested under the command name in the config file.
+```
+
+Both topics appear under "Additional help topics:" in `--help` output. Flags marked `flagenv:"only"` show an `(env-only)` suffix in the env-vars listing and are excluded from config-keys (since they are hidden). Config keys derived from embedded struct field paths appear as aliases (e.g., `database.maxconns` → `alias for --database.maxconns`).
 
 ### ↪️ Sharing Options Between Commands
 

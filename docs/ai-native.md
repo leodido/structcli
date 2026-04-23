@@ -10,7 +10,8 @@ Agents do not need to scrape `--help` and guess. They can ask the CLI for its co
 rootCmd := &cobra.Command{Use: "mycli"}
 
 structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
-structcli.SetupFlagErrors(rootCmd) // Optional, but recommended
+structcli.SetupHelpTopics(rootCmd)  // "mycli help env-vars" and "mycli help config-keys"
+structcli.SetupFlagErrors(rootCmd)  // Optional, but recommended
 structcli.SetupMCP(rootCmd, mcp.Options{}) // Optional, exposes the CLI as an MCP server over stdio
 structcli.ExecuteOrExit(rootCmd)
 ```
@@ -50,6 +51,18 @@ Programmatic APIs:
 - `structcli.JSONSchema(cmd, jsonschema.WithFullTree())`
 - `jsonschema.WithEnumInDescription()`
 - `jsonschema.Options{SchemaOpts: ...}` passed through `SetupJSONSchema`
+
+## Human-readable help topics
+
+`SetupHelpTopics` adds two help topic commands to the root: `help env-vars` and `help config-keys`. These list every environment variable binding and every valid configuration file key across the command tree.
+
+Unlike `--jsonschema` (machine-readable), help topics produce plain text grouped by command with aligned columns — useful for humans and for agents that prefer scanning text over parsing JSON.
+
+- Flags with `flagenv:"only"` show an `(env-only)` suffix in `help env-vars` and are excluded from `help config-keys`.
+- Config keys derived from embedded struct paths appear as aliases.
+- Both topics appear under "Additional help topics:" in `--help` output.
+
+Call `SetupHelpTopics` after all subcommands and flags are defined.
 
 ## MCP server mode
 
@@ -204,6 +217,7 @@ See the [structured error example](../examples/structerr/README.md) for a runnab
 | Need | Tool |
 |------|------|
 | Runtime self-description | `SetupJSONSchema` |
+| Env var / config key reference | `SetupHelpTopics` |
 | Live agent tool access | `SetupMCP` |
 | Better flag-parse errors | `SetupFlagErrors` |
 | Manual error formatting | `HandleError` |
