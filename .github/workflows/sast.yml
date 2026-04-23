@@ -48,6 +48,7 @@ jobs:
 
       - name: Build
         env:
+          GONOSUMDB: github.com/leodido/structcli
           GONOSUMCHECK: github.com/leodido/structcli
         run: |
             go mod download
