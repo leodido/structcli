@@ -47,6 +47,8 @@ jobs:
           queries: security-and-quality
 
       - name: Build
+        env:
+          GONOSUMCHECK: github.com/leodido/structcli
         run: |
             go mod download
             go build -v ./...
