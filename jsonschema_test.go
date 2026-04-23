@@ -6,6 +6,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/leodido/structcli/config"
 	"github.com/leodido/structcli/jsonschema"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -775,3 +776,236 @@ func TestJSONSchema_FullTreeOption(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, schemas, 2, "full tree should include root and subcommand")
 }
+
+type jsonSchemaEnvOnlyOptions struct {
+	Secret string `flagenv:"only" flag:"secret" flagdescr:"a secret"`
+	Port   int    `flag:"port" flagdescr:"port" flagenv:"true"`
+}
+
+func (o *jsonSchemaEnvOnlyOptions) Attach(c *cobra.Command) error { return nil }
+
+type jsonSchemaSimpleOptions struct {
+	Port int `flag:"port" flagdescr:"port"`
+}
+
+func (o *jsonSchemaSimpleOptions) Attach(c *cobra.Command) error { return nil }
+
+type jsonSchemaVerboseOptions struct {
+	Verbose bool `flag:"verbose" flagdescr:"verbose"`
+}
+
+func (o *jsonSchemaVerboseOptions) Attach(c *cobra.Command) error { return nil }
+
+type jsonSchemaPortOptions struct {
+	Port int `flag:"port" flagdescr:"port" default:"8080"`
+}
+
+func (o *jsonSchemaPortOptions) Attach(c *cobra.Command) error { return nil }
+
+type jsonSchemaNameOptions struct {
+	Name string `flag:"name" flagdescr:"cluster name"`
+}
+
+func (o *jsonSchemaNameOptions) Attach(c *cobra.Command) error { return nil }
+
+type jsonSchemaPortEnvOptions struct {
+	Port int `flag:"port" flagdescr:"port" flagenv:"true"`
+}
+
+func (o *jsonSchemaPortEnvOptions) Attach(c *cobra.Command) error { return nil }
+
+func TestJSONSchema_EnvOnlyExtension(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+	SetEnvPrefix("APP")
+	t.Cleanup(func() { SetEnvPrefix("") })
+
+	root := &cobra.Command{Use: "app", SilenceErrors: true, SilenceUsage: true}
+	require.NoError(t, Define(root, &jsonSchemaEnvOnlyOptions{}))
+
+	schemas, err := JSONSchema(root)
+	require.NoError(t, err)
+	require.Len(t, schemas, 1)
+
+	secretFlag := schemas[0].Flags["secret"]
+	require.NotNil(t, secretFlag)
+	assert.True(t, secretFlag.EnvOnly, "secret should be marked env-only")
+
+	portFlag := schemas[0].Flags["port"]
+	require.NotNil(t, portFlag)
+	assert.False(t, portFlag.EnvOnly, "port should not be marked env-only")
+
+	// Verify it appears in JSON Schema output.
+	output, err := schemas[0].ToJSONSchema()
+	require.NoError(t, err)
+
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal(output, &schema))
+
+	props := schema["properties"].(map[string]any)
+	secretProp := props["secret"].(map[string]any)
+	assert.Equal(t, true, secretProp["x-structcli-env-only"])
+
+	portProp := props["port"].(map[string]any)
+	_, hasEnvOnly := portProp["x-structcli-env-only"]
+	assert.False(t, hasEnvOnly, "non-env-only flag should omit x-structcli-env-only")
+}
+
+func TestJSONSchema_ConfigFlagExtension(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+	SetEnvPrefix("APP")
+	t.Cleanup(func() { SetEnvPrefix("") })
+
+	root := &cobra.Command{Use: "app", SilenceErrors: true, SilenceUsage: true}
+	require.NoError(t, Define(root, &jsonSchemaSimpleOptions{}))
+
+	// Without SetupConfig, no config flag annotation.
+	schemas, err := JSONSchema(root)
+	require.NoError(t, err)
+	assert.Empty(t, schemas[0].ConfigFlag)
+
+	output, err := schemas[0].ToJSONSchema()
+	require.NoError(t, err)
+
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal(output, &schema))
+	_, hasConfigFlag := schema["x-structcli-config-flag"]
+	assert.False(t, hasConfigFlag, "should not have config flag without SetupConfig")
+
+	// With SetupConfig, config flag annotation should appear.
+	viper.Reset()
+	root2 := &cobra.Command{Use: "app", SilenceErrors: true, SilenceUsage: true}
+	require.NoError(t, Define(root2, &jsonSchemaSimpleOptions{}))
+	require.NoError(t, SetupConfig(root2, config.Options{AppName: "app", FlagName: "config"}))
+
+	schemas2, err := JSONSchema(root2)
+	require.NoError(t, err)
+	assert.Equal(t, "config", schemas2[0].ConfigFlag)
+
+	output2, err := schemas2[0].ToJSONSchema()
+	require.NoError(t, err)
+
+	var schema2 map[string]any
+	require.NoError(t, json.Unmarshal(output2, &schema2))
+	assert.Equal(t, "config", schema2["x-structcli-config-flag"])
+}
+
+func TestSetupJSONSchema_TreeMode(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+	SetEnvPrefix("APP")
+	t.Cleanup(func() { SetEnvPrefix("") })
+
+	root := &cobra.Command{
+		Use: "app", SilenceErrors: true, SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+	require.NoError(t, Define(root, &jsonSchemaVerboseOptions{}))
+
+	sub := &cobra.Command{
+		Use: "serve", Short: "start server",
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+	require.NoError(t, Define(sub, &jsonSchemaPortOptions{}))
+	root.AddCommand(sub)
+
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+
+	// Bare --jsonschema: single command.
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"--jsonschema"})
+	require.NoError(t, root.Execute())
+
+	var single map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &single))
+	assert.Equal(t, "app", single["title"])
+
+	// --jsonschema=tree: array of all commands.
+	out.Reset()
+	root.SetArgs([]string{"--jsonschema=tree"})
+	require.NoError(t, root.Execute())
+
+	var tree []map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &tree))
+	require.GreaterOrEqual(t, len(tree), 2)
+
+	titles := make([]string, len(tree))
+	for i, s := range tree {
+		titles[i] = s["title"].(string)
+	}
+	assert.Contains(t, titles, "app")
+	assert.Contains(t, titles, "app serve")
+}
+
+func TestSetupJSONSchema_TreeOnSubcommand(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+	SetEnvPrefix("APP")
+	t.Cleanup(func() { SetEnvPrefix("") })
+
+	root := &cobra.Command{Use: "app", SilenceErrors: true, SilenceUsage: true}
+
+	parent := &cobra.Command{
+		Use: "cluster", Short: "cluster mgmt",
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(parent)
+
+	child := &cobra.Command{
+		Use: "create", Short: "create cluster",
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+	require.NoError(t, Define(child, &jsonSchemaNameOptions{}))
+	parent.AddCommand(child)
+
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+
+	// --jsonschema=tree on a subcommand walks from that command down.
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"cluster", "--jsonschema=tree"})
+	require.NoError(t, root.Execute())
+
+	var tree []map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &tree))
+
+	titles := make([]string, len(tree))
+	for i, s := range tree {
+		titles[i] = s["title"].(string)
+	}
+	assert.Contains(t, titles, "app cluster")
+	assert.Contains(t, titles, "app cluster create")
+	assert.NotContains(t, titles, "app", "should not include root when tree starts from subcommand")
+}
+
+func TestSetupJSONSchema_TreeExcludesHelpTopics(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+	SetEnvPrefix("APP")
+	t.Cleanup(func() { SetEnvPrefix("") })
+
+	root := &cobra.Command{
+		Use: "app", SilenceErrors: true, SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+	require.NoError(t, Define(root, &jsonSchemaPortEnvOptions{}))
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+	require.NoError(t, SetupHelpTopics(root))
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"--jsonschema=tree"})
+	require.NoError(t, root.Execute())
+
+	var tree []map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &tree))
+
+	for _, s := range tree {
+		title := s["title"].(string)
+		assert.NotContains(t, title, "env-vars", "help topic commands should not appear in tree")
+		assert.NotContains(t, title, "config-keys", "help topic commands should not appear in tree")
+	}
+}
+
