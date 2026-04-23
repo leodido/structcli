@@ -42,11 +42,6 @@ jobs:
           env
 
       - name: Run tests
-        env:
-          # The mcp-command-factory example requires the parent module at the
-          # latest tag which may not be on sum.golang.org yet after a release.
-          # The go.work workspace resolves it locally; skip checksum verification.
-          GONOSUMCHECK: github.com/leodido/structcli
         run: |
           PKGS=$(go list ./... | tr '\n' ',')
           echo "mode: atomic" > coverage.out
@@ -81,8 +76,6 @@ jobs:
           check-latest: true
 
       - name: Verify generated files are up to date
-        env:
-          GONOSUMCHECK: github.com/leodido/structcli
         run: |
           (cd examples/full && go generate ./...)
           if ! git diff --quiet examples/full/; then
