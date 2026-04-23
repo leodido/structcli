@@ -1010,3 +1010,26 @@ func TestSetupJSONSchema_TreeExcludesHelpTopics(t *testing.T) {
 	}
 }
 
+func TestSetupJSONSchema_ErrorOnHelpTopicCommand(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+	SetEnvPrefix("APP")
+	t.Cleanup(func() { SetEnvPrefix("") })
+
+	root := &cobra.Command{
+		Use: "app", SilenceErrors: true, SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+	require.NoError(t, Define(root, &jsonSchemaPortEnvOptions{}))
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+	require.NoError(t, SetupHelpTopics(root, helptopics.Options{}))
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"env-vars", "--jsonschema"})
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not supported on help topic commands")
+}
+

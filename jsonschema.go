@@ -539,6 +539,10 @@ func renderJSONSchemaIfRequested(c *cobra.Command, flagName string, cfg *jsonsch
 		return false, nil, nil
 	}
 
+	if IsHelpTopicCommand(c) {
+		return true, nil, fmt.Errorf("--jsonschema is not supported on help topic commands (try it on the parent command, or use --jsonschema=tree on root)")
+	}
+
 	opts := schemaOptsFromConfig(cfg)
 
 	// "tree" walks from the current command downward.
