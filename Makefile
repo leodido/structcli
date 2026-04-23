@@ -26,10 +26,11 @@ endif
 	@echo "==> Releasing v$(VERSION)"
 	@# 1. Bump version.go
 	@sed -i 's/const Version = ".*"/const Version = "$(VERSION)"/' version.go
-	@# 2. Bump mcp-command-factory example
-	@sed -i 's|github.com/leodido/structcli v[0-9.]*|github.com/leodido/structcli v$(VERSION)|' examples/mcp-command-factory/go.mod
-	@# 3. Regenerate
+	@# 2. Regenerate (before bumping the example go.mod, so the workspace
+	@#    doesn't try to resolve a version that doesn't exist on the proxy yet)
 	@(cd examples/full && go generate ./...)
+	@# 3. Bump mcp-command-factory example
+	@sed -i 's|github.com/leodido/structcli v[0-9.]*|github.com/leodido/structcli v$(VERSION)|' examples/mcp-command-factory/go.mod
 	@# 4. Commit, tag, push
 	@git add version.go examples/mcp-command-factory/go.mod examples/full/ go.work.sum
 	@git diff --quiet || (echo "error: unstaged changes remain after regeneration — stage them and retry" && git diff --stat && exit 1)
