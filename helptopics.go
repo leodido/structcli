@@ -5,35 +5,73 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/leodido/structcli/helptopics"
 	internalenv "github.com/leodido/structcli/internal/env"
+	internalusage "github.com/leodido/structcli/internal/usage"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-// SetupHelpTopics adds "env-vars" and "config-keys" help topic commands to the
-// root command. These appear under "Additional help topics:" in --help output
-// and are accessible via "mycli help env-vars" and "mycli help config-keys".
+// SetupHelpTopics adds "env-vars" and "config-keys" reference commands to the
+// root command. By default they appear as regular subcommands under "Available
+// Commands:". Set ReferenceSection to move them into a dedicated "Reference:"
+// section.
 //
-// Call this after all subcommands and flags are defined (typically right before
-// ExecuteOrExit).
-func SetupHelpTopics(rootC *cobra.Command) error {
+// Text is generated lazily at invocation time, so commands added after this
+// call are included.
+func SetupHelpTopics(rootC *cobra.Command, opts helptopics.Options) error {
 	if rootC.Parent() != nil {
 		return fmt.Errorf("SetupHelpTopics must be called on the root command")
 	}
 
-	rootC.AddCommand(&cobra.Command{
+	if opts.ReferenceSection {
+		if rootC.Annotations == nil {
+			rootC.Annotations = map[string]string{}
+		}
+		rootC.Annotations[internalusage.HelpTopicReferenceSection] = "true"
+	}
+
+	envVarsCmd := &cobra.Command{
 		Use:   "env-vars",
 		Short: "List all environment variable bindings",
-		Long:  buildEnvVarsTopic(rootC),
-	})
+		Long:  "Show every flag-to-environment-variable mapping across all commands.",
+		Annotations: map[string]string{
+			internalusage.HelpTopicAnnotation: "true",
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			fmt.Fprint(cmd.OutOrStdout(), buildEnvVarsTopic(rootC))
 
-	rootC.AddCommand(&cobra.Command{
+			return nil
+		},
+	}
+	rootC.AddCommand(envVarsCmd)
+
+	configKeysCmd := &cobra.Command{
 		Use:   "config-keys",
 		Short: "List all configuration file keys",
-		Long:  buildConfigKeysTopic(rootC),
-	})
+		Long:  "Show every valid configuration file key across all commands.",
+		Annotations: map[string]string{
+			internalusage.HelpTopicAnnotation: "true",
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			fmt.Fprint(cmd.OutOrStdout(), buildConfigKeysTopic(rootC))
+
+			return nil
+		},
+	}
+	rootC.AddCommand(configKeysCmd)
 
 	return nil
+}
+
+// IsHelpTopicCommand returns true if the command was registered by SetupHelpTopics.
+func IsHelpTopicCommand(c *cobra.Command) bool {
+	if c.Annotations == nil {
+		return false
+	}
+	_, ok := c.Annotations[internalusage.HelpTopicAnnotation]
+
+	return ok
 }
 
 // commandEnvBinding represents a single flag's env var binding.
@@ -175,7 +213,7 @@ func walkCommands(c *cobra.Command, fn func(c *cobra.Command, path string)) {
 
 func walkSubcommands(parent *cobra.Command, fn func(c *cobra.Command, path string)) {
 	for _, child := range parent.Commands() {
-		if child.IsAdditionalHelpTopicCommand() || !child.IsAvailableCommand() {
+		if IsHelpTopicCommand(child) || child.IsAdditionalHelpTopicCommand() || !child.IsAvailableCommand() {
 			continue
 		}
 		fn(child, child.CommandPath())

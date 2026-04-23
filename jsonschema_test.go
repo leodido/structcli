@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leodido/structcli/config"
+	"github.com/leodido/structcli/helptopics"
 	"github.com/leodido/structcli/jsonschema"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -992,7 +993,7 @@ func TestSetupJSONSchema_TreeExcludesHelpTopics(t *testing.T) {
 	}
 	require.NoError(t, Define(root, &jsonSchemaPortEnvOptions{}))
 	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
-	require.NoError(t, SetupHelpTopics(root))
+	require.NoError(t, SetupHelpTopics(root, helptopics.Options{}))
 
 	var out bytes.Buffer
 	root.SetOut(&out)

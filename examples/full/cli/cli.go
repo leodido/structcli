@@ -13,6 +13,7 @@ import (
 	"github.com/leodido/structcli/config"
 	"github.com/leodido/structcli/debug"
 	"github.com/leodido/structcli/flagkit"
+	"github.com/leodido/structcli/helptopics"
 	"github.com/leodido/structcli/jsonschema"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
@@ -438,8 +439,8 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	// Add "help env-vars" and "help config-keys" help topics
-	if err := structcli.SetupHelpTopics(rootC); err != nil {
+	// Add "env-vars" and "config-keys" reference commands
+	if err := structcli.SetupHelpTopics(rootC, helptopics.Options{ReferenceSection: true}); err != nil {
 		return nil, err
 	}
 
