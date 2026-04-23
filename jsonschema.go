@@ -545,9 +545,17 @@ func renderJSONSchemaIfRequested(c *cobra.Command, flagName string, cfg *jsonsch
 
 	opts := schemaOptsFromConfig(cfg)
 
-	// "tree" walks from the current command downward.
-	if strings.EqualFold(flagValue, "tree") {
-		opts = append(opts, jsonschema.WithFullTree())
+	switch strings.ToLower(flagValue) {
+	case "true", "":
+		// bare --jsonschema: single-command schema (default)
+	case "tree":
+		// Only append WithFullTree if the config doesn't already have it,
+		// avoiding a redundant duplicate when SchemaOpts includes WithFullTree().
+		if cfg == nil || !cfg.FullTree {
+			opts = append(opts, jsonschema.WithFullTree())
+		}
+	default:
+		return true, nil, fmt.Errorf("unknown --jsonschema value %q (valid: bare flag or =tree)", flagValue)
 	}
 
 	schemas, err := JSONSchema(c, opts...)
