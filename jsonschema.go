@@ -498,6 +498,10 @@ func SetupJSONSchema(rootC *cobra.Command, opts jsonschema.Options) error {
 	}
 	rootC.Annotations[jsonSchemaFlagAnnotation] = flagName
 
+	// Ensure the root command is runnable so cobra calls PreRunE (where
+	// interception happens) instead of short-circuiting to Help().
+	internalcmd.EnsureRunnable(rootC)
+
 	// Wrap right before execution so commands and hooks added after setup are
 	// still intercepted before Cobra validates args and required flags.
 	cobra.OnInitialize(func() {

@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	internaldebug "github.com/leodido/structcli/internal/debug"
+	internalusage "github.com/leodido/structcli/internal/usage"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -96,6 +97,30 @@ func resetFlags(root *cobra.Command) {
 		}
 	}
 	walk(root)
+}
+
+// EnsureRunnable sets a synthetic RunE on the command if it has no Run/RunE.
+// This prevents cobra from short-circuiting to Help() before PreRunE fires,
+// which is where execution interception (--jsonschema, --debug-options, etc.)
+// happens. The synthetic RunE falls through to cmd.Help() so the user-visible
+// behavior is unchanged.
+//
+// The command is annotated with SyntheticRunAnnotation so the usage template
+// can suppress the bare usage line (avoiding a misleading "app" line that
+// implies the root is directly invocable).
+//
+// Safe to call multiple times — idempotent. Subsequent Setup* calls and
+// RecursivelyWrapExecution will wrap the synthetic RunE like any other.
+func EnsureRunnable(c *cobra.Command) {
+	if c.RunE == nil && c.Run == nil {
+		if c.Annotations == nil {
+			c.Annotations = map[string]string{}
+		}
+		c.Annotations[internalusage.SyntheticRunAnnotation] = "true"
+		c.RunE = func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		}
+	}
 }
 
 func RecursivelyWrapExecution(c *cobra.Command, interceptor ExecutionInterceptor) {
