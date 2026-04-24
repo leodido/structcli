@@ -182,6 +182,32 @@ func TestIsDebugActive_False(t *testing.T) {
 	assert.False(t, structcli.IsDebugActive(cmd))
 }
 
+func TestSetupDebug_WorksWithoutRunE(t *testing.T) {
+	// Verify that --debug-options on a root command without RunE/Run doesn't
+	// short-circuit to Help(). EnsureRunnable sets a synthetic RunE so cobra
+	// calls PreRunE, and RecursivelyWrapRun intercepts execution when debug
+	// is active (returning nil instead of running the original).
+	root := &cobra.Command{
+		Use:           "app",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+	}
+	require.NoError(t, structcli.SetupDebug(root, debug.Options{
+		AppName: "app",
+		Exit:    true,
+	}))
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"--debug-options"})
+	require.NoError(t, root.Execute())
+
+	output := out.String()
+	// The wrapped RunE returns nil when debug is active, so the synthetic
+	// Help() body never runs — output should be empty (no help text).
+	assert.NotContains(t, output, "Usage:", "debug interception should prevent help output")
+}
+
 func TestUseDebug_HiddenFlagsExcluded(t *testing.T) {
 	var buf bytes.Buffer
 	opts := &debugTestOptions{}

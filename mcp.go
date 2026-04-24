@@ -69,6 +69,8 @@ func SetupMCP(rootC *cobra.Command, opts structclimcp.Options) error {
 	}
 	rootC.Annotations[mcpFlagAnnotation] = cfg.flagName
 
+	internalcmd.EnsureRunnable(rootC)
+
 	// Wrap right before execution so commands and hooks added after setup are
 	// still intercepted before Cobra validates args and required flags.
 	cobra.OnInitialize(func() {

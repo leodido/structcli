@@ -1004,7 +1004,8 @@ func TestSetupJSONSchema_TreeExcludesHelpTopics(t *testing.T) {
 	require.NoError(t, json.Unmarshal(out.Bytes(), &tree))
 
 	for _, s := range tree {
-		title := s["title"].(string)
+		title, ok := s["title"].(string)
+		require.True(t, ok, "schema entry should have a string title")
 		assert.NotContains(t, title, "env-vars", "help topic commands should not appear in tree")
 		assert.NotContains(t, title, "config-keys", "help topic commands should not appear in tree")
 	}
@@ -1086,4 +1087,59 @@ func TestSetupJSONSchema_TreeFlagWithConfigFullTree(t *testing.T) {
 	var tree []json.RawMessage
 	require.NoError(t, json.Unmarshal(output, &tree))
 	assert.Len(t, tree, 2, "tree should contain root + sub")
+}
+
+func TestSetupJSONSchema_WorksWithoutRunE(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+	SetEnvPrefix("APP")
+	t.Cleanup(func() { SetEnvPrefix("") })
+
+	// Root command with no RunE/Run — the common case for CLI apps
+	// where the root just shows help.
+	root := &cobra.Command{
+		Use: "app", SilenceErrors: true, SilenceUsage: true,
+	}
+	sub := &cobra.Command{
+		Use:  "serve",
+		RunE: func(cmd *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(sub)
+	require.NoError(t, Define(root, &jsonSchemaPortEnvOptions{}))
+	require.NoError(t, SetupJSONSchema(root, jsonschema.Options{}))
+
+	// Bare --jsonschema on root (no RunE) should produce a schema.
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"--jsonschema"})
+	require.NoError(t, root.Execute())
+
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &schema))
+	assert.Equal(t, "app", schema["title"])
+
+	// --jsonschema=tree on root (no RunE) should produce a tree.
+	out.Reset()
+	root.SetArgs([]string{"--jsonschema=tree"})
+	require.NoError(t, root.Execute())
+
+	var tree []map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &tree))
+	// Tree includes root, serve, plus cobra's auto-generated completion/help commands.
+	titles := make([]string, 0, len(tree))
+	for _, s := range tree {
+		title, ok := s["title"].(string)
+		require.True(t, ok, "schema entry should have a string title")
+		titles = append(titles, title)
+	}
+	assert.Contains(t, titles, "app")
+	assert.Contains(t, titles, "app serve")
+
+	// Verify the usage template suppresses the bare usage line for synthetic RunE.
+	out.Reset()
+	root.SetArgs([]string{"--help"})
+	require.NoError(t, root.Execute())
+	helpOut := out.String()
+	assert.Contains(t, helpOut, "app [command]")
+	assert.NotContains(t, helpOut, "\n  app\n", "synthetic RunE should not add a bare usage line")
 }

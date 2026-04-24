@@ -1,6 +1,7 @@
 package internalcmd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -260,4 +261,70 @@ func TestRecursivelyWrapExecution_InterceptsWithoutRunningCommand(t *testing.T) 
 		require.Error(t, err)
 		assert.EqualError(t, err, "boom")
 	})
+}
+
+func TestEnsureRunnable_InterceptsCommandWithoutRunE(t *testing.T) {
+	RestoreInterceptedExecutions()
+	t.Cleanup(RestoreInterceptedExecutions)
+
+	intercepted := false
+	// Root has no RunE/Run — cobra would normally short-circuit to Help().
+	root := &cobra.Command{
+		Use:           "app",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+	}
+
+	EnsureRunnable(root)
+	RecursivelyWrapExecution(root, ExecutionInterceptor{
+		Annotation:      "structcli/test-wrapped",
+		ShouldIntercept: func(_ *cobra.Command) bool { return true },
+		Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
+			intercepted = true
+			return true, nil
+		},
+	})
+
+	require.NoError(t, root.Execute())
+	assert.True(t, intercepted, "interception should fire on commands without RunE")
+}
+
+func TestEnsureRunnable_ShowsHelpWhenNotIntercepted(t *testing.T) {
+	RestoreInterceptedExecutions()
+	t.Cleanup(RestoreInterceptedExecutions)
+
+	// Command without RunE/Run should show help when not intercepted.
+	root := &cobra.Command{
+		Use:   "app",
+		Short: "test app",
+	}
+
+	EnsureRunnable(root)
+	RecursivelyWrapExecution(root, ExecutionInterceptor{
+		Annotation:      "structcli/test-wrapped",
+		ShouldIntercept: func(_ *cobra.Command) bool { return false },
+		Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
+			return false, nil
+		},
+	})
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	require.NoError(t, root.Execute())
+	assert.Contains(t, out.String(), "test app", "should show help output")
+}
+
+func TestEnsureRunnable_NoopWhenRunEExists(t *testing.T) {
+	called := false
+	root := &cobra.Command{
+		Use: "app",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			called = true
+			return nil
+		},
+	}
+
+	EnsureRunnable(root)
+	require.NoError(t, root.Execute())
+	assert.True(t, called, "original RunE should still be called")
 }

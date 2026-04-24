@@ -47,8 +47,9 @@ func Setup(c *cobra.Command) {
 		var b strings.Builder
 
 		// Usage Line
+		syntheticRun := c.Annotations != nil && c.Annotations[SyntheticRunAnnotation] == "true"
 		b.WriteString("Usage:")
-		if c.Runnable() {
+		if c.Runnable() && !syntheticRun {
 			b.WriteString("\n  ")
 			b.WriteString(c.UseLine())
 		}

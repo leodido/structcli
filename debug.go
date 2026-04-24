@@ -70,6 +70,10 @@ func SetupDebug(rootC *cobra.Command, debugOpts debug.Options) error {
 
 	// Wrap all commands run hooks
 	if debugOpts.Exit {
+		// Ensure the root command is runnable so cobra calls PreRunE
+		// instead of short-circuiting to Help().
+		internalcmd.EnsureRunnable(rootC)
+
 		// Wrap already-registered commands now.
 		internalcmd.RecursivelyWrapRun(rootC)
 
