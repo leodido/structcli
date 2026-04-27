@@ -136,7 +136,15 @@ func autoLoadConfig(cmd *cobra.Command, configOnce *sync.Once) error {
 
 	var configErr error
 	configOnce.Do(func() {
-		_, _, configErr = UseConfigSimple(cmd)
+		_, message, err := UseConfigSimple(cmd)
+		if err != nil {
+			configErr = err
+
+			return
+		}
+		if message != "" {
+			cmd.Println(message)
+		}
 	})
 	if configErr != nil {
 		return fmt.Errorf("structcli: auto-load config: %w", configErr)
