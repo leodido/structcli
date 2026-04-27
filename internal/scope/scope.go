@@ -92,6 +92,15 @@ func (s *Scope) SetBound(flagName string) {
 	s.boundEnvs[flagName] = true
 }
 
+// ClearBoundEnv removes the bound marker for a single flag so that
+// BindEnv will re-bind it on the next call. Used by env annotation
+// patching when WithAppName retroactively updates env var names.
+func (s *Scope) ClearBoundEnv(flagName string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.boundEnvs, flagName)
+}
+
 // GetBoundEnvs is for testing purposes only
 func (s *Scope) GetBoundEnvs() map[string]bool {
 	s.mu.RLock()
