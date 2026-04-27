@@ -5,24 +5,31 @@ import (
 	"sync"
 
 	internalcmd "github.com/leodido/structcli/internal/cmd"
+	internalconfig "github.com/leodido/structcli/internal/config"
 	internalscope "github.com/leodido/structcli/internal/scope"
 	"github.com/spf13/cobra"
 )
 
 const bindPipelineAnnotation = "structcli/bind-pipeline-wrapped"
 
-// originalHookKey is used to store original persistent hooks before wrapping.
-const originalPreRunEKey = "structcli/original-persistent-prerun-e"
-const originalPreRunKey = "structcli/original-persistent-prerun"
-
-// originalHooks stores the original PersistentPreRunE/PersistentPreRun per command,
-// keyed by command pointer. We use a separate map because annotations are string-only.
-var originalHooks = struct {
+// hookSet holds the original PersistentPreRunE/PersistentPreRun hooks
+// saved before wrapping, keyed by command pointer.
+type hookSet struct {
 	preRunE map[*cobra.Command]func(*cobra.Command, []string) error
 	preRun  map[*cobra.Command]func(*cobra.Command, []string)
-}{
-	preRunE: make(map[*cobra.Command]func(*cobra.Command, []string) error),
-	preRun:  make(map[*cobra.Command]func(*cobra.Command, []string)),
+}
+
+// hookStore is a process-safe map from root command → hookSet.
+// Each ExecuteC call creates an entry for its root and removes it on return.
+var hookStore sync.Map // *cobra.Command → *hookSet
+
+func getHooks(root *cobra.Command) *hookSet {
+	val, _ := hookStore.Load(root)
+	if val == nil {
+		return nil
+	}
+
+	return val.(*hookSet)
 }
 
 // ExecuteC prepares the command tree for execution and delegates to cmd.ExecuteC().
@@ -43,6 +50,15 @@ func ExecuteC(cmd *cobra.Command) (*cobra.Command, error) {
 
 	root.SilenceErrors = true
 	root.SilenceUsage = true
+
+	// Per-execution hook storage — cleaned up on return to avoid leaking
+	// command pointers and to isolate concurrent ExecuteC calls.
+	hooks := &hookSet{
+		preRunE: make(map[*cobra.Command]func(*cobra.Command, []string) error),
+		preRun:  make(map[*cobra.Command]func(*cobra.Command, []string)),
+	}
+	hookStore.Store(root, hooks)
+	defer hookStore.Delete(root)
 
 	// Fresh once-guard per ExecuteC call for config auto-load.
 	configOnce := &sync.Once{}
@@ -86,11 +102,14 @@ func wrapBindPipeline(c *cobra.Command, configOnce *sync.Once) {
 	}
 
 	// Save original hooks before overwriting.
-	if c.PersistentPreRunE != nil {
-		originalHooks.preRunE[c] = c.PersistentPreRunE
-	}
-	if c.PersistentPreRun != nil {
-		originalHooks.preRun[c] = c.PersistentPreRun
+	hooks := getHooks(c.Root())
+	if hooks != nil {
+		if c.PersistentPreRunE != nil {
+			hooks.preRunE[c] = c.PersistentPreRunE
+		}
+		if c.PersistentPreRun != nil {
+			hooks.preRun[c] = c.PersistentPreRun
+		}
 	}
 
 	c.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
@@ -128,6 +147,9 @@ func wrapBindPipeline(c *cobra.Command, configOnce *sync.Once) {
 // autoLoadConfig calls UseConfigSimple once per execution when WithConfig
 // was used in Setup. The sync.Once ensures config is loaded exactly once
 // even though every command in the tree has the wrapper.
+//
+// After loading, it merges config into each ancestor command's viper so
+// that ancestor-bound options see config values during unmarshal.
 func autoLoadConfig(cmd *cobra.Command, configOnce *sync.Once) error {
 	root := cmd.Root()
 	if root.Annotations == nil || root.Annotations[configAutoLoadAnnotation] != "true" {
@@ -145,6 +167,19 @@ func autoLoadConfig(cmd *cobra.Command, configOnce *sync.Once) error {
 		if message != "" {
 			cmd.Println(message)
 		}
+
+		// UseConfigSimple merges config into the executed command's viper.
+		// Also merge into each ancestor's viper so ancestor-bound options
+		// see config values when unmarshalled with the owner command.
+		rootVip := internalscope.Get(root).ConfigViper()
+		for c := cmd.Parent(); c != nil; c = c.Parent() {
+			configToMerge := internalconfig.Merge(rootVip.AllSettings(), c)
+			if mergeErr := internalscope.Get(c).Viper().MergeConfigMap(configToMerge); mergeErr != nil {
+				configErr = fmt.Errorf("error merging config for command %q: %w", c.CommandPath(), mergeErr)
+
+				return
+			}
+		}
 	})
 	if configErr != nil {
 		return fmt.Errorf("structcli: auto-load config: %w", configErr)
@@ -157,14 +192,19 @@ func autoLoadConfig(cmd *cobra.Command, configOnce *sync.Once) error {
 // any original PersistentPreRunE or PersistentPreRun that was saved
 // before wrapping, in root-first order.
 func replayOriginalHooks(executedCmd *cobra.Command, args []string) error {
+	hooks := getHooks(executedCmd.Root())
+	if hooks == nil {
+		return nil
+	}
+
 	path := pathToRoot(executedCmd)
 
 	for _, c := range path {
-		if hook, ok := originalHooks.preRunE[c]; ok {
+		if hook, ok := hooks.preRunE[c]; ok {
 			if err := hook(executedCmd, args); err != nil {
 				return err
 			}
-		} else if hook, ok := originalHooks.preRun[c]; ok {
+		} else if hook, ok := hooks.preRun[c]; ok {
 			hook(executedCmd, args)
 		}
 	}
@@ -181,12 +221,46 @@ func replayOriginalHooks(executedCmd *cobra.Command, args []string) error {
 func runBindPipeline(executedCmd *cobra.Command) error {
 	path := pathToRoot(executedCmd)
 
+	// Track unmarshalled opts pointers to avoid re-unmarshalling the same
+	// struct when it is bound to multiple commands in the ancestor chain.
+	// The first (ancestor-most) binding wins because the pipeline walks
+	// root-first and TraverseChildren parses ancestor flags first.
+	seen := make(map[any]bool)
+
 	for _, c := range path {
 		scope := internalscope.Get(c)
 		for _, opts := range scope.BoundOptions() {
-			if err := unmarshal(executedCmd, opts); err != nil {
+			if seen[opts] {
+				continue
+			}
+			seen[opts] = true
+			// Unmarshal using the owner command (c) for viper/flag resolution,
+			// but inject context on the executed command so descendants see it.
+			if err := unmarshalForPipeline(c, executedCmd, opts); err != nil {
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+// unmarshalForPipeline unmarshals opts using ownerCmd for viper/flag resolution,
+// then re-injects context on executedCmd so descendants can see ContextInjector
+// values. Cobra does not propagate SetContext calls made on ancestors after
+// command resolution, so context must be set on the executed command.
+func unmarshalForPipeline(ownerCmd, executedCmd *cobra.Command, opts any) error {
+	if err := unmarshal(ownerCmd, opts); err != nil {
+		return err
+	}
+
+	// If context was injected on ownerCmd but executedCmd is different,
+	// re-inject on executedCmd so descendants see the value.
+	if ownerCmd != executedCmd {
+		if o, ok := opts.(ContextInjector); ok {
+			executedCmd.SetContext(o.Context(executedCmd.Context()))
+		} else if o, ok := opts.(ContextOptions); ok {
+			executedCmd.SetContext(o.Context(executedCmd.Context()))
 		}
 	}
 

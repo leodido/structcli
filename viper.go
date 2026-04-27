@@ -122,8 +122,18 @@ func unmarshal(c *cobra.Command, opts any, hooks ...mapstructure.DecodeHookFunc)
 		}
 	}
 
+	// Build set of flags explicitly changed by the user so the remapping
+	// hook can prefer flag values over config-file values when both the
+	// alias key and the field-name key are present.
+	changedFlags := make(map[string]bool)
+	c.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Changed {
+			changedFlags[f.Name] = true
+		}
+	})
+
 	// Use `KeyRemappingHook` for smart config keys
-	hooks = append([]mapstructure.DecodeHookFunc{internalconfig.KeyRemappingHook(aliasToPathMap, defaultsMap)}, hooks...)
+	hooks = append([]mapstructure.DecodeHookFunc{internalconfig.KeyRemappingHook(aliasToPathMap, defaultsMap, changedFlags)}, hooks...)
 
 	// Look for decode hook annotation appending them to the list of hooks to use for unmarshalling
 	c.Flags().VisitAll(func(f *pflag.Flag) {

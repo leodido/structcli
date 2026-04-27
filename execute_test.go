@@ -459,3 +459,113 @@ func TestExecuteC_ErrorInUserHook_Propagates(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, hookErr)
 }
+
+func TestExecuteC_SharedOpts_AncestorLocalFlagFlowsToDescendant(t *testing.T) {
+	// Verifies that a local flag defined on root via Bind is visible in a
+	// descendant command when the same opts pointer is bound to both root
+	// and the descendant. The bind pipeline should unmarshal using the
+	// owner command's viper (root) and deduplicate via the seen map.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	type SharedFlags struct {
+		DryRun bool `flag:"dry" flagdescr:"dry run mode"`
+	}
+
+	shared := &SharedFlags{}
+	var dryInChild bool
+
+	root := &cobra.Command{
+		Use:              "app",
+		TraverseChildren: true,
+	}
+	child := &cobra.Command{
+		Use: "sub",
+		RunE: func(c *cobra.Command, args []string) error {
+			dryInChild = shared.DryRun
+			return nil
+		},
+	}
+	root.AddCommand(child)
+
+	require.NoError(t, Bind(root, shared))
+	require.NoError(t, Bind(child, shared))
+
+	root.SetArgs([]string{"--dry", "sub"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+
+	assert.True(t, shared.DryRun, "shared.DryRun should be true from --dry flag")
+	assert.True(t, dryInChild, "child RunE should see DryRun=true via shared pointer")
+}
+
+func TestExecuteC_SharedOpts_SeenMapPreventsDoubleUnmarshal(t *testing.T) {
+	// When the same opts pointer is bound to root and child, the bind
+	// pipeline should unmarshal it exactly once (on the owner command).
+	// A second unmarshal on the child would use the child's viper which
+	// doesn't have root's local flags, resetting the value to default.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	type CountOpts struct {
+		Verbose int `flagtype:"count" flagshort:"v"`
+	}
+
+	shared := &CountOpts{}
+
+	root := &cobra.Command{
+		Use:              "app",
+		TraverseChildren: true,
+	}
+	child := &cobra.Command{
+		Use: "sub",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	root.AddCommand(child)
+
+	require.NoError(t, Bind(root, shared))
+	require.NoError(t, Bind(child, shared))
+
+	root.SetArgs([]string{"-vvv", "sub"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+
+	assert.Equal(t, 3, shared.Verbose, "verbose count should be 3, not reset by child unmarshal")
+}
+
+func TestExecuteC_SharedContextInjector_VisibleInDescendant(t *testing.T) {
+	// A ContextInjector bound to root should have its context visible in
+	// descendant commands even when the bind pipeline unmarshals on root.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	shared := &execContextOpts{}
+	var nameInChild string
+
+	root := &cobra.Command{
+		Use:              "app",
+		TraverseChildren: true,
+	}
+	child := &cobra.Command{
+		Use: "sub",
+		RunE: func(c *cobra.Command, args []string) error {
+			if v := c.Context().Value(ctxKey("app-name")); v != nil {
+				nameInChild = v.(string)
+			}
+			return nil
+		},
+	}
+	root.AddCommand(child)
+
+	require.NoError(t, Bind(root, shared))
+
+	root.SetArgs([]string{"--app-name", "test-app", "sub"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+
+	assert.Equal(t, "test-app", shared.AppName)
+	assert.Equal(t, "test-app", nameInChild, "context injected on root should be visible in child")
+}
+
