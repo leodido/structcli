@@ -13,9 +13,37 @@ type Options interface {
 	Attach(*cobra.Command) error
 }
 
+// Validatable is a struct that supports validation after unmarshalling.
+//
+// Validate is called automatically during Unmarshal(), after Transform.
+// Does not require Options (Attach) — works with plain struct pointers via Bind.
+type Validatable interface {
+	Validate(context.Context) []error
+}
+
+// Transformable is a struct that supports transformation after unmarshalling.
+//
+// Transform is called automatically during Unmarshal(), before Validate.
+// Does not require Options (Attach) — works with plain struct pointers via Bind.
+type Transformable interface {
+	Transform(context.Context) error
+}
+
+// ContextInjector is a struct that propagates values into the command context after unmarshalling.
+//
+// Context is called automatically during Unmarshal() to derive a new context.
+// Does not require Options (Attach) — works with plain struct pointers via Bind.
+//
+// FromContext (reading values back from context) is a user-side pattern, not part of this interface.
+type ContextInjector interface {
+	Context(context.Context) context.Context
+}
+
 // ValidatableOptions extends Options with validation capabilities.
 //
-// The Validate method is called automatically during Unmarshal().
+// Deprecated: Use Validatable instead. ValidatableOptions requires implementing Attach,
+// which is unnecessary for validation. Validatable works with both Options implementors
+// and plain struct pointers.
 type ValidatableOptions interface {
 	Options
 	Validate(context.Context) []error
@@ -23,7 +51,9 @@ type ValidatableOptions interface {
 
 // TransformableOptions extends Options with transformation capabilities.
 //
-// The Transform method is called automatically during Unmarshal() before validation.
+// Deprecated: Use Transformable instead. TransformableOptions requires implementing Attach,
+// which is unnecessary for transformation. Transformable works with both Options implementors
+// and plain struct pointers.
 type TransformableOptions interface {
 	Options
 	Transform(context.Context) error
@@ -49,7 +79,9 @@ type EnumValuer interface {
 
 // ContextOptions extends Options with context manipulation capabilities.
 //
-// The Context method is called automatically during Unmarshal() to modify the command context.
+// Deprecated: Use ContextInjector instead. ContextInjector only requires the Context method
+// (propagation). FromContext is a user-side pattern — structcli never calls it internally.
+// ContextInjector works with both Options implementors and plain struct pointers.
 type ContextOptions interface {
 	Options
 	Context(context.Context) context.Context
