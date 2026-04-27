@@ -5,6 +5,7 @@ package main
 import (
 	"log"
 
+	"github.com/leodido/structcli"
 	full_example_cli "github.com/leodido/structcli/examples/full/cli"
 )
 
@@ -15,7 +16,5 @@ func main() {
 		log.Fatalln(e)
 	}
 
-	if err := c.Execute(); err != nil {
-		log.Fatalln(err)
-	}
+	structcli.ExecuteOrExit(c)
 }

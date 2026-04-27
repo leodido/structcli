@@ -559,8 +559,8 @@ srv:
 			// Set the arguments for this specific test case
 			c.SetArgs(tc.args)
 
-			// Execute the command
-			executionErr := c.Execute()
+			// Execute the command via structcli.ExecuteC for auto-unmarshal.
+			_, executionErr := structcli.ExecuteC(c)
 
 			// Run the specific assertions for this test case
 			tc.assertFunc(t, out.String(), executionErr)
