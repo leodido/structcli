@@ -55,6 +55,9 @@ func WithConfig(opts ...config.Options) SetupOption {
 }
 
 // WithDebug enables the debug flag (--debug-options) on the root command.
+//
+// Unlike other With* options, WithDebug requires an explicit debug.Options
+// argument because AppName and Exit have no sensible zero-value defaults.
 func WithDebug(opts debug.Options) SetupOption {
 	return func(c *setupConfig) {
 		c.debug = &opts
@@ -108,6 +111,10 @@ func WithFlagErrors() SetupOption {
 //
 // It calls the underlying Setup* functions in the correct internal order.
 // Individual Setup* functions remain available for power users.
+//
+// Most With* options are variadic — call them with no arguments for defaults
+// (e.g., WithJSONSchema()). WithDebug is the exception: it requires an
+// explicit debug.Options because AppName and Exit have no sensible defaults.
 //
 // Ordering is handled internally:
 //  1. AppName + env annotation patching (if flags already exist from earlier Bind calls)
