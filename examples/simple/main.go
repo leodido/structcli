@@ -5,8 +5,6 @@ import (
 	"log"
 
 	"github.com/leodido/structcli"
-	"github.com/leodido/structcli/jsonschema"
-	"github.com/leodido/structcli/mcp"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
 )
@@ -16,42 +14,28 @@ type Options struct {
 	Port     int           `flagshort:"p" flagdescr:"Server port" flagenv:"true" default:"3000"`
 }
 
-func (o *Options) Attach(c *cobra.Command) error {
-	return structcli.Define(c, o)
-}
-
 func main() {
 	log.SetFlags(0)
 	opts := &Options{}
 	cli := &cobra.Command{
-		Use:           "myapp",
-		Short:         "A simple CLI example",
-		SilenceErrors: true, // Let ExecuteOrExit handle errors as structured JSON
-		SilenceUsage:  true, // Don't print usage on error (machines don't need it)
+		Use:   "myapp",
+		Short: "A simple CLI example",
+		RunE: func(c *cobra.Command, args []string) error {
+			fmt.Fprintln(c.OutOrStdout(), opts)
+
+			return nil
+		},
 	}
 
-	// Enable --jsonschema flag for machine-readable self-description
-	if err := structcli.SetupJSONSchema(cli, jsonschema.Options{}); err != nil {
+	if err := structcli.Setup(cli,
+		structcli.WithJSONSchema(),
+		structcli.WithMCP(),
+		structcli.WithFlagErrors(),
+	); err != nil {
 		log.Fatalln(err)
 	}
-	if err := structcli.SetupMCP(cli, mcp.Options{}); err != nil {
-		log.Fatalln(err)
-	}
 
-	// This single line creates all the options (flags, env vars)
-	if err := opts.Attach(cli); err != nil {
-		log.Fatalln(err)
-	}
-
-	cli.PreRunE = func(c *cobra.Command, args []string) error {
-		return structcli.Unmarshal(c, opts) // Populates struct from flags/env
-	}
-
-	cli.RunE = func(c *cobra.Command, args []string) error {
-		fmt.Fprintln(c.OutOrStdout(), opts)
-
-		return nil
-	}
+	structcli.Bind(cli, opts)
 
 	// Structured errors: JSON to stderr + semantic exit code on failure
 	structcli.ExecuteOrExit(cli)
