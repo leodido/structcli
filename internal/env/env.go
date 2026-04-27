@@ -117,10 +117,20 @@ func GetEnv(f reflect.StructField, inherit bool, path, alias, envPrefix string) 
 
 // PatchEnvPrefix updates env annotations on all flags of c to use newPrefix.
 // It strips any existing oldPrefix from annotation values and prepends newPrefix.
+// When oldPrefix is empty and c is the root command, the root command's name was
+// used as a pseudo-prefix by GetEnv and must be stripped before applying newPrefix.
 // For each patched flag, it clears the bound-env marker in the command's scope
 // so that a subsequent BindEnv call will re-bind with the corrected env var names.
 func PatchEnvPrefix(c *cobra.Command, oldPrefix, newPrefix string) {
 	s := internalscope.Get(c)
+
+	// When no global prefix existed, GetEnv baked the command name into env
+	// vars as a pseudo-prefix. For the root command, that pseudo-prefix
+	// should be replaced by the real app prefix.
+	stripPrefix := oldPrefix
+	if oldPrefix == "" && c.Parent() == nil {
+		stripPrefix = NormEnv(c.Name()) + EnvSep
+	}
 
 	c.Flags().VisitAll(func(f *pflag.Flag) {
 		envs, ok := f.Annotations[FlagAnnotation]
@@ -130,7 +140,7 @@ func PatchEnvPrefix(c *cobra.Command, oldPrefix, newPrefix string) {
 
 		patched := make([]string, len(envs))
 		for i, env := range envs {
-			bare := strings.TrimPrefix(env, oldPrefix)
+			bare := strings.TrimPrefix(env, stripPrefix)
 			patched[i] = newPrefix + bare
 		}
 		f.Annotations[FlagAnnotation] = patched
