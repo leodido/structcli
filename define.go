@@ -208,10 +208,13 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			presets = filtered
 		}
 
-		// Determine whether to represent hierarchy with the command name
-		// We assume that options that are not context options are subcommand-specific options
+		// Determine whether to represent hierarchy with the command name.
+		// Context-injecting options are treated as shared/common (no command name prefix in env vars).
+		// Prefer ContextInjector (standalone); fall back to deprecated ContextOptions.
 		cName := ""
-		if _, isContextOptions := o.(ContextOptions); !isContextOptions {
+		_, isContextInjector := o.(ContextInjector)
+		_, isContextOptions := o.(ContextOptions)
+		if !isContextInjector && !isContextOptions {
 			cName = c.Name()
 		}
 

@@ -151,20 +151,36 @@ func Unmarshal(c *cobra.Command, opts Options, hooks ...mapstructure.DecodeHookF
 		return fmt.Errorf("couldn't unmarshal config to options: %w", err)
 	}
 
-	// Automatically set common options into the context of the cobra command
-	if o, ok := opts.(ContextOptions); ok {
+	// Automatically set common options into the context of the cobra command.
+	// Prefer ContextInjector (standalone); fall back to deprecated ContextOptions.
+	if o, ok := opts.(ContextInjector); ok {
+		c.SetContext(o.Context(c.Context()))
+	} else if o, ok := opts.(ContextOptions); ok {
 		c.SetContext(o.Context(c.Context()))
 	}
 
-	// Automatically transform options if feasible
-	if o, ok := opts.(TransformableOptions); ok {
+	// Automatically transform options if feasible.
+	// Prefer Transformable (standalone); fall back to deprecated TransformableOptions.
+	if o, ok := opts.(Transformable); ok {
+		if transformErr := o.Transform(c.Context()); transformErr != nil {
+			return fmt.Errorf("couldn't transform options: %w", transformErr)
+		}
+	} else if o, ok := opts.(TransformableOptions); ok {
 		if transformErr := o.Transform(c.Context()); transformErr != nil {
 			return fmt.Errorf("couldn't transform options: %w", transformErr)
 		}
 	}
 
-	// Automatically run options validation if feasible
-	if o, ok := opts.(ValidatableOptions); ok {
+	// Automatically run options validation if feasible.
+	// Prefer Validatable (standalone); fall back to deprecated ValidatableOptions.
+	if o, ok := opts.(Validatable); ok {
+		if validationErrors := o.Validate(c.Context()); validationErrors != nil {
+			return &structclierrors.ValidationError{
+				ContextName: c.Name(),
+				Errors:      validationErrors,
+			}
+		}
+	} else if o, ok := opts.(ValidatableOptions); ok {
 		if validationErrors := o.Validate(c.Context()); validationErrors != nil {
 			return &structclierrors.ValidationError{
 				ContextName: c.Name(),
