@@ -24,6 +24,10 @@ type hookSet struct {
 // across repeated executions. Entries are removed by Reset().
 var hookStore sync.Map // *cobra.Command → *hookSet
 
+// configOnceStore holds the per-execution sync.Once for config auto-load.
+// Replaced on every ExecuteC call so repeated executions reload config.
+var configOnceStore sync.Map // *cobra.Command → *sync.Once
+
 func getHooks(root *cobra.Command) *hookSet {
 	val, _ := hookStore.Load(root)
 	if val == nil {
@@ -31,6 +35,15 @@ func getHooks(root *cobra.Command) *hookSet {
 	}
 
 	return val.(*hookSet)
+}
+
+func getConfigOnce(root *cobra.Command) *sync.Once {
+	val, _ := configOnceStore.Load(root)
+	if val == nil {
+		return nil
+	}
+
+	return val.(*sync.Once)
 }
 
 // ExecuteC prepares the command tree for execution and delegates to cmd.ExecuteC().
@@ -56,33 +69,33 @@ func ExecuteC(cmd *cobra.Command) (*cobra.Command, error) {
 	// repeated ExecuteC calls. The hookStore entry is keyed by root
 	// command pointer; it is populated during the first prepareTree
 	// and persists for the tree's lifetime.
-	if _, loaded := hookStore.LoadOrStore(root, &hookSet{
+	hookStore.LoadOrStore(root, &hookSet{
 		preRunE: make(map[*cobra.Command]func(*cobra.Command, []string) error),
 		preRun:  make(map[*cobra.Command]func(*cobra.Command, []string)),
-	}); loaded {
-		// Already initialized — hooks were saved during the first wrap.
-	}
+	})
 
-	// Fresh once-guard per ExecuteC call for config auto-load.
-	configOnce := &sync.Once{}
+	// Fresh once-guard per ExecuteC call so config is reloaded on each
+	// execution. The wrapper closures look this up at runtime via
+	// getConfigOnce rather than capturing a stale pointer.
+	configOnceStore.Store(root, &sync.Once{})
 
-	prepareTree(root, configOnce)
+	prepareTree(root)
 
 	return cmd.ExecuteC()
 }
 
 // prepareTree walks the command tree and installs the bind pipeline wrapper
 // and SetupUsage on every command. Idempotent via annotation guard.
-func prepareTree(c *cobra.Command, configOnce *sync.Once) {
+func prepareTree(c *cobra.Command) {
 	if c == nil {
 		return
 	}
 
 	SetupUsage(c)
-	wrapBindPipeline(c, configOnce)
+	wrapBindPipeline(c)
 
 	for _, sub := range c.Commands() {
-		prepareTree(sub, configOnce)
+		prepareTree(sub)
 	}
 }
 
@@ -96,7 +109,7 @@ func prepareTree(c *cobra.Command, configOnce *sync.Once) {
 // persistent hooks in root-first order. This ensures user hooks on
 // ancestor commands fire even when a descendant's wrapper is the one
 // Cobra picks.
-func wrapBindPipeline(c *cobra.Command, configOnce *sync.Once) {
+func wrapBindPipeline(c *cobra.Command) {
 	if c.Annotations == nil {
 		c.Annotations = make(map[string]string)
 	}
@@ -122,8 +135,12 @@ func wrapBindPipeline(c *cobra.Command, configOnce *sync.Once) {
 		}
 
 		// Auto-load config once per execution if WithConfig was used.
-		if err := autoLoadConfig(cmd, configOnce); err != nil {
-			return err
+		// Look up the current configOnce at runtime so repeated ExecuteC
+		// calls get a fresh guard (not the one captured at wrap time).
+		if once := getConfigOnce(cmd.Root()); once != nil {
+			if err := autoLoadConfig(cmd, once); err != nil {
+				return err
+			}
 		}
 
 		// Run bind pipeline: walk root → executed command, unmarshal bound options.

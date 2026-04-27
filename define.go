@@ -581,4 +581,9 @@ func Reset() {
 
 		return true
 	})
+	configOnceStore.Range(func(key, _ any) bool {
+		configOnceStore.Delete(key)
+
+		return true
+	})
 }

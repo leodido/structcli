@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/leodido/structcli/config"
 	internalscope "github.com/leodido/structcli/internal/scope"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -496,6 +498,55 @@ func TestExecuteC_RepeatedExecution_PreservesUserHook(t *testing.T) {
 	_, err = ExecuteC(root)
 	require.NoError(t, err)
 	assert.Equal(t, 2, hookCount, "user hook should fire on second execution")
+}
+
+func TestExecuteC_RepeatedExecution_ReloadsConfig(t *testing.T) {
+	// Regression: the second ExecuteC must use a fresh configOnce so that
+	// config is reloaded. The wrapper closures must not capture a stale
+	// sync.Once from the first call.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	type appOpts struct {
+		Host string `flag:"host" default:"localhost"`
+	}
+
+	opts := &appOpts{}
+
+	root := &cobra.Command{Use: "app"}
+	child := &cobra.Command{
+		Use: "run",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	root.AddCommand(child)
+
+	require.NoError(t, Setup(root, WithAppName("app"), WithConfig(config.Options{})))
+	require.NoError(t, Bind(child, opts))
+
+	fs := afero.NewMemMapFs()
+	require.NoError(t, fs.MkdirAll("/etc/app", 0755))
+
+	// First execution: config sets host=alpha
+	require.NoError(t, afero.WriteFile(fs, "/etc/app/config.yaml", []byte("host: alpha"), 0644))
+	GetConfigViper(root).SetFs(fs)
+
+	root.SetArgs([]string{"run"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+	assert.Equal(t, "alpha", opts.Host, "first execution should load host=alpha from config")
+
+	// Second execution: config changes to host=beta
+	require.NoError(t, afero.WriteFile(fs, "/etc/app/config.yaml", []byte("host: beta"), 0644))
+	// Reset the config viper so it re-reads the file.
+	internalscope.Get(root).ResetConfigViper()
+	GetConfigViper(root).SetFs(fs)
+
+	root.SetArgs([]string{"run"})
+	_, err = ExecuteC(root)
+	require.NoError(t, err)
+	assert.Equal(t, "beta", opts.Host, "second execution should reload config and see host=beta")
 }
 
 func TestExecuteC_SharedOpts_AncestorLocalFlagFlowsToDescendant(t *testing.T) {
