@@ -1,10 +1,13 @@
 package structcli
 
 import (
+	"fmt"
+
 	"github.com/leodido/structcli/debug"
 	"github.com/leodido/structcli/helptopics"
 	"github.com/leodido/structcli/jsonschema"
 	structclimcp "github.com/leodido/structcli/mcp"
+	"github.com/spf13/cobra"
 )
 
 // setupConfig holds the resolved configuration from SetupOption functions.
@@ -67,4 +70,54 @@ func WithFlagErrors() SetupOption {
 	return func(c *setupConfig) {
 		c.flagErrors = true
 	}
+}
+
+// Setup configures the root command with the selected features.
+//
+// It calls the underlying Setup* functions in the correct internal order.
+// Individual Setup* functions remain available for power users.
+//
+// Ordering is handled internally:
+//  1. Debug (registers --debug-options flag)
+//  2. JSON Schema (registers --jsonschema flag, wraps execution)
+//  3. Help Topics (adds help topic subcommands)
+//  4. Flag Errors (intercepts flag parsing errors)
+//  5. MCP (registers --mcp flag, wraps execution)
+//
+// WithConfig and WithAppName are not yet supported (PR 5).
+func Setup(cmd *cobra.Command, opts ...SetupOption) error {
+	cfg := &setupConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if cfg.debug != nil {
+		if err := SetupDebug(cmd, *cfg.debug); err != nil {
+			return fmt.Errorf("structcli.Setup: debug: %w", err)
+		}
+	}
+
+	if cfg.jsonSchema != nil {
+		if err := SetupJSONSchema(cmd, *cfg.jsonSchema); err != nil {
+			return fmt.Errorf("structcli.Setup: jsonschema: %w", err)
+		}
+	}
+
+	if cfg.helpTopics != nil {
+		if err := SetupHelpTopics(cmd, *cfg.helpTopics); err != nil {
+			return fmt.Errorf("structcli.Setup: helptopics: %w", err)
+		}
+	}
+
+	if cfg.flagErrors {
+		SetupFlagErrors(cmd)
+	}
+
+	if cfg.mcp != nil {
+		if err := SetupMCP(cmd, *cfg.mcp); err != nil {
+			return fmt.Errorf("structcli.Setup: mcp: %w", err)
+		}
+	}
+
+	return nil
 }
