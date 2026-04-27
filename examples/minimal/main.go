@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/leodido/structcli"
 	"github.com/spf13/cobra"
@@ -24,6 +25,8 @@ func main() {
 		},
 	}
 
-	structcli.Bind(cli, opts)
+	if err := structcli.Bind(cli, opts); err != nil {
+		log.Fatalln(err)
+	}
 	structcli.ExecuteOrExit(cli)
 }

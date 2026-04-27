@@ -94,7 +94,7 @@ func (o *ServerOptions) Attach(c *cobra.Command) error {
 	return structcli.Define(c, o)
 }
 
-func makeSrvC(commonOpts *UtilityFlags) *cobra.Command {
+func makeSrvC(commonOpts *UtilityFlags) (*cobra.Command, error) {
 	opts := &ServerOptions{}
 
 	srvC := &cobra.Command{
@@ -124,7 +124,9 @@ func makeSrvC(commonOpts *UtilityFlags) *cobra.Command {
 	}
 	// Use Attach (not Bind) — srv has subcommands and ServerOptions should
 	// only be unmarshalled when srv itself runs, not for child commands.
-	opts.Attach(srvC)
+	if err := opts.Attach(srvC); err != nil {
+		return nil, fmt.Errorf("srv: attach options: %w", err)
+	}
 
 	versionC := &cobra.Command{
 		Use:   "version",
@@ -141,10 +143,12 @@ func makeSrvC(commonOpts *UtilityFlags) *cobra.Command {
 		},
 	}
 
-	structcli.Bind(versionC, commonOpts)
+	if err := structcli.Bind(versionC, commonOpts); err != nil {
+		return nil, fmt.Errorf("srv version: bind: %w", err)
+	}
 	srvC.AddCommand(versionC)
 
-	return srvC
+	return srvC, nil
 }
 
 var _ structcli.Validatable = (*UserConfig)(nil)
@@ -181,7 +185,7 @@ func (o *UserConfig) Transform(ctx context.Context) error {
 	return modifiers.New().Struct(ctx, o)
 }
 
-func makeUsrC(commonOpts *UtilityFlags) *cobra.Command {
+func makeUsrC(commonOpts *UtilityFlags) (*cobra.Command, error) {
 	opts := &UserConfig{}
 
 	usrC := &cobra.Command{
@@ -213,12 +217,16 @@ func makeUsrC(commonOpts *UtilityFlags) *cobra.Command {
 		},
 	}
 
-	structcli.Bind(addC, opts)
-	structcli.Bind(addC, commonOpts)
+	if err := structcli.Bind(addC, opts); err != nil {
+		return nil, fmt.Errorf("usr add: bind opts: %w", err)
+	}
+	if err := structcli.Bind(addC, commonOpts); err != nil {
+		return nil, fmt.Errorf("usr add: bind common: %w", err)
+	}
 
 	usrC.AddCommand(addC)
 
-	return usrC
+	return usrC, nil
 }
 
 var _ structcli.Validatable = (*PresetDemoOptions)(nil)
@@ -254,7 +262,7 @@ func (o *PresetDemoOptions) Transform(ctx context.Context) error {
 	return modifiers.New().Struct(ctx, o)
 }
 
-func makePresetC() *cobra.Command {
+func makePresetC() (*cobra.Command, error) {
 	opts := &PresetDemoOptions{}
 
 	presetC := &cobra.Command{
@@ -268,9 +276,11 @@ func makePresetC() *cobra.Command {
 			return nil
 		},
 	}
-	structcli.Bind(presetC, opts)
+	if err := structcli.Bind(presetC, opts); err != nil {
+		return nil, fmt.Errorf("preset: bind: %w", err)
+	}
 
-	return presetC
+	return presetC, nil
 }
 
 // LogsOptions demonstrates flagkit composition with multiple types.
@@ -292,7 +302,7 @@ func (o *LogsOptions) Attach(c *cobra.Command) error {
 	return nil
 }
 
-func makeLogsC() *cobra.Command {
+func makeLogsC() (*cobra.Command, error) {
 	opts := &LogsOptions{}
 
 	logsC := &cobra.Command{
@@ -325,11 +335,13 @@ func makeLogsC() *cobra.Command {
 	}
 	// LogsOptions.Attach has custom logic (flagkit.AnnotateCommand), so use Bind
 	// which delegates to Attach for Options implementors.
-	structcli.Bind(logsC, opts)
+	if err := structcli.Bind(logsC, opts); err != nil {
+		return nil, fmt.Errorf("logs: bind: %w", err)
+	}
 	// Narrow help/completion/schema to the formats this command supports.
 	opts.Output.RestrictFormats(logsC, flagkit.OutputText, flagkit.OutputJSON)
 
-	return logsC
+	return logsC, nil
 }
 
 var _ structcli.ContextInjector = (*UtilityFlags)(nil)
@@ -395,11 +407,33 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 		return nil, err
 	}
 
-	structcli.Bind(rootC, commonOpts)
-	rootC.AddCommand(makeSrvC(commonOpts))
-	rootC.AddCommand(makeUsrC(commonOpts))
-	rootC.AddCommand(makePresetC())
-	rootC.AddCommand(makeLogsC())
+	if err := structcli.Bind(rootC, commonOpts); err != nil {
+		return nil, fmt.Errorf("root: bind common: %w", err)
+	}
+
+	srvC, err := makeSrvC(commonOpts)
+	if err != nil {
+		return nil, err
+	}
+	rootC.AddCommand(srvC)
+
+	usrC, err := makeUsrC(commonOpts)
+	if err != nil {
+		return nil, err
+	}
+	rootC.AddCommand(usrC)
+
+	presetC, err := makePresetC()
+	if err != nil {
+		return nil, err
+	}
+	rootC.AddCommand(presetC)
+
+	logsC, err := makeLogsC()
+	if err != nil {
+		return nil, err
+	}
+	rootC.AddCommand(logsC)
 
 	return rootC, nil
 }
