@@ -35,7 +35,9 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	structcli.Bind(cli, opts)
+	if err := structcli.Bind(cli, opts); err != nil {
+		log.Fatalln(err)
+	}
 
 	// Structured errors: JSON to stderr + semantic exit code on failure
 	structcli.ExecuteOrExit(cli)
