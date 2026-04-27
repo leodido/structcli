@@ -94,8 +94,7 @@ func (o *ServerOptions) Attach(c *cobra.Command) error {
 	return structcli.Define(c, o)
 }
 
-func makeSrvC() *cobra.Command {
-	commonOpts := &UtilityFlags{}
+func makeSrvC(commonOpts *UtilityFlags) *cobra.Command {
 	opts := &ServerOptions{}
 
 	srvC := &cobra.Command{
@@ -182,8 +181,7 @@ func (o *UserConfig) Transform(ctx context.Context) error {
 	return modifiers.New().Struct(ctx, o)
 }
 
-func makeUsrC() *cobra.Command {
-	commonOpts := &UtilityFlags{}
+func makeUsrC(commonOpts *UtilityFlags) *cobra.Command {
 	opts := &UserConfig{}
 
 	usrC := &cobra.Command{
@@ -398,8 +396,8 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 	}
 
 	structcli.Bind(rootC, commonOpts)
-	rootC.AddCommand(makeSrvC())
-	rootC.AddCommand(makeUsrC())
+	rootC.AddCommand(makeSrvC(commonOpts))
+	rootC.AddCommand(makeUsrC(commonOpts))
 	rootC.AddCommand(makePresetC())
 	rootC.AddCommand(makeLogsC())
 

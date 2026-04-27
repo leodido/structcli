@@ -1,6 +1,7 @@
 package internalconfig
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -107,7 +108,16 @@ func SyncMandatoryFlags(c *cobra.Command, T reflect.Type, vip *viper.Viper, stru
 // KeyRemappingHook allows config keys to match either a field's name or its `flag` tag.
 //
 // It correctly handles flattened keys that point to nested struct fields.
-func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]string) mapstructure.DecodeHookFunc {
+//
+// changedFlags, when non-nil, lists flag names that were explicitly set by the
+// user (i.e. pflag.Flag.Changed == true). This lets the hook prefer a flag
+// value over a config-file value when both the alias key and the field-name
+// key are present in the map.
+func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]string, changedFlags ...map[string]bool) mapstructure.DecodeHookFunc {
+	var changed map[string]bool
+	if len(changedFlags) > 0 {
+		changed = changedFlags[0]
+	}
 	return func(_ reflect.Type, t reflect.Type, data any) (any, error) {
 		if t.Kind() == reflect.Ptr {
 			t = t.Elem()
@@ -187,17 +197,39 @@ func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]s
 
 			// When the alias exists and the config map has a value for that alias...
 			if alias != "" && alias != fieldNameKey {
-				if aliasValue, ok := configMap[alias]; ok && aliasValue != "" {
-					// Then, make the alias value available under the field name key.
+				aliasValue, aliasExists := configMap[alias]
+				fieldValue, fieldExists := configMap[fieldNameKey]
+
+				switch {
+				case aliasExists && aliasValue != "" && !fieldExists:
+					// Only alias present: propagate alias → field name.
 					configMap[fieldNameKey] = aliasValue
+				case !aliasExists && fieldExists && fieldValue != "":
+					// Only field name present: propagate field name → alias.
+					configMap[alias] = fieldValue
+				case aliasExists && fieldExists:
+					// Both present. The alias key participates in viper's
+					// full resolution (flag > env > config > default) while
+					// the field-name key is typically a SetDefault value.
+					//
+					// Prefer the alias value when the flag was explicitly
+					// set or when the alias value differs from the struct-
+					// tag default (meaning config or env supplied it).
+					// Otherwise the field-name value wins (it may carry a
+					// config value set under the field name).
+					aliasIsDefault := false
+					if defVal, ok := defaultsMap[alias]; ok {
+						aliasIsDefault = fmt.Sprintf("%v", aliasValue) == defVal
+					} else {
+						// No struct-tag default: treat zero values as default.
+						aliasIsDefault = isZeroValue(aliasValue)
+					}
 
-					continue
-				}
-				if fieldNameVal, ok := configMap[fieldNameKey]; ok && fieldNameKey != "" {
-					// Or, make the field value available under the alias.
-					configMap[alias] = fieldNameVal
-
-					continue
+					if (changed != nil && changed[alias]) || !aliasIsDefault {
+						configMap[fieldNameKey] = aliasValue
+					} else {
+						configMap[alias] = fieldValue
+					}
 				}
 				// This ensures the decoder can find the value for this field name key or the alias.
 			}
@@ -216,3 +248,13 @@ func structHasField(t reflect.Type, fieldKey string) bool {
 
 	return false
 }
+
+// isZeroValue reports whether v is the zero value for its type.
+func isZeroValue(v any) bool {
+	if v == nil {
+		return true
+	}
+
+	return reflect.ValueOf(v).IsZero()
+}
+
