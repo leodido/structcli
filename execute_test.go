@@ -460,6 +460,44 @@ func TestExecuteC_ErrorInUserHook_Propagates(t *testing.T) {
 	assert.ErrorIs(t, err, hookErr)
 }
 
+func TestExecuteC_RepeatedExecution_PreservesUserHook(t *testing.T) {
+	// Regression: the second ExecuteC on the same tree must still replay
+	// the user's original PersistentPreRunE. The hook is saved during the
+	// first prepareTree wrap and must persist across executions.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	opts := &execPlainOpts{}
+	var hookCount int
+
+	root := &cobra.Command{Use: "root"}
+	root.PersistentPreRunE = func(c *cobra.Command, args []string) error {
+		hookCount++
+		return nil
+	}
+
+	child := &cobra.Command{
+		Use: "child",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	root.AddCommand(child)
+	require.NoError(t, Bind(child, opts))
+
+	// First execution
+	root.SetArgs([]string{"child", "--port", "1111"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+	assert.Equal(t, 1, hookCount, "user hook should fire on first execution")
+
+	// Second execution on same tree
+	root.SetArgs([]string{"child", "--port", "2222"})
+	_, err = ExecuteC(root)
+	require.NoError(t, err)
+	assert.Equal(t, 2, hookCount, "user hook should fire on second execution")
+}
+
 func TestExecuteC_SharedOpts_AncestorLocalFlagFlowsToDescendant(t *testing.T) {
 	// Verifies that a local flag defined on root via Bind is visible in a
 	// descendant command when the same opts pointer is bound to both root

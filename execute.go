@@ -20,7 +20,8 @@ type hookSet struct {
 }
 
 // hookStore is a process-safe map from root command → hookSet.
-// Each ExecuteC call creates an entry for its root and removes it on return.
+// Created once per command tree on the first ExecuteC call and reused
+// across repeated executions. Entries are removed by Reset().
 var hookStore sync.Map // *cobra.Command → *hookSet
 
 func getHooks(root *cobra.Command) *hookSet {
@@ -51,14 +52,16 @@ func ExecuteC(cmd *cobra.Command) (*cobra.Command, error) {
 	root.SilenceErrors = true
 	root.SilenceUsage = true
 
-	// Per-execution hook storage — cleaned up on return to avoid leaking
-	// command pointers and to isolate concurrent ExecuteC calls.
-	hooks := &hookSet{
+	// Hook storage is created once per command tree and reused across
+	// repeated ExecuteC calls. The hookStore entry is keyed by root
+	// command pointer; it is populated during the first prepareTree
+	// and persists for the tree's lifetime.
+	if _, loaded := hookStore.LoadOrStore(root, &hookSet{
 		preRunE: make(map[*cobra.Command]func(*cobra.Command, []string) error),
 		preRun:  make(map[*cobra.Command]func(*cobra.Command, []string)),
+	}); loaded {
+		// Already initialized — hooks were saved during the first wrap.
 	}
-	hookStore.Store(root, hooks)
-	defer hookStore.Delete(root)
 
 	// Fresh once-guard per ExecuteC call for config auto-load.
 	configOnce := &sync.Once{}
