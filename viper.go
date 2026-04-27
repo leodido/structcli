@@ -88,6 +88,13 @@ func GetConfigViper(c *cobra.Command) *viper.Viper {
 // Before decoding, Unmarshal merges command-relevant config from the root-scoped
 // config-source viper (GetConfigViper(c)).
 func Unmarshal(c *cobra.Command, opts Options, hooks ...mapstructure.DecodeHookFunc) error {
+	return unmarshal(c, opts, hooks...)
+}
+
+// unmarshal is the internal implementation that accepts any (struct pointer).
+// The public Unmarshal constrains to Options for API compatibility;
+// the bind pipeline uses this directly for plain struct pointers.
+func unmarshal(c *cobra.Command, opts any, hooks ...mapstructure.DecodeHookFunc) error {
 	// Reject CLI usage of env-only flags before any resolution.
 	if err := rejectEnvOnlyCLIUsage(c); err != nil {
 		return err
