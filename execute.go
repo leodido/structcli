@@ -1,6 +1,9 @@
 package structcli
 
 import (
+	"fmt"
+	"sync"
+
 	internalcmd "github.com/leodido/structcli/internal/cmd"
 	internalscope "github.com/leodido/structcli/internal/scope"
 	"github.com/spf13/cobra"
@@ -29,6 +32,8 @@ var originalHooks = struct {
 //   - Runs SetupUsage on every command in the tree.
 //   - Recursively wraps PersistentPreRunE on every command to run the bind pipeline
 //     (auto-unmarshal for all Bind-registered options, root-to-leaf, FIFO per command).
+//   - When WithConfig was used in Setup, auto-loads config (UseConfigSimple) once
+//     before the first auto-unmarshal.
 //   - Skips the bind pipeline when execution is intercepted (--jsonschema, --mcp).
 //   - Preserves any user-set PersistentPreRunE or PersistentPreRun.
 //
@@ -39,23 +44,26 @@ func ExecuteC(cmd *cobra.Command) (*cobra.Command, error) {
 	root.SilenceErrors = true
 	root.SilenceUsage = true
 
-	prepareTree(root)
+	// Fresh once-guard per ExecuteC call for config auto-load.
+	configOnce := &sync.Once{}
+
+	prepareTree(root, configOnce)
 
 	return cmd.ExecuteC()
 }
 
 // prepareTree walks the command tree and installs the bind pipeline wrapper
 // and SetupUsage on every command. Idempotent via annotation guard.
-func prepareTree(c *cobra.Command) {
+func prepareTree(c *cobra.Command, configOnce *sync.Once) {
 	if c == nil {
 		return
 	}
 
 	SetupUsage(c)
-	wrapBindPipeline(c)
+	wrapBindPipeline(c, configOnce)
 
 	for _, sub := range c.Commands() {
-		prepareTree(sub)
+		prepareTree(sub, configOnce)
 	}
 }
 
@@ -69,7 +77,7 @@ func prepareTree(c *cobra.Command) {
 // persistent hooks in root-first order. This ensures user hooks on
 // ancestor commands fire even when a descendant's wrapper is the one
 // Cobra picks.
-func wrapBindPipeline(c *cobra.Command) {
+func wrapBindPipeline(c *cobra.Command, configOnce *sync.Once) {
 	if c.Annotations == nil {
 		c.Annotations = make(map[string]string)
 	}
@@ -91,6 +99,11 @@ func wrapBindPipeline(c *cobra.Command) {
 			return nil
 		}
 
+		// Auto-load config once per execution if WithConfig was used.
+		if err := autoLoadConfig(cmd, configOnce); err != nil {
+			return err
+		}
+
 		// Run bind pipeline: walk root → executed command, unmarshal bound options.
 		if err := runBindPipeline(cmd); err != nil {
 			return err
@@ -110,6 +123,26 @@ func wrapBindPipeline(c *cobra.Command) {
 	c.PersistentPreRun = nil
 
 	c.Annotations[bindPipelineAnnotation] = "true"
+}
+
+// autoLoadConfig calls UseConfigSimple once per execution when WithConfig
+// was used in Setup. The sync.Once ensures config is loaded exactly once
+// even though every command in the tree has the wrapper.
+func autoLoadConfig(cmd *cobra.Command, configOnce *sync.Once) error {
+	root := cmd.Root()
+	if root.Annotations == nil || root.Annotations[configAutoLoadAnnotation] != "true" {
+		return nil
+	}
+
+	var configErr error
+	configOnce.Do(func() {
+		_, _, configErr = UseConfigSimple(cmd)
+	})
+	if configErr != nil {
+		return fmt.Errorf("structcli: auto-load config: %w", configErr)
+	}
+
+	return nil
 }
 
 // replayOriginalHooks walks from root to the executed command and calls
