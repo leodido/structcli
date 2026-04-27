@@ -576,4 +576,9 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 func Reset() {
 	SetEnvPrefix("")
+	hookStore.Range(func(key, _ any) bool {
+		hookStore.Delete(key)
+
+		return true
+	})
 }
