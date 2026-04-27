@@ -53,7 +53,7 @@ func Bind(c *cobra.Command, opts any) error {
 		return fmt.Errorf("structcli.Bind: %w", err)
 	}
 
-	if err := define(c, opts, "", "", nil, false, false, "validate", "mod"); err != nil {
+	if err := define(c, opts, "", "", nil, false, false, DefaultValidateTagName, DefaultModTagName); err != nil {
 		return fmt.Errorf("structcli.Bind: %w", err)
 	}
 

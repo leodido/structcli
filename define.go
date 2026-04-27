@@ -44,20 +44,30 @@ func mustMarkRequired(c *cobra.Command, name string) {
 // DefineOption configures the behavior of the Define function.
 type DefineOption func(*defineContext)
 
+const (
+	// DefaultValidateTagName is the struct tag name for validation rules.
+	// Matches the go-playground/validator default. Exported so callers
+	// configuring their own validator can reference the structcli default
+	// (e.g. validator.New().SetTagName(structcli.DefaultValidateTagName)).
+	DefaultValidateTagName = "validate"
+
+	// DefaultModTagName is the struct tag name for transformation rules.
+	// Matches the go-playground/mold default. Exported so callers
+	// configuring their own mold can reference the structcli default.
+	DefaultModTagName = "mod"
+)
+
 // defineContext holds context for the definition of the options
 type defineContext struct {
 	exclusions      map[string]string
 	comm            *cobra.Command
-	validateTagName string // struct tag name for validation rules (default: "validate")
-	modTagName      string // struct tag name for transformation rules (default: "mod")
+	validateTagName string // defaults to DefaultValidateTagName
+	modTagName      string // defaults to DefaultModTagName
 }
 
-// WithExclusions sets flags to exclude from definition based on flag names or paths.
-//
-// Exclusions are case-insensitive and apply only to the specific command.
 // WithValidateTagName sets the struct tag name used to read validation rules.
 //
-// Defaults to "validate" (the go-playground/validator default).
+// Defaults to DefaultValidateTagName ("validate", the go-playground/validator default).
 // Use this when your validator is configured with a custom tag name
 // (eg. validator.New().SetTagName("binding")).
 func WithValidateTagName(name string) DefineOption {
@@ -68,7 +78,7 @@ func WithValidateTagName(name string) DefineOption {
 
 // WithModTagName sets the struct tag name used to read transformation rules.
 //
-// Defaults to "mod" (the go-playground/mold default).
+// Defaults to DefaultModTagName ("mod", the go-playground/mold default).
 // Use this when your mold instance is configured with a custom tag name.
 func WithModTagName(name string) DefineOption {
 	return func(cfg *defineContext) {
@@ -76,6 +86,9 @@ func WithModTagName(name string) DefineOption {
 	}
 }
 
+// WithExclusions sets flags to exclude from definition based on flag names or paths.
+//
+// Exclusions are case-insensitive and apply only to the specific command.
 func WithExclusions(exclusions ...string) DefineOption {
 	return func(cfg *defineContext) {
 		if cfg.exclusions == nil {
@@ -104,10 +117,10 @@ func Define(c *cobra.Command, o Options, defineOpts ...DefineOption) error {
 
 	// Apply defaults for tag names
 	if ctx.validateTagName == "" {
-		ctx.validateTagName = "validate"
+		ctx.validateTagName = DefaultValidateTagName
 	}
 	if ctx.modTagName == "" {
-		ctx.modTagName = "mod"
+		ctx.modTagName = DefaultModTagName
 	}
 
 	// Run input validation (on by default)
