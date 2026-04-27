@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/leodido/structcli"
 	"github.com/spf13/cobra"
@@ -33,35 +32,23 @@ type Options struct {
 	Port     int
 }
 
-func (o *Options) Attach(c *cobra.Command) error {
-	return structcli.Define(c, o)
-}
-
 func main() {
 	opts := &Options{}
-	cli := &cobra.Command{Use: "myapp"}
+	cli := &cobra.Command{
+		Use: "myapp",
+		RunE: func(c *cobra.Command, args []string) error {
+			fmt.Println(opts) // already populated
 
-	if err := opts.Attach(cli); err != nil {
-		log.Fatalln(err)
+			return nil
+		},
 	}
 
-	cli.PreRunE = func(c *cobra.Command, args []string) error {
-		return structcli.Unmarshal(c, opts)
-	}
-
-	cli.RunE = func(c *cobra.Command, args []string) error {
-		fmt.Println(opts)
-
-		return nil
-	}
-
-	if err := cli.Execute(); err != nil {
-		log.Fatalln(err)
-	}
+	structcli.Bind(cli, opts)
+	structcli.ExecuteOrExit(cli)
 }
 ```
 
-That single `Define` call creates the CLI surface from your struct, and `Unmarshal` hydrates it back from flags, env vars, config, and defaults.
+`Bind` creates flags and env vars from your struct and registers it for auto-unmarshal. `ExecuteOrExit` hydrates the struct from flags, env vars, config, and defaults before your `RunE` fires.
 
 ```bash
 ❯ go run examples/minimal/main.go --help
@@ -129,10 +116,12 @@ Add the AI-native wiring below and it also gains machine-readable JSON Schema, s
 Instead of scraping `--help` and guessing, an agent can discover the contract, call the command correctly, and recover from structured failures.
 
 ```go
-structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
-structcli.SetupHelpTopics(rootCmd, helptopics.Options{ReferenceSection: true})  // "mycli env-vars" and "mycli config-keys"
-structcli.SetupFlagErrors(rootCmd)  // Optional, but recommended for typed flag-parse errors
-structcli.SetupMCP(rootCmd, mcp.Options{}) // Optional, exposes the CLI as an MCP server over stdio
+structcli.Setup(rootCmd,
+    structcli.WithJSONSchema(),
+    structcli.WithHelpTopics(helptopics.Options{ReferenceSection: true}),  // "mycli env-vars" and "mycli config-keys"
+    structcli.WithFlagErrors(),  // Optional, but recommended for typed flag-parse errors
+    structcli.WithMCP(),         // Optional, exposes the CLI as an MCP server over stdio
+)
 structcli.ExecuteOrExit(rootCmd)
 ```
 
@@ -174,7 +163,7 @@ $ mycli srv --jsonschema=tree  # schemas for srv + its subcommands
 
 No `--help` parsing. No guessing what failed. Just a CLI that can explain itself and fail in machine-actionable ways.
 
-Use `exitcode.Category(code)` and `exitcode.IsRetryable(code)` to decide what to do next. See `jsonschema.WithEnumInDescription()` for schema customization, and pass schema options through `SetupJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
+Use `exitcode.Category(code)` and `exitcode.IsRetryable(code)` to decide what to do next. See `jsonschema.WithEnumInDescription()` for schema customization, and pass schema options through `WithJSONSchema` with `jsonschema.Options{SchemaOpts: ...}`.
 
 For CLIs that capture output streams during command construction, configure `mcp.Options.CommandFactory` so each MCP tool call builds a fresh command with the tool-call stdout and stderr writers. This keeps MCP protocol output separate from command output while preserving the existing command tree schema. If the command constructor requires stdin, the factory can wire a non-interactive reader such as `strings.NewReader("")`.
 
@@ -257,24 +246,29 @@ For example, if `Port` is attached to the `srv` command, `FULL_SRV_PORT` is used
 
 ### ⚙️ Configuration File Support
 
-Easily set up configuration file discovery (flag, environment variable, and fallback paths) with a single line of code.
+Set up configuration file discovery (flag, environment variable, and fallback paths) via `Setup`:
 
 ```go
-structcli.SetupConfig(rootCmd, config.Options{AppName: "full"})
+structcli.Setup(rootCmd,
+    structcli.WithAppName("full"),
+    structcli.WithConfig(config.Options{}),
+)
 ```
 
 Enable strict config-key validation with:
 
 ```go
-structcli.SetupConfig(rootCmd, config.Options{
-  AppName:      "full",
-  ValidateKeys: true, // opt-in
-})
+structcli.Setup(rootCmd,
+    structcli.WithAppName("full"),
+    structcli.WithConfig(config.Options{ValidateKeys: true}),
+)
 ```
 
 When enabled, `Unmarshal` fails if command-relevant config contains unknown keys.
 
-Call `SetupConfig` before attaching/defining options when you rely on app-prefixed environment variables, so the env prefix is initialized before env annotations are generated.
+`WithAppName` sets the env prefix. `WithConfig` registers the `--config` flag and defers config loading to `ExecuteC`'s bind pipeline (before auto-unmarshal). Ordering between `Setup` and `Bind` does not matter — `WithAppName` retroactively patches env annotations on already-defined flags.
+
+Individual `SetupConfig`, `SetupDebug`, etc. remain available for power users who need fine-grained control.
 
 The line above:
 
@@ -414,8 +408,10 @@ See a full working example [here](examples/full/cli/cli.go).
 Create a `--debug-options` flag (plus a matching env var) for troubleshooting config/env/flags resolution.
 
 ```go
-structcli.SetupDebug(rootCmd, debug.Options{})
+structcli.Setup(rootCmd, structcli.WithDebug(debug.Options{}))
 ```
+
+Or standalone: `structcli.SetupDebug(rootCmd, debug.Options{})`.
 
 The flag accepts `text` (default when used bare) or `json` for machine-readable output. Truthy values like `true`, `1`, `yes` are treated as `text` for backward compatibility.
 
@@ -472,10 +468,10 @@ The flag can also be activated via environment variable: `FULL_DEBUG_OPTIONS=jso
 
 ### 📋 Self-Documenting Help Topics
 
-`SetupHelpTopics` adds two help topic commands that list every environment variable binding and every valid configuration file key across the command tree.
+`WithHelpTopics` (or standalone `SetupHelpTopics`) adds two help topic commands that list every environment variable binding and every valid configuration file key across the command tree.
 
 ```go
-structcli.SetupHelpTopics(rootCmd, helptopics.Options{})
+structcli.Setup(rootCmd, structcli.WithHelpTopics(helptopics.Options{}))
 ```
 
 Call this after all subcommands and flags are defined (typically right before `ExecuteOrExit`).
@@ -531,7 +527,7 @@ The pattern allows you to:
 
 #### 🍩 In a Nutshell
 
-Create a shared struct that implements the `ContextOptions` interface. This struct will hold both the configuration flags and the computed state (e.g., the logger).
+Create a shared struct that implements the `ContextInjector` interface. This struct will hold both the configuration flags and the computed state (e.g., the logger).
 
 ```go
 // This struct holds our shared state.
@@ -540,37 +536,35 @@ type CommonOptions struct {
     Logger   *zap.Logger   `flagignore:"true"` // This field is computed, not a flag.
 }
 
-// The Context/FromContext methods enable the propagation pattern.
+// Context injects the struct into the command context during auto-unmarshal.
 func (o *CommonOptions) Context(ctx context.Context) context.Context { /* ... */ }
+
+// FromContext retrieves the struct from context (user-side, not interface-enforced).
 func (o *CommonOptions) FromContext(ctx context.Context) error { /* ... */ }
 
 // Initialize is a custom method to create the computed state.
 func (o *CommonOptions) Initialize() error { /* ... */ }
 ```
 
-Initialize the state in the root command. Use a `PersistentPreRunE` hook on your root command to populate your struct and initialize any resources.
-Invoking `structcli.Unmarshal` will automatically inject the prepared object into the context for all subcommands to use.
+Bind the shared struct to the root command. `Bind` registers it for auto-unmarshal — the bind pipeline populates it and calls `Context()` to inject it before any `PreRunE` or `RunE` fires.
+
+```go
+structcli.Bind(rootC, commonOpts)
+```
+
+If you need to initialize computed state (like a logger) after unmarshal, use a `PersistentPreRunE` hook — by the time it fires, `commonOpts` is already populated:
 
 ```go
 rootC.PersistentPreRunE = func(c *cobra.Command, args []string) error {
-	// Populate the master `commonOpts` from flags, env, and config file.
-	if err := structcli.Unmarshal(c, commonOpts); err != nil {
-		return err
-	}
-	// Use the populated values to initialize the computed state (the logger).
-	if err := commonOpts.Initialize(); err != nil {
-		return err
-	}
-
-	return nil
+	// commonOpts is already populated by the bind pipeline.
+	return commonOpts.Initialize()
 }
 ```
 
-Finally, retrieve the state in subcommands. In your subcommand's `RunE`, simply call `.FromContext()` to retrieve the shared, initialized object.
+Retrieve the state in subcommands. In your subcommand's `RunE`, call `.FromContext()` to retrieve the shared, initialized object.
 
 ```go
 func(c *cobra.Command, args []string) error {
-    // Create a receiver and retrieve the master state from the context.
     config := &CommonOptions{}
     if err := config.FromContext(c.Context()); err != nil {
         return err
@@ -582,6 +576,8 @@ func(c *cobra.Command, args []string) error {
 ```
 
 This pattern ensures that subcommands remain decoupled while having access to a consistent, centrally-managed state.
+
+> **Note:** The deprecated `ContextOptions` interface (which embeds `Options` and requires `Attach`) still works for backward compatibility. New code should use `ContextInjector` instead.
 
 For a complete, runnable implementation of this pattern, see the loginsvc example located in the [/examples/loginsvc](/examples/loginsvc/) directory.
 
@@ -676,14 +672,16 @@ func (o *ServerOptions) Attach(c *cobra.Command) error {
 }
 ```
 
+Types using `flagcustom:"true"` require the `Options` interface (`Attach` method) because the `Define<Field>`/`Decode<Field>` methods are discovered on the receiver. `Bind` works too — it detects `Options` implementors and delegates to `Attach`.
+
 For enum types, prefer `RegisterEnum`/`RegisterIntEnum` instead. They handle the same concerns with less boilerplate.
 
 `Complete<FieldName>` works for any field that becomes a flag (not only `flagcustom:"true"` fields).
 
 Completion precedence:
 
-- If a completion function is already registered on a flag before `structcli.Define()`, structcli preserves it.
-- If `structcli.Define()` auto-registers `Complete<FieldName>`, a later manual `RegisterFlagCompletionFunc` on the same flag returns Cobra's `already registered` error.
+- If a completion function is already registered on a flag before `Define`, structcli preserves it.
+- If `Define` auto-registers `Complete<FieldName>`, a later manual `RegisterFlagCompletionFunc` on the same flag returns Cobra's `already registered` error.
 
 In [values](/values/values.go) we provide `pflag.Value` implementations for standard types.
 
@@ -779,6 +777,8 @@ func (o *LogsOptions) Attach(c *cobra.Command) error {
 }
 ```
 
+`Attach` is needed here because of the custom `flagkit.AnnotateCommand` call. For structs without custom define-time logic, use `structcli.Bind(cmd, opts)` instead — it handles both plain structs and `Options` implementors.
+
 Available types:
 
 | Type | Flag | Default | Description |
@@ -828,6 +828,7 @@ Organize your `--help` output into logical groups for better readability.
 #       --config string                   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full,...}/config.{yaml,json,toml})
 #       --debug-options string[="text"]   debug output format (text, json)
 #       --jsonschema string[="true"]      output JSON Schema and exit (bare: this command, =tree: full subtree)
+#       --mcp                             serve MCP over stdio
 #
 # Reference:
 #   config-keys List all configuration file keys
@@ -877,6 +878,7 @@ Organize your `--help` output into logical groups for better readability.
 #       --config string                   config file (fallbacks to: {/etc/full,{executable_dir}/.full,$HOME/.full,...}/config.{yaml,json,toml})
 #       --debug-options string[="text"]   debug output format (text, json)
 #       --jsonschema string[="true"]      output JSON Schema and exit (bare: this command, =tree: full subtree)
+#       --mcp                             serve MCP over stdio
 #
 # Use "full srv [command] --help" for more information about a command.
 ```
