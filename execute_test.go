@@ -1,8 +1,10 @@
 package structcli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/leodido/structcli/config"
@@ -656,5 +658,159 @@ func TestExecuteC_SharedContextInjector_VisibleInDescendant(t *testing.T) {
 
 	assert.Equal(t, "test-app", shared.AppName)
 	assert.Equal(t, "test-app", nameInChild, "context injected on root should be visible in child")
+}
+
+func TestExecuteC_WarnsWhenTraverseChildrenFalse(t *testing.T) {
+	// When a non-leaf command has Bind-registered local flags and
+	// TraverseChildren is false, ExecuteC should print a warning to stderr.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	type SharedFlags struct {
+		Verbose bool `flag:"verbose"`
+	}
+
+	root := &cobra.Command{Use: "app"}
+	child := &cobra.Command{
+		Use:  "sub",
+		RunE: func(c *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(child)
+
+	require.NoError(t, Bind(root, &SharedFlags{}))
+
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"sub"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr.String(), "local flags")
+	assert.Contains(t, stderr.String(), "TraverseChildren is false")
+	assert.Contains(t, stderr.String(), `"app"`)
+}
+
+func TestExecuteC_NoWarningWhenTraverseChildrenTrue(t *testing.T) {
+	// No warning when TraverseChildren is true.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	type SharedFlags struct {
+		Verbose bool `flag:"verbose"`
+	}
+
+	root := &cobra.Command{
+		Use:              "app",
+		TraverseChildren: true,
+	}
+	child := &cobra.Command{
+		Use:  "sub",
+		RunE: func(c *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(child)
+
+	require.NoError(t, Bind(root, &SharedFlags{}))
+
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"sub"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+
+	assert.Empty(t, stderr.String(), "no warning expected when TraverseChildren is true")
+}
+
+func TestExecuteC_NoWarningWhenLeafOnly(t *testing.T) {
+	// No warning when bound options are only on leaf commands.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	root := &cobra.Command{Use: "app"}
+	child := &cobra.Command{
+		Use:  "sub",
+		RunE: func(c *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(child)
+
+	require.NoError(t, Bind(child, &execPlainOpts{}))
+
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"sub", "--port", "8080"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+
+	assert.Empty(t, stderr.String(), "no warning when only leaf commands have bound options")
+}
+
+func TestExecuteC_TraverseChildrenWarning_MultipleOffendingCommands(t *testing.T) {
+	// When multiple intermediate commands have bound options and children,
+	// a single warning should list all offending paths.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	type Flags struct {
+		Verbose bool `flag:"verbose"`
+	}
+
+	root := &cobra.Command{Use: "app"}
+	mid := &cobra.Command{Use: "mid"}
+	leaf := &cobra.Command{
+		Use:  "leaf",
+		RunE: func(c *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(mid)
+	mid.AddCommand(leaf)
+
+	// Both root and mid have bound options and children.
+	require.NoError(t, Bind(root, &Flags{}))
+	require.NoError(t, Bind(mid, &Flags{}))
+
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"mid", "leaf"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+
+	out := stderr.String()
+	assert.Contains(t, out, `"app"`, "warning should mention root")
+	assert.Contains(t, out, `"app mid"`, "warning should mention mid")
+	// Single warning line, not two separate ones.
+	assert.Equal(t, 1, strings.Count(out, "Warning:"), "should be a single deduplicated warning")
+}
+
+func TestExecuteC_TraverseChildrenWarning_OncePerTree(t *testing.T) {
+	// The warning should fire only once per tree, even across repeated
+	// ExecuteC calls.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	type Flags struct {
+		Verbose bool `flag:"verbose"`
+	}
+
+	root := &cobra.Command{Use: "app"}
+	child := &cobra.Command{
+		Use:  "sub",
+		RunE: func(c *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(child)
+	require.NoError(t, Bind(root, &Flags{}))
+
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+
+	// First execution — warning fires.
+	root.SetArgs([]string{"sub"})
+	_, err := ExecuteC(root)
+	require.NoError(t, err)
+	assert.Contains(t, stderr.String(), "TraverseChildren is false")
+
+	// Second execution — warning should not repeat.
+	stderr.Reset()
+	root.SetArgs([]string{"sub"})
+	_, err = ExecuteC(root)
+	require.NoError(t, err)
+	assert.Empty(t, stderr.String(), "warning should not repeat on second ExecuteC call")
 }
 
