@@ -14,7 +14,6 @@ import (
 	"github.com/leodido/structcli/debug"
 	"github.com/leodido/structcli/flagkit"
 	"github.com/leodido/structcli/helptopics"
-	"github.com/leodido/structcli/jsonschema"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
 )
@@ -88,9 +87,9 @@ type DatabaseConfig struct {
 	MaxConns int    `flagdescr:"Max database connections" default:"10" flagenv:"true"`
 }
 
-
-
-// Attach makes ServerOptions implement the Options interface
+// Attach defines flags without registering for auto-unmarshal.
+// ServerOptions uses Attach (not Bind) because srv has subcommands
+// and these options should only be unmarshalled when srv itself runs.
 func (o *ServerOptions) Attach(c *cobra.Command) error {
 	return structcli.Define(c, o)
 }
@@ -105,6 +104,8 @@ func makeSrvC() *cobra.Command {
 		Long:  "Start the server with the specified configuration",
 		PreRunE: func(c *cobra.Command, args []string) error {
 			fmt.Fprintln(c.OutOrStdout(), "|--srvC.PreRunE")
+			// ServerOptions uses Define (not Bind) because srv has subcommands
+			// and these options should not be auto-unmarshalled for children.
 			if err := structcli.Unmarshal(c, opts); err != nil {
 				return err
 			}
@@ -122,6 +123,8 @@ func makeSrvC() *cobra.Command {
 			fmt.Fprintln(c.OutOrStdout(), "|--srvC.RunE")
 		},
 	}
+	// Use Attach (not Bind) — srv has subcommands and ServerOptions should
+	// only be unmarshalled when srv itself runs, not for child commands.
 	opts.Attach(srvC)
 
 	versionC := &cobra.Command{
@@ -129,6 +132,7 @@ func makeSrvC() *cobra.Command {
 		Short: "Print version information",
 		RunE: func(c *cobra.Command, args []string) error {
 			fmt.Fprintln(c.OutOrStdout(), "|---versionC.RunE")
+			// commonOpts is auto-unmarshalled; retrieve from context.
 			if err := commonOpts.FromContext(c.Context()); err != nil {
 				return err
 			}
@@ -138,14 +142,14 @@ func makeSrvC() *cobra.Command {
 		},
 	}
 
-	commonOpts.Attach(versionC)
+	structcli.Bind(versionC, commonOpts)
 	srvC.AddCommand(versionC)
 
 	return srvC
 }
 
-var _ structcli.ValidatableOptions = (*UserConfig)(nil)
-var _ structcli.TransformableOptions = (*UserConfig)(nil)
+var _ structcli.Validatable = (*UserConfig)(nil)
+var _ structcli.Transformable = (*UserConfig)(nil)
 
 type UserConfig struct {
 	Email string `flag:"email" flagdescr:"User email" validate:"email"`
@@ -153,9 +157,7 @@ type UserConfig struct {
 	Name  string `flag:"name" flagdescr:"User name" mod:"trim,title"`
 }
 
-// Transform makes UserConfig implement the ValidatableOptions interface
-//
-// The UserConfig options (flags/envs/configs) will be validated at unmarshalling time.
+// Validate is called automatically during unmarshal.
 func (o *UserConfig) Validate(ctx context.Context) []error {
 	var errs []error
 	err := validator.New().Struct(o)
@@ -175,20 +177,12 @@ func (o *UserConfig) Validate(ctx context.Context) []error {
 	return errs
 }
 
-// Transform makes UserConfig implement the TransformableOptions interface
-//
-// The UserConfig options (flags/envs/configs) will be at molded at unmarshalling time (before validation).
+// Transform is called automatically during unmarshal (before validation).
 func (o *UserConfig) Transform(ctx context.Context) error {
 	return modifiers.New().Struct(ctx, o)
 }
 
-// Attach makes UserConfig implement the Options interface
-func (o *UserConfig) Attach(c *cobra.Command) error {
-	return structcli.Define(c, o)
-}
-
 func makeUsrC() *cobra.Command {
-	// Options implementing CommonOptions propagate automatically via commands context
 	commonOpts := &UtilityFlags{}
 	opts := &UserConfig{}
 
@@ -204,12 +198,14 @@ func makeUsrC() *cobra.Command {
 		Long:  "Add a new user to the system with the specified details",
 		PreRunE: func(c *cobra.Command, args []string) error {
 			fmt.Fprintln(c.OutOrStdout(), "|---add.PreRunE")
+			// commonOpts is auto-unmarshalled; retrieve from context.
 			if err := commonOpts.FromContext(c.Context()); err != nil {
 				return err
 			}
 			fmt.Fprintln(c.OutOrStdout(), pretty(commonOpts))
 
-			return structcli.Unmarshal(c, opts)
+			// opts is already populated by the bind pipeline.
+			return nil
 		},
 		RunE: func(c *cobra.Command, args []string) error {
 			fmt.Fprintln(c.OutOrStdout(), "|---add.RunE")
@@ -219,19 +215,16 @@ func makeUsrC() *cobra.Command {
 		},
 	}
 
-	opts.Attach(addC)
-	commonOpts.Attach(addC)
+	structcli.Bind(addC, opts)
+	structcli.Bind(addC, commonOpts)
 
 	usrC.AddCommand(addC)
-	// Setup of the usage text happens at structcli.Define
-	// For the `usr` command we do it explicitly since it has no local flags
-	structcli.SetupUsage(usrC)
 
 	return usrC
 }
 
-var _ structcli.ValidatableOptions = (*PresetDemoOptions)(nil)
-var _ structcli.TransformableOptions = (*PresetDemoOptions)(nil)
+var _ structcli.Validatable = (*PresetDemoOptions)(nil)
+var _ structcli.Transformable = (*PresetDemoOptions)(nil)
 
 // PresetDemoOptions demonstrates flagpreset values flowing through
 // transform and validation logic.
@@ -263,10 +256,6 @@ func (o *PresetDemoOptions) Transform(ctx context.Context) error {
 	return modifiers.New().Struct(ctx, o)
 }
 
-func (o *PresetDemoOptions) Attach(c *cobra.Command) error {
-	return structcli.Define(c, o)
-}
-
 func makePresetC() *cobra.Command {
 	opts := &PresetDemoOptions{}
 
@@ -275,15 +264,13 @@ func makePresetC() *cobra.Command {
 		Short: "Demonstrate flag presets with validation and transformation",
 		Long:  "Demonstrate that flagpreset aliases are syntactic sugar and still flow through Transform and Validate",
 		RunE: func(c *cobra.Command, args []string) error {
-			if err := structcli.Unmarshal(c, opts); err != nil {
-				return err
-			}
+			// opts is already populated by the bind pipeline.
 			fmt.Fprintln(c.OutOrStdout(), pretty(opts))
 
 			return nil
 		},
 	}
-	opts.Attach(presetC)
+	structcli.Bind(presetC, opts)
 
 	return presetC
 }
@@ -319,9 +306,7 @@ func makeLogsC() *cobra.Command {
   full logs -s api -f -o json --timeout 10s
   full logs -s api --quiet`,
 		RunE: func(c *cobra.Command, args []string) error {
-			if err := structcli.Unmarshal(c, opts); err != nil {
-				return err
-			}
+			// opts is already populated by the bind pipeline.
 			// Per-command format validation — uses the set from RestrictFormats
 			if err := opts.Output.ValidFormat(); err != nil {
 				return err
@@ -340,14 +325,16 @@ func makeLogsC() *cobra.Command {
 			return nil
 		},
 	}
-	opts.Attach(logsC)
+	// LogsOptions.Attach has custom logic (flagkit.AnnotateCommand), so use Bind
+	// which delegates to Attach for Options implementors.
+	structcli.Bind(logsC, opts)
 	// Narrow help/completion/schema to the formats this command supports.
 	opts.Output.RestrictFormats(logsC, flagkit.OutputText, flagkit.OutputJSON)
 
 	return logsC
 }
 
-var _ structcli.ContextOptions = (*UtilityFlags)(nil)
+var _ structcli.ContextInjector = (*UtilityFlags)(nil)
 
 type UtilityFlags struct {
 	Verbose int  `flagtype:"count" flagshort:"v" flaggroup:"Utility"`
@@ -356,11 +343,7 @@ type UtilityFlags struct {
 
 type utilityFlagsKey struct{}
 
-func (f *UtilityFlags) Attach(c *cobra.Command) error {
-	return structcli.Define(c, f)
-}
-
-// Context implements the CommonOptions interface
+// Context propagates UtilityFlags into the command context during unmarshal.
 func (f *UtilityFlags) Context(ctx context.Context) context.Context {
 	return context.WithValue(ctx, utilityFlagsKey{}, f)
 }
@@ -376,39 +359,23 @@ func (f *UtilityFlags) FromContext(ctx context.Context) error {
 }
 
 func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
-	// Options implementing CommonOptions propagate automatically via commands context
 	commonOpts := &UtilityFlags{}
 
 	rootC := &cobra.Command{
 		Use:               "full",
 		Short:             "A beautiful CLI application",
 		Long:              "A demonstration of the structcli library with beautiful CLI features",
-		SilenceUsage:      true,
 		DisableAutoGenTag: true,
 		// Parse its own flags first, then continue traversing down to find subcommands
 		// Useful for allowing context options not being attached to all the subcommands
 		// Eg, `go run main.go --dry-run usr add` would fail otherwise
 		TraverseChildren: true,
-		// Because we handle errors ourselves in this example
-		SilenceErrors: true,
 	}
 
-	// Global persistent pre-run for config file support
+	// User hook — config loading and unmarshal are handled by the bind pipeline,
+	// but we keep this hook for observable output in tests.
 	rootC.PersistentPreRunE = func(c *cobra.Command, args []string) error {
 		fmt.Fprintln(c.OutOrStdout(), "|-rootC.PersistentPreRunE")
-
-		// Load config file if found
-		_, configMessage, configErr := structcli.UseConfigSimple(c)
-		if configErr != nil {
-			return configErr
-		}
-		if configMessage != "" {
-			c.Println(configMessage)
-		}
-
-		if err := structcli.Unmarshal(c, commonOpts); err != nil {
-			return err
-		}
 
 		return nil
 	}
@@ -418,31 +385,23 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 		return nil
 	}
 
-	// Initialize config before defining options so env annotations include the app prefix.
-	if err := structcli.SetupConfig(rootC, config.Options{AppName: "full"}); err != nil {
+	if err := structcli.Setup(rootC,
+		structcli.WithAppName("full"),
+		structcli.WithConfig(config.Options{}),
+		structcli.WithDebug(debug.Options{Exit: exitOnDebug}),
+		structcli.WithJSONSchema(),
+		structcli.WithMCP(),
+		structcli.WithHelpTopics(helptopics.Options{ReferenceSection: true}),
+		structcli.WithFlagErrors(),
+	); err != nil {
 		return nil, err
 	}
 
-	commonOpts.Attach(rootC)
+	structcli.Bind(rootC, commonOpts)
 	rootC.AddCommand(makeSrvC())
 	rootC.AddCommand(makeUsrC())
 	rootC.AddCommand(makePresetC())
 	rootC.AddCommand(makeLogsC())
-
-	// This single line enables the debugging global flag
-	if err := structcli.SetupDebug(rootC, debug.Options{Exit: exitOnDebug}); err != nil {
-		return nil, err
-	}
-
-	// Enable --jsonschema for machine-readable self-description (AI-native CLIs)
-	if err := structcli.SetupJSONSchema(rootC, jsonschema.Options{}); err != nil {
-		return nil, err
-	}
-
-	// Add "env-vars" and "config-keys" reference commands
-	if err := structcli.SetupHelpTopics(rootC, helptopics.Options{ReferenceSection: true}); err != nil {
-		return nil, err
-	}
 
 	return rootC, nil
 }
