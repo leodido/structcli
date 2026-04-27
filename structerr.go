@@ -159,25 +159,15 @@ func HandleError(cmd *cobra.Command, err error, w io.Writer) int {
 	return se.ExitCode
 }
 
-// ExecuteOrExit runs cmd.Execute(). On error it writes structured JSON to stderr
-// and exits with a semantic exit code. On success it exits 0.
-//
-// It automatically sets SilenceErrors and SilenceUsage on the root command
-// so cobra doesn't print its own error messages or usage text — structcli
-// handles all error output as structured JSON.
-//
-// This is a convenience wrapper for the common main() pattern:
+// ExecuteOrExit is a convenience wrapper around ExecuteC for the common main() pattern.
+// On error it writes structured JSON to stderr and exits with a semantic exit code.
+// On success it exits 0.
 //
 //	func main() {
 //	    structcli.ExecuteOrExit(buildMyCLI())
 //	}
 func ExecuteOrExit(cmd *cobra.Command) {
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-
-	// ExecuteC returns the actual subcommand that ran (or failed),
-	// giving HandleError the correct flag set for metadata lookups.
-	c, err := cmd.ExecuteC()
+	c, err := ExecuteC(cmd)
 	if err != nil {
 		os.Exit(HandleError(c, err, os.Stderr))
 	}
