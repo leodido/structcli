@@ -9,18 +9,22 @@ Agents do not need to scrape `--help` and guess. They can ask the CLI for its co
 ```go
 rootCmd := &cobra.Command{Use: "mycli"}
 
-structcli.SetupJSONSchema(rootCmd, jsonschema.Options{})
-structcli.SetupHelpTopics(rootCmd, helptopics.Options{ReferenceSection: true})  // "mycli env-vars" and "mycli config-keys"
-structcli.SetupFlagErrors(rootCmd)  // Optional, but recommended
-structcli.SetupMCP(rootCmd, mcp.Options{}) // Optional, exposes the CLI as an MCP server over stdio
+structcli.Setup(rootCmd,
+    structcli.WithJSONSchema(),
+    structcli.WithHelpTopics(helptopics.Options{ReferenceSection: true}),  // "mycli env-vars" and "mycli config-keys"
+    structcli.WithFlagErrors(),  // Optional, but recommended
+    structcli.WithMCP(),         // Optional, exposes the CLI as an MCP server over stdio
+)
 structcli.ExecuteOrExit(rootCmd)
 ```
 
 Use `ExecuteOrExit` when you want the simplest production `main()`. Use `HandleError` directly when you want full control over output streams and exit flow.
 
+Individual `SetupJSONSchema`, `SetupMCP`, etc. remain available for power users who need fine-grained control.
+
 ## Machine-readable self-description
 
-`SetupJSONSchema` adds a `--jsonschema` persistent flag to the root command. When requested, structcli prints a JSON Schema (draft 2020-12) for the command being invoked.
+`WithJSONSchema` (or standalone `SetupJSONSchema`) adds a `--jsonschema` persistent flag to the root command. When requested, structcli prints a JSON Schema (draft 2020-12) for the command being invoked.
 
 That schema includes:
 
@@ -66,11 +70,11 @@ Programmatic APIs:
 
 - `structcli.JSONSchema(cmd, jsonschema.WithFullTree())`
 - `jsonschema.WithEnumInDescription()`
-- `jsonschema.Options{SchemaOpts: ...}` passed through `SetupJSONSchema`
+- `jsonschema.Options{SchemaOpts: ...}` passed through `WithJSONSchema` or `SetupJSONSchema`
 
 ## Human-readable help topics
 
-`SetupHelpTopics` adds two reference commands to the root: `env-vars` and `config-keys`. These list every environment variable binding and every valid configuration file key across the command tree.
+`WithHelpTopics` (or standalone `SetupHelpTopics`) adds two reference commands to the root: `env-vars` and `config-keys`. These list every environment variable binding and every valid configuration file key across the command tree.
 
 Unlike `--jsonschema` (machine-readable), help topics produce plain text grouped by command with aligned columns — useful for humans and for agents that prefer scanning text over parsing JSON.
 
@@ -78,11 +82,11 @@ Unlike `--jsonschema` (machine-readable), help topics produce plain text grouped
 - Config keys derived from embedded struct paths appear as aliases.
 - By default, help topics appear as regular subcommands. Set `ReferenceSection: true` to move them into a dedicated "Reference:" section in `--help` output.
 
-Call `SetupHelpTopics` after all subcommands and flags are defined.
+Call `Setup` (or `SetupHelpTopics`) after all subcommands and flags are defined.
 
 ## MCP server mode
 
-`SetupMCP` adds a `--mcp` flag to the root command. When requested, structcli serves the same command tree over stdio as an MCP server.
+`WithMCP` (or standalone `SetupMCP`) adds a `--mcp` flag to the root command. When requested, structcli serves the same command tree over stdio as an MCP server.
 
 That means an agent can use the CLI as a live tool host instead of only consuming generated markdown:
 
@@ -93,10 +97,10 @@ That means an agent can use the CLI as a live tool host instead of only consumin
 Minimal wiring:
 
 ```go
-structcli.SetupMCP(rootCmd, mcp.Options{
+structcli.Setup(rootCmd, structcli.WithMCP(mcp.Options{
     Name:    "mycli",
     Version: "1.0.0",
-})
+}))
 ```
 
 The default transport is stdio, which fits Claude Code and similar agent runners. Command execution, typed inputs, and structured failures all reuse the existing structcli contract, so the MCP surface stays aligned with the CLI surface.
@@ -104,7 +108,7 @@ The default transport is stdio, which fits Claude Code and similar agent runners
 For CLIs that capture output streams during command construction, provide a fresh command factory:
 
 ```go
-structcli.SetupMCP(rootCmd, mcp.Options{
+structcli.Setup(rootCmd, structcli.WithMCP(mcp.Options{
     Name: "streamed",
     CommandFactory: func(argv []string, stdout io.Writer, stderr io.Writer) (*cobra.Command, error) {
         return NewRootCommand(Streams{
@@ -113,7 +117,7 @@ structcli.SetupMCP(rootCmd, mcp.Options{
             ErrOut: stderr,
         }), nil
     },
-})
+}))
 ```
 
 Use `CommandFactory` when the CLI stores output streams in option structs or command constructors. The factory should build the command tree, while structcli sets the MCP call's argv before execution. MCP tool calls are non-interactive; if your command constructor requires stdin, wire a non-interactive reader such as `strings.NewReader("")`. The default MCP executor still reuses and resets the original Cobra tree, which is simpler for CLIs that only write through `cmd.OutOrStdout()` and `cmd.ErrOrStderr()`.
@@ -129,7 +133,7 @@ Use `CommandFactory` when the CLI stores output streams in option structs or com
 - writes structured JSON to `stderr`
 - exits with the semantic code
 
-`SetupFlagErrors` is optional, but recommended. It intercepts Cobra flag parse errors and upgrades them into typed flag errors, so classification does not have to rely on regex fallback for invalid values and unknown flags.
+`WithFlagErrors` (or standalone `SetupFlagErrors`) is optional, but recommended. It intercepts Cobra flag parse errors and upgrades them into typed flag errors, so classification does not have to rely on regex fallback for invalid values and unknown flags.
 
 Structured errors can include fields such as:
 
@@ -179,7 +183,7 @@ Helpers:
 
 ## Static discovery files
 
-The `generate` package produces build-time discovery files from the same struct definitions that power `--jsonschema`, `SetupMCP`, and `HandleError`. No hand-written markdown to keep in sync.
+The `generate` package produces build-time discovery files from the same struct definitions that power `--jsonschema`, `--mcp`, and `HandleError`. No hand-written markdown to keep in sync.
 
 Three formats are supported:
 
@@ -232,11 +236,11 @@ See the [structured error example](../examples/structerr/README.md) for a runnab
 
 | Need | Tool |
 |------|------|
-| Runtime self-description (single command) | `--jsonschema` |
+| Runtime self-description (single command) | `--jsonschema` via `WithJSONSchema` |
 | Cross-tree structured data (all commands) | `--jsonschema=tree` |
-| Env var / config key reference (human-readable) | `SetupHelpTopics` |
-| Live agent tool access | `SetupMCP` |
-| Better flag-parse errors | `SetupFlagErrors` |
+| Env var / config key reference (human-readable) | `WithHelpTopics` |
+| Live agent tool access | `WithMCP` |
+| Better flag-parse errors | `WithFlagErrors` |
 | Manual error formatting | `HandleError` |
 | One-line production main | `ExecuteOrExit` |
 | Build-time discovery files | `generate.WriteAll` with `//go:generate` |
