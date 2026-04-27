@@ -517,7 +517,7 @@ For machine-readable cross-tree data, use `--jsonschema=tree` instead — it pro
 
 ### ↪️ Sharing Options Between Commands
 
-In complex CLIs, multiple commands often need access to the same global configuration and shared resources (like a logger or a database connection). `structcli` provides a powerful pattern using the [ContextOptions](/contract.go) interface to achieve this without resorting to global variables, by propagating a single "source of truth" through the command context.
+In complex CLIs, multiple commands often need access to the same global configuration and shared resources (like a logger or a database connection). `structcli` provides a pattern using the [`ContextInjector`](/contract.go) interface to achieve this without resorting to global variables, by propagating a single "source of truth" through the command context.
 
 The pattern allows you to:
 
@@ -551,6 +551,8 @@ Bind the shared struct to the root command. `Bind` registers it for auto-unmarsh
 ```go
 structcli.Bind(rootC, commonOpts)
 ```
+
+> **Important:** `Bind` on root creates **local** flags on the root command. By default, Cobra rejects unknown flags before finding the subcommand, so `app --loglevel info sub` would fail. Set `rootC.TraverseChildren = true` so root parses its own flags first, then resolves the subcommand. Alternatively, bind the shared struct on each leaf command that needs the flags.
 
 If you need to initialize computed state (like a logger) after unmarshal, use a `PersistentPreRunE` hook — by the time it fires, `commonOpts` is already populated:
 
