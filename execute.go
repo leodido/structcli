@@ -2,6 +2,7 @@ package structcli
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	internalcmd "github.com/leodido/structcli/internal/cmd"
@@ -81,7 +82,67 @@ func ExecuteC(cmd *cobra.Command) (*cobra.Command, error) {
 
 	prepareTree(root)
 
+	warnTraverseChildren(root)
+
 	return cmd.ExecuteC()
+}
+
+const traverseChildrenWarnAnnotation = "structcli/traverse-children-warned"
+
+// warnTraverseChildren prints a diagnostic (once per tree) when non-leaf
+// commands have Bind-registered local flags but the root's TraverseChildren
+// is false. Without TraverseChildren, Cobra does not parse ancestor local
+// flags when a subcommand is invoked, so bound local flags on parent
+// commands would be rejected as unknown.
+func warnTraverseChildren(root *cobra.Command) {
+	if root.TraverseChildren {
+		return
+	}
+	if root.Annotations != nil && root.Annotations[traverseChildrenWarnAnnotation] == "true" {
+		return
+	}
+
+	cmds := commandsWithBoundOptionsAndChildren(root)
+	if len(cmds) == 0 {
+		return
+	}
+
+	paths := make([]string, len(cmds))
+	for i, c := range cmds {
+		paths[i] = fmt.Sprintf("%q", c.CommandPath())
+	}
+
+	if len(cmds) == 1 {
+		root.PrintErrln(fmt.Sprintf("Warning: command %s has Bind-registered local flags and subcommands, but TraverseChildren is false.", paths[0]),
+			"Set TraverseChildren = true on the root command, or bind shared options on each leaf command.")
+	} else {
+		root.PrintErrln(fmt.Sprintf("Warning: commands %s have Bind-registered local flags and subcommands, but TraverseChildren is false.", strings.Join(paths, ", ")),
+			"Set TraverseChildren = true on the root command, or bind shared options on each leaf command.")
+	}
+
+	if root.Annotations == nil {
+		root.Annotations = make(map[string]string)
+	}
+	root.Annotations[traverseChildrenWarnAnnotation] = "true"
+}
+
+// commandsWithBoundOptionsAndChildren returns commands that have both
+// bound options and at least one subcommand.
+func commandsWithBoundOptionsAndChildren(c *cobra.Command) []*cobra.Command {
+	var result []*cobra.Command
+	var walk func(*cobra.Command)
+	walk = func(cmd *cobra.Command) {
+		subs := cmd.Commands()
+		if len(subs) > 0 && len(internalscope.Get(cmd).BoundOptions()) > 0 {
+			result = append(result, cmd)
+		}
+		for _, sub := range subs {
+			walk(sub)
+		}
+	}
+	walk(c)
+
+	return result
 }
 
 // prepareTree walks the command tree and installs the bind pipeline wrapper
