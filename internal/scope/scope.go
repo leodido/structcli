@@ -22,6 +22,7 @@ type Scope struct {
 	boundEnvs         map[string]bool
 	customDecodeHooks map[string]mapstructure.DecodeHookFunc
 	definedFlags      map[string]string
+	boundOptions      []any // ordered list of options registered via Bind, unmarshalled in FIFO order
 	mu                sync.RWMutex
 }
 
@@ -128,4 +129,27 @@ func (s *Scope) AddDefinedFlag(name, fieldPath string) error {
 	s.definedFlags[name] = fieldPath
 
 	return nil
+}
+
+// AddBoundOptions appends an options struct to the ordered list of bound options for this command.
+// Unmarshal order matches call order (FIFO).
+func (s *Scope) AddBoundOptions(opts any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.boundOptions = append(s.boundOptions, opts)
+}
+
+// BoundOptions returns a copy of the ordered list of bound options for this command.
+func (s *Scope) BoundOptions() []any {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(s.boundOptions) == 0 {
+		return nil
+	}
+
+	result := make([]any, len(s.boundOptions))
+	copy(result, s.boundOptions)
+
+	return result
 }
