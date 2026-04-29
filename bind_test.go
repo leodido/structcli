@@ -1,6 +1,7 @@
 package structcli
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -192,6 +193,226 @@ func TestBind_PlainStruct_FlagsWorkWithParsing(t *testing.T) {
 
 	hostFlag := cmd.Flags().Lookup("host")
 	assert.Equal(t, "0.0.0.0", hostFlag.Value.String())
+}
+
+func TestBind_WarnsWhenExecuteCNotUsed(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+
+	var stderr bytes.Buffer
+	cmd := &cobra.Command{
+		Use: "test",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmd.SetErr(&stderr)
+
+	opts := &bindPlainOpts{}
+	require.NoError(t, Bind(cmd, opts))
+
+	// Use cmd.Execute() directly — not structcli.ExecuteC.
+	cmd.SetArgs([]string{})
+	require.NoError(t, cmd.Execute())
+
+	assert.Contains(t, stderr.String(), "ExecuteC")
+	assert.Contains(t, stderr.String(), "auto-unmarshalled")
+}
+
+func TestBind_NoWarningWhenExecuteCUsed(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+
+	var stderr bytes.Buffer
+	cmd := &cobra.Command{
+		Use: "test",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmd.SetErr(&stderr)
+
+	opts := &bindPlainOpts{}
+	require.NoError(t, Bind(cmd, opts))
+
+	cmd.SetArgs([]string{})
+	_, err := ExecuteC(cmd)
+	require.NoError(t, err)
+
+	assert.Empty(t, stderr.String(), "no warning should be printed when ExecuteC is used")
+}
+
+func TestBind_NoWarningWhenNoBind(t *testing.T) {
+	viper.Reset()
+	SetEnvPrefix("")
+
+	var stderr bytes.Buffer
+	cmd := &cobra.Command{
+		Use: "test",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmd.SetErr(&stderr)
+
+	// No Bind call — just execute directly.
+	cmd.SetArgs([]string{})
+	require.NoError(t, cmd.Execute())
+
+	assert.Empty(t, stderr.String(), "no warning should be printed when Bind was never called")
+}
+
+func TestBind_Warning_IndependentCommandTrees(t *testing.T) {
+	// Two independent command trees should each get their own warning
+	// hook. The per-tree PersistentPreRunE approach (no global state)
+	// means each tree is self-contained.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	// Tree 1: uses cmd.Execute() — should warn.
+	var stderr1 bytes.Buffer
+	cmd1 := &cobra.Command{
+		Use: "tree1",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmd1.SetErr(&stderr1)
+	require.NoError(t, Bind(cmd1, &bindPlainOpts{}))
+
+	cmd1.SetArgs([]string{})
+	require.NoError(t, cmd1.Execute())
+	assert.Contains(t, stderr1.String(), "ExecuteC", "tree1 should warn when cmd.Execute() is used")
+
+	// Tree 2: uses ExecuteC — should not warn.
+	var stderr2 bytes.Buffer
+	cmd2 := &cobra.Command{
+		Use: "tree2",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmd2.SetErr(&stderr2)
+	require.NoError(t, Bind(cmd2, &bindPlainOpts{}))
+
+	cmd2.SetArgs([]string{})
+	_, err := ExecuteC(cmd2)
+	require.NoError(t, err)
+	assert.Empty(t, stderr2.String(), "tree2 should not warn when ExecuteC is used")
+}
+
+// ExecuteOrExit delegates to ExecuteC, so the executeCActiveAnnotation is
+// set before the PersistentPreRunE fires. No separate test needed — the
+// annotation path is covered by TestBind_NoWarningWhenExecuteCUsed.
+// Testing ExecuteOrExit directly would require mocking os.Exit.
+
+func TestBind_Warning_NoFalsePositiveAfterExecuteC(t *testing.T) {
+	// After ExecuteC installs the pipeline wrapper, a subsequent
+	// cmd.Execute() on the same tree should NOT warn — the pipeline
+	// is already installed and auto-unmarshal works.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	var stderr bytes.Buffer
+	opts := &bindPlainOpts{}
+	cmd := &cobra.Command{
+		Use: "test",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmd.SetErr(&stderr)
+	require.NoError(t, Bind(cmd, opts))
+
+	// First call via ExecuteC — installs pipeline wrapper.
+	cmd.SetArgs([]string{"--port", "8080"})
+	_, err := ExecuteC(cmd)
+	require.NoError(t, err)
+	assert.Empty(t, stderr.String(), "no warning expected from ExecuteC")
+	assert.Equal(t, 8080, opts.Port)
+
+	// Second call via cmd.Execute() — pipeline wrapper persists,
+	// auto-unmarshal still works, no warning should fire.
+	stderr.Reset()
+	cmd.SetArgs([]string{"--port", "7070"})
+	require.NoError(t, cmd.Execute())
+	assert.Empty(t, stderr.String(), "no warning when pipeline wrapper is already installed")
+	assert.Equal(t, 7070, opts.Port, "pipeline should still unmarshal via the persisted wrapper")
+}
+
+func TestBind_Warning_ShadowedByChildPersistentPreRunE(t *testing.T) {
+	// When a child command has its own PersistentPreRunE, Cobra picks it
+	// and never reaches root's warning hook. This is a known limitation.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	var stderr bytes.Buffer
+	root := &cobra.Command{Use: "app"}
+	child := &cobra.Command{
+		Use: "sub",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
+		RunE: func(c *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(child)
+	root.SetErr(&stderr)
+
+	require.NoError(t, Bind(child, &bindPlainOpts{}))
+
+	// cmd.Execute() — warning is shadowed by child's PersistentPreRunE.
+	root.SetArgs([]string{"sub"})
+	require.NoError(t, root.Execute())
+	assert.Empty(t, stderr.String(), "warning is shadowed when child has PersistentPreRunE (known limitation)")
+}
+
+func TestBind_Warning_OverwrittenByUserHook(t *testing.T) {
+	// If the user sets root.PersistentPreRunE after Bind, the warning
+	// hook is silently replaced.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	var stderr bytes.Buffer
+	cmd := &cobra.Command{
+		Use: "test",
+		RunE: func(c *cobra.Command, args []string) error {
+			return nil
+		},
+	}
+	cmd.SetErr(&stderr)
+	require.NoError(t, Bind(cmd, &bindPlainOpts{}))
+
+	// Overwrite root's PersistentPreRunE after Bind.
+	cmd.PersistentPreRunE = func(c *cobra.Command, args []string) error {
+		return nil
+	}
+
+	cmd.SetArgs([]string{})
+	require.NoError(t, cmd.Execute())
+	assert.Empty(t, stderr.String(), "warning is lost when user overwrites PersistentPreRunE after Bind")
+}
+
+func TestBind_Warning_BindOnSubcommand(t *testing.T) {
+	// Bind on a subcommand (not root) should still install the warning
+	// hook on root.
+	viper.Reset()
+	SetEnvPrefix("")
+
+	var stderr bytes.Buffer
+	root := &cobra.Command{Use: "app"}
+	child := &cobra.Command{
+		Use:  "sub",
+		RunE: func(c *cobra.Command, args []string) error { return nil },
+	}
+	root.AddCommand(child)
+	root.SetErr(&stderr)
+
+	require.NoError(t, Bind(child, &bindPlainOpts{}))
+
+	// cmd.Execute() — warning should fire from root's hook.
+	root.SetArgs([]string{"sub"})
+	require.NoError(t, root.Execute())
+	assert.Contains(t, stderr.String(), "ExecuteC", "warning should fire even when Bind was called on a subcommand")
 }
 
 func TestBind_ScopeIsolation_DifferentCommands(t *testing.T) {
