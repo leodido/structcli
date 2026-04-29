@@ -41,30 +41,26 @@ func Bind(c *cobra.Command, opts any) error {
 		if err := o.Attach(c); err != nil {
 			return fmt.Errorf("structcli.Bind: Attach failed: %w", err)
 		}
+	} else {
+		// Internal define path for plain struct pointers (no Attach method).
+		// Replicates the Define sequence: validate → define → BindPFlags → BindEnv → SetupUsage.
+		if err := internalvalidation.Struct(c, opts); err != nil {
+			return fmt.Errorf("structcli.Bind: %w", err)
+		}
 
-		internalscope.Get(c).AddBoundOptions(opts)
+		if err := define(c, opts, "", "", nil, false, false, DefaultValidateTagName, DefaultModTagName); err != nil {
+			return fmt.Errorf("structcli.Bind: %w", err)
+		}
 
-		return nil
+		v := GetViper(c)
+		v.BindPFlags(c.Flags())
+
+		if err := internalenv.BindEnv(c); err != nil {
+			return fmt.Errorf("structcli.Bind: couldn't bind environment variables: %w", err)
+		}
+
+		SetupUsage(c)
 	}
-
-	// Internal define path for plain struct pointers (no Attach method).
-	// Replicates the Define sequence: validate → define → BindPFlags → BindEnv → SetupUsage.
-	if err := internalvalidation.Struct(c, opts); err != nil {
-		return fmt.Errorf("structcli.Bind: %w", err)
-	}
-
-	if err := define(c, opts, "", "", nil, false, false, DefaultValidateTagName, DefaultModTagName); err != nil {
-		return fmt.Errorf("structcli.Bind: %w", err)
-	}
-
-	v := GetViper(c)
-	v.BindPFlags(c.Flags())
-
-	if err := internalenv.BindEnv(c); err != nil {
-		return fmt.Errorf("structcli.Bind: couldn't bind environment variables: %w", err)
-	}
-
-	SetupUsage(c)
 
 	internalscope.Get(c).AddBoundOptions(opts)
 
