@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	mcpFlagAnnotation = "___leodido_structcli_mcpflagname"
+	mcpFlagAnnotation = "leodido/structcli/mcp-flag"
 
 	jsonrpcVersion = "2.0"
 
@@ -115,7 +115,7 @@ func resolveMCPConfig(rootC *cobra.Command, opts structclimcp.Options) *mcpConfi
 
 func wrapForMCP(rootC *cobra.Command, cfg *mcpConfig) {
 	internalcmd.RecursivelyWrapExecution(rootC, internalcmd.ExecutionInterceptor{
-		Annotation: "structcli/mcp-wrapped",
+		Annotation: "leodido/structcli/mcp-wrapped",
 		ShouldIntercept: func(cmd *cobra.Command) bool {
 			return isPersistentFlagChanged(cmd, cfg.flagName)
 		},

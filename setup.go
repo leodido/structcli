@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const configAutoLoadAnnotation = "structcli/config-auto-load"
+const configAutoLoadAnnotation = "leodido/structcli/config-auto-load"
 
 // setupConfig holds the resolved configuration from SetupOption functions.
 type setupConfig struct {

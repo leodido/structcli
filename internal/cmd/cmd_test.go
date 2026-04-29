@@ -178,7 +178,7 @@ func TestRecursivelyWrapExecution_PreservesLifecycleWhenNotIntercepted(t *testin
 	root.AddCommand(srv)
 
 	RecursivelyWrapExecution(root, ExecutionInterceptor{
-		Annotation: "structcli/test-wrapped",
+		Annotation: "leodido/structcli/test-wrapped",
 		ShouldIntercept: func(_ *cobra.Command) bool {
 			return false
 		},
@@ -200,8 +200,8 @@ func TestRecursivelyWrapExecution_PreservesLifecycleWhenNotIntercepted(t *testin
 		"post",
 		"persistent-post",
 	}, calls)
-	assert.Equal(t, "true", root.Annotations["structcli/test-wrapped"])
-	assert.Equal(t, "true", srv.Annotations["structcli/test-wrapped"])
+	assert.Equal(t, "true", root.Annotations["leodido/structcli/test-wrapped"])
+	assert.Equal(t, "true", srv.Annotations["leodido/structcli/test-wrapped"])
 }
 
 func TestRecursivelyWrapExecution_InterceptsWithoutRunningCommand(t *testing.T) {
@@ -230,7 +230,7 @@ func TestRecursivelyWrapExecution_InterceptsWithoutRunningCommand(t *testing.T) 
 		}
 
 		RecursivelyWrapExecution(root, ExecutionInterceptor{
-			Annotation: "structcli/test-wrapped",
+			Annotation: "leodido/structcli/test-wrapped",
 			Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
 				calls = append(calls, "intercept")
 				return true, nil
@@ -251,7 +251,7 @@ func TestRecursivelyWrapExecution_InterceptsWithoutRunningCommand(t *testing.T) 
 		}
 
 		RecursivelyWrapExecution(root, ExecutionInterceptor{
-			Annotation: "structcli/test-wrapped",
+			Annotation: "leodido/structcli/test-wrapped",
 			Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
 				return false, errors.New("boom")
 			},
@@ -277,7 +277,7 @@ func TestEnsureRunnable_InterceptsCommandWithoutRunE(t *testing.T) {
 
 	EnsureRunnable(root)
 	RecursivelyWrapExecution(root, ExecutionInterceptor{
-		Annotation:      "structcli/test-wrapped",
+		Annotation:      "leodido/structcli/test-wrapped",
 		ShouldIntercept: func(_ *cobra.Command) bool { return true },
 		Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
 			intercepted = true
@@ -301,7 +301,7 @@ func TestEnsureRunnable_ShowsHelpWhenNotIntercepted(t *testing.T) {
 
 	EnsureRunnable(root)
 	RecursivelyWrapExecution(root, ExecutionInterceptor{
-		Annotation:      "structcli/test-wrapped",
+		Annotation:      "leodido/structcli/test-wrapped",
 		ShouldIntercept: func(_ *cobra.Command) bool { return false },
 		Intercept: func(_ *cobra.Command, _ []string) (bool, error) {
 			return false, nil

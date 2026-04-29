@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const bindPipelineAnnotation = "structcli/bind-pipeline-wrapped"
+const bindPipelineAnnotation = "leodido/structcli/bind-pipeline-wrapped"
 
 // hookSet holds the original PersistentPreRunE/PersistentPreRun hooks
 // saved before wrapping, keyed by command pointer.
@@ -101,7 +101,7 @@ func ExecuteC(cmd *cobra.Command) (*cobra.Command, error) {
 	return cmd.ExecuteC()
 }
 
-const traverseChildrenWarnAnnotation = "structcli/traverse-children-warned"
+const traverseChildrenWarnAnnotation = "leodido/structcli/traverse-children-warned"
 
 // warnTraverseChildren prints a diagnostic (once per tree) when non-leaf
 // commands have Bind-registered local flags but the root's TraverseChildren

@@ -11,10 +11,10 @@ var (
 )
 
 const (
-	FlagGroupAnnotation       = "___leodido_structcli_flaggroups"
-	HelpTopicAnnotation       = "___leodido_structcli_helptopic"
-	HelpTopicReferenceSection = "___leodido_structcli_helptopic_refsection"
-	SyntheticRunAnnotation    = "___leodido_structcli_synthetic_run"
+	FlagGroupAnnotation       = "leodido/structcli/flag-groups"
+	HelpTopicAnnotation       = "leodido/structcli/help-topic"
+	HelpTopicReferenceSection = "leodido/structcli/help-topic-ref-section"
+	SyntheticRunAnnotation    = "leodido/structcli/synthetic-run"
 )
 
 // Groups returns a map of flag groups for the given command.

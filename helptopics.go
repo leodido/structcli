@@ -151,7 +151,7 @@ func buildConfigKeysTopic(rootC *cobra.Command) string {
 	b.WriteString("Configuration Keys\n")
 
 	// Show config file locations if SetupConfig was called.
-	if flagName, ok := rootC.Annotations[configFlagAnnotation]; ok {
+	if flagName, ok := rootC.Annotations[ConfigFlagAnnotation]; ok {
 		if f := rootC.PersistentFlags().Lookup(flagName); f != nil {
 			b.WriteString(fmt.Sprintf("\n  Config flag: --%s\n", flagName))
 			if f.Usage != "" {
