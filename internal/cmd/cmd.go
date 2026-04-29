@@ -16,8 +16,8 @@ type ExecutionInterceptor struct {
 }
 
 const (
-	wrappedRunAnnotation           = "structcli/debug-run-wrapped"
-	interceptedExecutionAnnotation = "structcli/execution-intercepted"
+	wrappedRunAnnotation           = "leodido/structcli/debug-run-wrapped"
+	interceptedExecutionAnnotation = "leodido/structcli/execution-intercepted"
 )
 
 var (

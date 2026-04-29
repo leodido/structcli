@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leodido/structcli/flagkit"
 	"github.com/leodido/structcli/generate"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -215,7 +216,7 @@ func TestAgents_EnumValuesInDescription(t *testing.T) {
 	root := &cobra.Command{Use: "app", Short: "A CLI", RunE: noop}
 	root.Flags().String("output", "text", "Output format")
 	// Simulate enum annotation (as structcli sets it for registered enums)
-	require.NoError(t, root.Flags().SetAnnotation("output", "___leodido_structcli_flagenum", []string{"json", "text", "yaml"}))
+	require.NoError(t, root.Flags().SetAnnotation("output", flagkit.FlagEnumAnnotation, []string{"json", "text", "yaml"}))
 
 	out, err := generate.Agents(root, generate.AgentsOptions{})
 	require.NoError(t, err)
@@ -229,7 +230,7 @@ func TestAgents_FlagKitDevNotes(t *testing.T) {
 	root := &cobra.Command{Use: "app", Short: "A CLI", RunE: noop}
 	root.Flags().Bool("follow", false, "Stream output continuously")
 	// Simulate flagkit annotation
-	require.NoError(t, root.Flags().SetAnnotation("follow", "___leodido_structcli_flagkit", []string{"true"}))
+	require.NoError(t, root.Flags().SetAnnotation("follow", flagkit.FlagKitAnnotation, []string{"true"}))
 
 	out, err := generate.Agents(root, generate.AgentsOptions{})
 	require.NoError(t, err)
@@ -253,7 +254,7 @@ func TestAgents_FlagKitDevNotesOnSubcommand(t *testing.T) {
 	root := &cobra.Command{Use: "app", Short: "A CLI"}
 	sub := &cobra.Command{Use: "logs", Short: "Show logs", RunE: noop}
 	sub.Flags().Bool("follow", false, "Stream output continuously")
-	require.NoError(t, sub.Flags().SetAnnotation("follow", "___leodido_structcli_flagkit", []string{"true"}))
+	require.NoError(t, sub.Flags().SetAnnotation("follow", flagkit.FlagKitAnnotation, []string{"true"}))
 	root.AddCommand(sub)
 
 	out, err := generate.Agents(root, generate.AgentsOptions{})

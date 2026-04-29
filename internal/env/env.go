@@ -19,8 +19,8 @@ var (
 )
 
 const (
-	FlagAnnotation        = "___leodido_structcli_flagenvs"
-	FlagEnvOnlyAnnotation = "___leodido_structcli_flagenvonly"
+	FlagAnnotation        = "leodido/structcli/flag-envs"
+	FlagEnvOnlyAnnotation = "leodido/structcli/flag-env-only"
 )
 
 func NormEnv(str string) string {

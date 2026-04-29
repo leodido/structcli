@@ -111,7 +111,7 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 	if rootAnnotations := c.Root().Annotations; rootAnnotations != nil {
 		jsonSchemaFlagName = rootAnnotations[jsonSchemaFlagAnnotation]
 
-		if cfgFlag, ok := rootAnnotations[configFlagAnnotation]; ok && cfgFlag != "" {
+		if cfgFlag, ok := rootAnnotations[ConfigFlagAnnotation]; ok && cfgFlag != "" {
 			schema.ConfigFlag = cfgFlag
 		}
 	}
@@ -133,7 +133,7 @@ func jsonSchemaOne(c *cobra.Command, cfg *jsonschema.Config) (*CommandSchema, er
 		// Skip structcli infrastructure flags (debug, config)
 		if rootAnnotations := c.Root().Annotations; rootAnnotations != nil {
 			if f.Name == rootAnnotations[internaldebug.FlagAnnotation] ||
-				f.Name == rootAnnotations[configFlagAnnotation] ||
+				f.Name == rootAnnotations[ConfigFlagAnnotation] ||
 				f.Name == rootAnnotations[mcpFlagAnnotation] {
 				return
 			}
@@ -514,7 +514,7 @@ func SetupJSONSchema(rootC *cobra.Command, opts jsonschema.Options) error {
 	return nil
 }
 
-const jsonSchemaFlagAnnotation = "___leodido_structcli_jsonschemaflagname"
+const jsonSchemaFlagAnnotation = "leodido/structcli/jsonschema-flag"
 
 // renderJSONSchemaIfRequested renders schema output when the setup flag is set.
 // It returns handled=true when the schema was rendered and the caller should stop.
@@ -616,7 +616,7 @@ func schemaOptsFromConfig(cfg *jsonschema.Config) []jsonschema.Opt {
 // wrapForJSONSchema recursively wraps commands to intercept --jsonschema.
 func wrapForJSONSchema(c *cobra.Command, flagName string, cfg *jsonschema.Config) {
 	internalcmd.RecursivelyWrapExecution(c, internalcmd.ExecutionInterceptor{
-		Annotation: "structcli/jsonschema-wrapped",
+		Annotation: "leodido/structcli/jsonschema-wrapped",
 		ShouldIntercept: func(cmd *cobra.Command) bool {
 			return isPersistentFlagChanged(cmd, flagName)
 		},

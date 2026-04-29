@@ -220,7 +220,7 @@ func TestOutput_RestrictFormats_Annotation(t *testing.T) {
 
 	f := cmd.Flags().Lookup("output")
 	require.NotNil(t, f)
-	ann, ok := f.Annotations["___leodido_structcli_flagenum"]
+	ann, ok := f.Annotations[flagkit.FlagEnumAnnotation]
 	assert.True(t, ok, "enum annotation should be set")
 	assert.Equal(t, []string{"json", "text"}, ann)
 }

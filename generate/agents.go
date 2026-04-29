@@ -14,7 +14,7 @@ import (
 
 // flagKitAnnotation mirrors [flagkit.FlagKitAnnotation] to avoid a dependency
 // from the generate package on the flagkit package.
-const flagKitAnnotation = "___leodido_structcli_flagkit"
+const flagKitAnnotation = "leodido/structcli/flag-kit"
 
 // AgentsOptions configures the AGENTS.md generator.
 type AgentsOptions struct {
@@ -218,7 +218,7 @@ func hasFlagKitFlags(root *cobra.Command) bool {
 func findConfigFlagName(rootCmd *cobra.Command) string {
 	// Check the annotation set by structcli.SetupConfig
 	if rootCmd.Annotations != nil {
-		if name, ok := rootCmd.Annotations["___leodido_structcli_configflagname"]; ok {
+		if name, ok := rootCmd.Annotations[structcli.ConfigFlagAnnotation]; ok {
 			return name
 		}
 	}

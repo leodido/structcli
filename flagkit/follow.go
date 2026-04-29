@@ -8,7 +8,7 @@ import (
 // FlagKitAnnotation is the pflag annotation key set on flags defined by
 // flagkit types. The generate package uses this to detect flagkit usage
 // and emit development guidance in generated docs.
-const FlagKitAnnotation = "___leodido_structcli_flagkit"
+const FlagKitAnnotation = "leodido/structcli/flag-kit"
 
 // flagKitFlags is the registry of flag names owned by flagkit types.
 // Each type registers its flag name via registerFlag in its own file's init().

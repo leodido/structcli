@@ -8,8 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// flagEnumAnnotation mirrors the structcli annotation key for enum values.
-const flagEnumAnnotation = "___leodido_structcli_flagenum"
+// FlagEnumAnnotation mirrors flagEnumAnnotation (unexported, in viper.go)
+// from the root structcli package. Duplicated here to avoid an import
+// cycle (flagkit → structcli → flagkit).
+const FlagEnumAnnotation = "leodido/structcli/flag-enum"
 
 func init() {
 	registerFlag("output")
@@ -109,7 +111,7 @@ func (o *Output) RestrictFormats(c *cobra.Command, allowed ...OutputFormat) {
 	f.Usage = fmt.Sprintf("Output format {%s}", strings.Join(names, ","))
 
 	// Update the enum annotation used by JSON Schema generation.
-	_ = c.Flags().SetAnnotation("output", flagEnumAnnotation, names)
+	_ = c.Flags().SetAnnotation("output", FlagEnumAnnotation, names)
 }
 
 // ValidFormat returns nil if the current output format is allowed, or an

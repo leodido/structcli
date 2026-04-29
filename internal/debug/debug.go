@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	FlagAnnotation = "___leodido_structcli_debugflagname"
+	FlagAnnotation = "leodido/structcli/debug-flag"
 )
 
 // normalizeFormat converts a raw debug flag/env value to "text", "json", or "".

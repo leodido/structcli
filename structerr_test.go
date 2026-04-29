@@ -11,6 +11,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	structclierrors "github.com/leodido/structcli/errors"
 	"github.com/leodido/structcli/exitcode"
+	internalenv "github.com/leodido/structcli/internal/env"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +52,7 @@ func TestHandleError_MissingRequiredFlagUsesUnsetEnvAsHintOnly(t *testing.T) {
 	// Create a flag with env annotation
 	cmd.Flags().IntP("port", "p", 0, "Server port")
 	_ = cmd.MarkFlagRequired("port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT"})
+	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYCLI_PORT"})
 
 	err := fmt.Errorf(`required flag(s) "port" not set`)
 	code := HandleError(cmd, err, &buf)
@@ -108,7 +109,7 @@ func TestHandleError_InvalidFlagValueFromEnvVar(t *testing.T) {
 
 	// Create a flag with env annotation
 	cmd.Flags().IntP("port", "p", 0, "Server port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT"})
+	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYCLI_PORT"})
 
 	// Simulate: flag NOT changed on CLI, but env var IS set
 	t.Setenv("MYCLI_PORT", "abc")
@@ -285,7 +286,7 @@ func TestHandleError_MissingRequiredFlagUsesFirstUnsetEnvBindingInHint(t *testin
 	// Flag with multiple env annotations, all unset
 	cmd.Flags().IntP("port", "p", 0, "Server port")
 	_ = cmd.MarkFlagRequired("port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT", "MYCLI_PORT_ALT"})
+	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYCLI_PORT", "MYCLI_PORT_ALT"})
 
 	// Make sure env var is unset
 	os.Unsetenv("MYCLI_PORT")
@@ -315,7 +316,7 @@ func TestHandleError_MissingRequiredFlagWithEnvVarSet(t *testing.T) {
 
 	cmd.Flags().IntP("port", "p", 0, "Server port")
 	_ = cmd.MarkFlagRequired("port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT"})
+	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYCLI_PORT"})
 
 	// Env var IS set with a valid value — cobra still complains because it doesn't check env vars
 	t.Setenv("MYCLI_PORT", "3000")
@@ -342,7 +343,7 @@ func TestHandleError_MissingRequiredFlagWithEmptyEnvVarSet_HidesEnvHint(t *testi
 
 	cmd.Flags().IntP("port", "p", 0, "Server port")
 	_ = cmd.MarkFlagRequired("port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYCLI_PORT"})
+	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYCLI_PORT"})
 
 	t.Setenv("MYCLI_PORT", "")
 
@@ -363,7 +364,7 @@ func TestHandleError_UnmarshalDecodeError_FromEnvVar(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "myapp"}
 	cmd.Flags().IntP("port", "p", 0, "Server port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYAPP_PORT"})
+	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYAPP_PORT"})
 
 	t.Setenv("MYAPP_PORT", "xyz")
 
@@ -385,7 +386,7 @@ func TestHandleError_UnmarshalDecodeError_FromEmptyEnvVar(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "myapp"}
 	cmd.Flags().IntP("port", "p", 0, "Server port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYAPP_PORT"})
+	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYAPP_PORT"})
 
 	t.Setenv("MYAPP_PORT", "")
 
@@ -480,8 +481,8 @@ func TestHandleError_UnmarshalDecodeError_FieldPathAnnotation(t *testing.T) {
 	cmd := &cobra.Command{Use: "myapp"}
 	cmd.Flags().String("level", "info", "log level")
 	// Simulate structcli's field path annotation: flag "level" has path "loglevel"
-	_ = cmd.Flags().SetAnnotation("level", "___leodido_structcli_flagpath", []string{"loglevel"})
-	_ = cmd.Flags().SetAnnotation("level", "___leodido_structcli_flagenvs", []string{"MYAPP_LEVEL"})
+	_ = cmd.Flags().SetAnnotation("level", flagPathAnnotation, []string{"loglevel"})
+	_ = cmd.Flags().SetAnnotation("level", internalenv.FlagAnnotation, []string{"MYAPP_LEVEL"})
 
 	t.Setenv("MYAPP_LEVEL", "bogus")
 
@@ -560,7 +561,7 @@ func TestHandleError_InvalidFlagValueFromEnvVar_CobraPath(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &cobra.Command{Use: "myapp"}
 	cmd.Flags().IntP("port", "p", 0, "Server port")
-	_ = cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"MYAPP_PORT"})
+	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYAPP_PORT"})
 
 	// Flag NOT changed on CLI, env var IS set
 	t.Setenv("MYAPP_PORT", "not_a_number")
@@ -590,7 +591,7 @@ func TestExtractLongFlagName_Fallback(t *testing.T) {
 func TestFindFlagForField(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("level", "", "log level")
-	_ = cmd.Flags().SetAnnotation("level", "___leodido_structcli_flagpath", []string{"loglevel"})
+	_ = cmd.Flags().SetAnnotation("level", flagPathAnnotation, []string{"loglevel"})
 	cmd.Flags().Int("port", 0, "port")
 
 	// Direct match
@@ -895,7 +896,7 @@ func TestHandleError_MissingRequiredFlagWithValidateHint(t *testing.T) {
 	cmd := &cobra.Command{Use: "mycli"}
 	cmd.Flags().String("email", "", "user email")
 	_ = cmd.MarkFlagRequired("email")
-	_ = cmd.Flags().SetAnnotation("email", "___leodido_structcli_flagenvs", []string{"MYCLI_EMAIL"})
+	_ = cmd.Flags().SetAnnotation("email", internalenv.FlagAnnotation, []string{"MYCLI_EMAIL"})
 	_ = cmd.Flags().SetAnnotation("email", flagValidateAnnotation, []string{"required,email"})
 
 	os.Unsetenv("MYCLI_EMAIL")
@@ -1091,7 +1092,7 @@ func TestSetupFlagErrors_FallbackWithoutSetup(t *testing.T) {
 func TestSetupFlagErrors_EnvVarSourceAttribution(t *testing.T) {
 	cmd := &cobra.Command{Use: "test", RunE: func(c *cobra.Command, args []string) error { return nil }}
 	cmd.Flags().IntP("port", "p", 3000, "Server port")
-	cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"TEST_PORT"})
+	cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"TEST_PORT"})
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
 
@@ -1134,7 +1135,7 @@ func TestHandleError_ValidationFailed_EmptyDetailsWithErrors(t *testing.T) {
 func TestHandleError_InvalidFlagValue_FromEnvVarRegexFallback(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().IntP("port", "p", 3000, "Server port")
-	cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"TEST_PORT"})
+	cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"TEST_PORT"})
 
 	t.Setenv("TEST_PORT", "abc")
 
@@ -1153,7 +1154,7 @@ func TestHandleError_InvalidFlagValue_FromEnvVarRegexFallback(t *testing.T) {
 func TestHandleError_InvalidFlagValue_FromEmptyEnvVarRegexFallback(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().IntP("port", "p", 3000, "Server port")
-	cmd.Flags().SetAnnotation("port", "___leodido_structcli_flagenvs", []string{"TEST_PORT"})
+	cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"TEST_PORT"})
 
 	t.Setenv("TEST_PORT", "")
 

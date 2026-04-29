@@ -25,8 +25,11 @@ var (
 )
 
 const (
-	configValidateKeysAnnotation = "___leodido_structcli_config_validate_keys"
-	configFlagAnnotation         = "___leodido_structcli_configflagname"
+	configValidateKeysAnnotation = "leodido/structcli/config-validate-keys"
+
+	// ConfigFlagAnnotation is the command annotation key that stores the
+	// config flag name set by WithConfig. Exported for use by generate/.
+	ConfigFlagAnnotation = "leodido/structcli/config-flag"
 )
 
 func setConfigRoot(rootC *cobra.Command) {
@@ -117,7 +120,7 @@ func SetupConfig(rootC *cobra.Command, cfgOpts config.Options) error {
 	if rootC.Annotations == nil {
 		rootC.Annotations = make(map[string]string)
 	}
-	rootC.Annotations[configFlagAnnotation] = cfgOpts.FlagName
+	rootC.Annotations[ConfigFlagAnnotation] = cfgOpts.FlagName
 	if cfgOpts.ValidateKeys {
 		rootC.Annotations[configValidateKeysAnnotation] = "true"
 	} else {

@@ -11,9 +11,11 @@ import (
 )
 
 const (
-	bindUsedAnnotation       = "structcli/bind-used"
-	executeCActiveAnnotation = "structcli/executec-active"
-	bindWarnAnnotation       = "structcli/bind-warn-installed"
+	bindUsedAnnotation = "leodido/structcli/bind-used"
+	// executeCActiveAnnotation uses "executec" (not "execute-c") to match
+	// the Go function name ExecuteC as a single token.
+	executeCActiveAnnotation = "leodido/structcli/executec-active"
+	bindWarnAnnotation = "leodido/structcli/bind-warn-installed"
 )
 
 // Bind defines flags from opts on cmd and registers opts for auto-unmarshal

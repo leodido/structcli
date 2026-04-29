@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	FlagDecodeHookAnnotation = "___leodido_structcli_flagdecodehooks"
+	FlagDecodeHookAnnotation = "leodido/structcli/flag-decode-hooks"
 )
 
 type DecodeHookFunc func(input any) (any, error)
