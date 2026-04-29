@@ -58,6 +58,10 @@ func getConfigOnce(root *cobra.Command) *sync.Once {
 //     before the first auto-unmarshal.
 //   - Skips the bind pipeline when execution is intercepted (--jsonschema, --mcp).
 //   - Preserves any user-set PersistentPreRunE or PersistentPreRun.
+//   - Warns (once per tree) if non-leaf commands have Bind-registered local flags
+//     but root.TraverseChildren is false.
+//   - Suppresses the [Bind] warning hook by setting an annotation that is cleared
+//     after execution returns.
 //
 // Returns the executed subcommand and any error.
 func ExecuteC(cmd *cobra.Command) (*cobra.Command, error) {
@@ -83,6 +87,16 @@ func ExecuteC(cmd *cobra.Command) (*cobra.Command, error) {
 	prepareTree(root)
 
 	warnTraverseChildren(root)
+
+	// Signal that ExecuteC is active so the Bind warning hook
+	// (installed by Bind as a PersistentPreRunE) knows not to fire.
+	if root.Annotations == nil {
+		root.Annotations = make(map[string]string)
+	}
+	root.Annotations[executeCActiveAnnotation] = "true"
+	// Clear after execution so a subsequent cmd.Execute() on the same tree
+	// is not silently treated as an ExecuteC call.
+	defer delete(root.Annotations, executeCActiveAnnotation)
 
 	return cmd.ExecuteC()
 }

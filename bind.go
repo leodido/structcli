@@ -10,17 +10,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	bindUsedAnnotation       = "structcli/bind-used"
+	executeCActiveAnnotation = "structcli/executec-active"
+	bindWarnAnnotation       = "structcli/bind-warn-installed"
+)
+
 // Bind defines flags from opts on cmd and registers opts for auto-unmarshal
-// during ExecuteC/ExecuteOrExit.
+// during [ExecuteC]/[ExecuteOrExit].
 //
-// opts must be a non-nil struct pointer. If opts implements Options (has Attach),
+// opts must be a non-nil struct pointer. If opts implements [Options] (has Attach),
 // Attach is called. Otherwise flags are defined directly from struct tags.
 //
 // Multiple Bind calls per command are supported; unmarshal order matches call order (FIFO).
 // Define runs immediately — flags exist on the command after Bind returns.
 //
-// The current manual Unmarshal model still works. Auto-unmarshal via the execution
-// pipeline is wired in ExecuteC (PR 3).
+// As a side effect, the first Bind call on a command tree installs a
+// [cobra.Command.PersistentPreRunE] on root that warns to stderr when
+// the tree is executed via cmd.Execute() instead of [ExecuteC]. This
+// warning is best-effort: it is suppressed when a child command defines
+// its own PersistentPreRunE (Cobra only runs the nearest ancestor's
+// hook), and it can be overwritten if the caller sets root.PersistentPreRunE
+// after calling Bind.
 func Bind(c *cobra.Command, opts any) error {
 	if c == nil {
 		return fmt.Errorf("structcli.Bind: command must not be nil")
@@ -63,6 +74,59 @@ func Bind(c *cobra.Command, opts any) error {
 	}
 
 	internalscope.Get(c).AddBoundOptions(opts)
+
+	// Mark the root so ExecuteC and the warning hook can detect Bind usage.
+	root := c.Root()
+	if root.Annotations == nil {
+		root.Annotations = make(map[string]string)
+	}
+	root.Annotations[bindUsedAnnotation] = "true"
+
+	// Install a PersistentPreRunE on root (once per tree) that warns when
+	// Bind was used but ExecuteC/ExecuteOrExit was not. The hook is
+	// per-tree (no global state) and chains to any existing hook.
+	//
+	// When ExecuteC is used: it sets executeCActiveAnnotation before
+	// calling cmd.ExecuteC(), and prepareTree wraps PersistentPreRunE
+	// (saving this hook as the "original"). The pipeline replays it,
+	// the hook sees the annotation, and skips the warning.
+	//
+	// When cmd.Execute() is used directly: prepareTree never runs, so
+	// this hook fires as-is. No executeCActiveAnnotation → warning.
+	//
+	// Limitation: Cobra (without EnableTraverseRunHooks) only runs the
+	// nearest ancestor's PersistentPreRunE. If a child command defines
+	// its own PersistentPreRunE, root's hook is shadowed and the warning
+	// won't fire. This is acceptable — the cmd.Execute() path is already
+	// the "wrong" path, and the warning is best-effort.
+	if root.Annotations[bindWarnAnnotation] != "true" {
+		origPreRunE := root.PersistentPreRunE
+		origPreRun := root.PersistentPreRun
+
+		root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			// Warn only when ExecuteC is not active AND the bind pipeline
+			// wrapper was never installed. If a previous ExecuteC call
+			// installed the wrapper, auto-unmarshal works even through
+			// cmd.Execute() — the wrapper is idempotent and persists.
+			if root.Annotations[executeCActiveAnnotation] != "true" &&
+				root.Annotations[bindPipelineAnnotation] != "true" {
+				root.PrintErrln("Warning: Bind-registered options exist but ExecuteC/ExecuteOrExit was not used.",
+					"Bound options will not be auto-unmarshalled. Use structcli.ExecuteC(cmd) or structcli.ExecuteOrExit(cmd) instead of cmd.Execute().")
+			}
+
+			if origPreRunE != nil {
+				return origPreRunE(cmd, args)
+			}
+			if origPreRun != nil {
+				origPreRun(cmd, args)
+			}
+
+			return nil
+		}
+		root.PersistentPreRun = nil
+
+		root.Annotations[bindWarnAnnotation] = "true"
+	}
 
 	return nil
 }
