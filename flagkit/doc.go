@@ -3,7 +3,7 @@
 //
 // Each type encapsulates a single flag with an opinionated name, type, default,
 // and description matching industry conventions. This gives CLIs a consistent
-// declaration surface — agents and scripts can rely on --follow, --output,
+// declaration surface. Agents and scripts can rely on --follow, --output,
 // --timeout, etc. having predictable names and types across tools.
 //
 // flagkit standardizes flag declarations, not behavioral semantics. How a
@@ -13,7 +13,7 @@
 //
 // # Design Principles
 //
-//   - One struct per concern — maximum composability
+//   - One struct per concern for maximum composability
 //   - Sensible, agent-friendly defaults (e.g., no auto-tailing, finite timeouts)
 //   - Standard flag names matching industry conventions
 //   - Works with all structcli features: env vars, config files, JSON Schema,

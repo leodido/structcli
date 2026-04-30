@@ -109,7 +109,7 @@ func resetFlags(root *cobra.Command) {
 // can suppress the bare usage line (avoiding a misleading "app" line that
 // implies the root is directly invocable).
 //
-// Safe to call multiple times — idempotent. Subsequent Setup* calls and
+// Safe to call multiple times (idempotent). Subsequent Setup* calls and
 // RecursivelyWrapExecution will wrap the synthetic RunE like any other.
 func EnsureRunnable(c *cobra.Command) {
 	if c.RunE == nil && c.Run == nil {

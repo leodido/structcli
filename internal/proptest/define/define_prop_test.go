@@ -183,7 +183,7 @@ func TestProperty_Define_NeverPanics(t *testing.T) {
 }
 
 // P3.2: Every non-ignored field has a registered flag.
-// Deterministic — no randomization needed.
+// Deterministic; no randomization needed.
 func TestDefine_AllFieldsHaveFlags(t *testing.T) {
 	cmd := newCmd()
 	opts := &allTypesOpts{}
@@ -197,7 +197,7 @@ func TestDefine_AllFieldsHaveFlags(t *testing.T) {
 }
 
 // P3.3: Flag count matches field count (no presets).
-// Deterministic — no randomization needed.
+// Deterministic; no randomization needed.
 func TestDefine_FlagCountMatchesFieldCount(t *testing.T) {
 	cmd := newCmd()
 	opts := &allTypesOpts{}
@@ -235,7 +235,7 @@ func TestProperty_Define_HiddenFieldsAreHidden(t *testing.T) {
 		// Hidden uses pflag.Flag.Hidden bool, not annotations.
 		if hiddenFlag.Annotations != nil {
 			if _, exists := hiddenFlag.Annotations["hidden"]; exists {
-				t.Fatal("unexpected 'hidden' annotation — hidden uses the bool field")
+				t.Fatal("unexpected 'hidden' annotation; hidden uses the bool field")
 			}
 		}
 	})
@@ -266,7 +266,7 @@ func TestProperty_Define_RequiredFieldsAreRequired(t *testing.T) {
 }
 
 // P3.6: default tag sets the flag's DefValue.
-// Deterministic — no randomization needed.
+// Deterministic; no randomization needed.
 func TestDefine_DefaultTagSetsDefValue(t *testing.T) {
 	cmd := newCmd()
 	opts := &defaultOpts{}
@@ -380,7 +380,7 @@ func TestProperty_Define_PresetAliasesRegistered(t *testing.T) {
 }
 
 // P3.10: Preset alias count is additive to flag count.
-// Deterministic — no randomization needed.
+// Deterministic; no randomization needed.
 func TestDefine_PresetAliasCountIsAdditive(t *testing.T) {
 	cmd := newCmd()
 	opts := &presetOpts{}

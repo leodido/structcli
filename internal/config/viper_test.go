@@ -380,7 +380,7 @@ func (suite *structcliSuite) TestKeyRemappingHook_AlreadyNestedMap() {
 	hook := KeyRemappingHook(aliasToPathMap, defaultsMap)
 
 	// Simulate what viper.AllSettings() returns when both "output" and
-	// "output.format" defaults are set — a nested map, not a flat string.
+	// "output.format" defaults are set as a nested map, not a flat string.
 	input := map[string]any{
 		"output": map[string]any{"format": "text"},
 		"limit":  10,

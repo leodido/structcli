@@ -169,7 +169,7 @@ func unmarshal(c *cobra.Command, opts any, hooks ...mapstructure.DecodeHookFunc)
 	}
 
 	// Automatically set common options into the context of the cobra command.
-	// Prefer ContextInjector (standalone); fall back to deprecated ContextOptions.
+	// Prefer ContextInjector (standalone); fall back to ContextOptions.
 	if o, ok := opts.(ContextInjector); ok {
 		c.SetContext(o.Context(c.Context()))
 	} else if o, ok := opts.(ContextOptions); ok {
@@ -177,7 +177,7 @@ func unmarshal(c *cobra.Command, opts any, hooks ...mapstructure.DecodeHookFunc)
 	}
 
 	// Automatically transform options if feasible.
-	// Prefer Transformable (standalone); fall back to deprecated TransformableOptions.
+	// Prefer Transformable (standalone); fall back to TransformableOptions.
 	if o, ok := opts.(Transformable); ok {
 		if transformErr := o.Transform(c.Context()); transformErr != nil {
 			return fmt.Errorf("couldn't transform options: %w", transformErr)
@@ -189,7 +189,7 @@ func unmarshal(c *cobra.Command, opts any, hooks ...mapstructure.DecodeHookFunc)
 	}
 
 	// Automatically run options validation if feasible.
-	// Prefer Validatable (standalone); fall back to deprecated ValidatableOptions.
+	// Prefer Validatable (standalone); fall back to ValidatableOptions.
 	if o, ok := opts.(Validatable); ok {
 		if validationErrors := o.Validate(c.Context()); validationErrors != nil {
 			return &structclierrors.ValidationError{

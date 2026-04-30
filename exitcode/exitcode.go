@@ -3,15 +3,15 @@
 // Exit codes are grouped into ranges that form a decision tree for AI agents:
 //
 //	exit_code == 0  → success
-//	exit_code 1–9   → runtime error → report to human
-//	exit_code 10–19 → input error → self-correct from error JSON → retry
-//	exit_code 20–29 → config/env error → fix environment → retry
+//	exit_code 1-9   → runtime error → report to human
+//	exit_code 10-19 → input error → self-correct from error JSON → retry
+//	exit_code 20-29 → config/env error → fix environment → retry
 //
 // These codes are returned by [structcli.HandleError] and included
 // in the structured JSON error output as the "exit_code" field.
 package exitcode
 
-// Runtime errors (1–9): not the agent's fault — report, don't retry.
+// Runtime errors (1-9): not the agent's fault. Report, don't retry.
 const (
 	// OK indicates successful execution.
 	OK = 0
@@ -29,7 +29,7 @@ const (
 	Interrupted = 4
 )
 
-// Input errors (10–19): the agent provided bad input — self-correct and retry.
+// Input errors (10-19): the agent provided bad input. Self-correct and retry.
 const (
 	// MissingRequiredFlag indicates a required input was missing at command
 	// execution time. Structured errors may include hints about env fallbacks,
@@ -56,7 +56,7 @@ const (
 	InvalidFlagEnum = 15
 )
 
-// Configuration and environment errors (20–29): the environment is wrong — fix it, then retry.
+// Configuration and environment errors (20-29): the environment is wrong. Fix it, then retry.
 const (
 	// ConfigParseError indicates the config file exists but is malformed
 	// (invalid YAML, JSON, or TOML syntax).
@@ -92,10 +92,10 @@ const (
 // Category returns the error category for a given exit code.
 //
 // Agents use this to decide their top-level strategy:
-//   - "ok": success — proceed
-//   - "input": bad input — self-correct from the error JSON and retry
-//   - "config": environment problem — fix config/env vars, then retry
-//   - "runtime": not the agent's fault — report to human
+//   - "ok": success, proceed
+//   - "input": bad input, self-correct from the error JSON and retry
+//   - "config": environment problem, fix config/env vars then retry
+//   - "runtime": not the agent's fault, report to human
 func Category(code int) string {
 	switch {
 	case code == OK:

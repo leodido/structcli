@@ -178,7 +178,7 @@ func TestLogLevel_IsZapLogLevel(t *testing.T) {
 	var ll flagkit.LogLevel
 	var zll flagkit.ZapLogLevel
 
-	// LogLevel is a type alias for ZapLogLevel — assignment must compile.
+	// LogLevel is a type alias for ZapLogLevel; assignment must compile.
 	ll = zll
 	zll = ll
 	_ = zll

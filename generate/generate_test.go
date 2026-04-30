@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testServeOptions defines flags via structcli.Define() — the same path real users take.
+// testServeOptions defines flags via structcli.Define(), the same path real users take.
 // This ensures annotations (env vars, defaults, required) are set correctly.
 type testServeOptions struct {
 	Port int    `flagshort:"p" flagdescr:"Server port" flagenv:"true" flagrequired:"true" default:"3000"`

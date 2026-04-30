@@ -122,7 +122,7 @@ func TestLLMsTxt_RequiredFlagMarked(t *testing.T) {
 	require.NoError(t, err)
 
 	content := string(out)
-	// Port is required — should say so
+	// Port is required; should say so.
 	assert.Contains(t, content, "required")
 }
 

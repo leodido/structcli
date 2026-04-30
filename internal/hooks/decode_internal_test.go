@@ -37,7 +37,7 @@ func TestInferDecodeHooks(t *testing.T) {
 
 func TestInferDecodeHooks_PanicsOnUnknownFlag(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
-	// Don't define a "durations" flag — SetAnnotation will panic on unknown flag
+	// Don't define a "durations" flag; SetAnnotation will panic on unknown flag.
 
 	assert.PanicsWithValue(t,
 		`structcli: SetAnnotation on just-registered flag "durations": no such flag -durations`,

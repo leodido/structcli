@@ -268,7 +268,7 @@ func TestEnsureRunnable_InterceptsCommandWithoutRunE(t *testing.T) {
 	t.Cleanup(RestoreInterceptedExecutions)
 
 	intercepted := false
-	// Root has no RunE/Run — cobra would normally short-circuit to Help().
+	// Root has no RunE/Run; cobra would normally short-circuit to Help().
 	root := &cobra.Command{
 		Use:           "app",
 		SilenceErrors: true,

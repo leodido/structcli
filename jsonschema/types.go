@@ -38,7 +38,7 @@ func WithFullTree() Opt {
 // WithEnumInDescription preserves {val1,val2,...} patterns in description fields.
 //
 // By default, enum patterns are stripped from descriptions since the values
-// are already available in the enum array — this produces cleaner output for
+// are already available in the enum array. This produces cleaner output for
 // machine consumers. Use this option to keep the original description text intact.
 func WithEnumInDescription() Opt {
 	return func(c *Config) {

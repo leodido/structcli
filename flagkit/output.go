@@ -62,7 +62,7 @@ func RegisterOutputFormats(formats ...OutputFormat) {
 //
 // For CLIs where different commands support different format subsets,
 // register the superset globally, then call [Output.RestrictFormats] after
-// Attach. RestrictFormats is the single source of truth — it narrows help,
+// Attach. RestrictFormats is the single source of truth: it narrows help,
 // JSON Schema, and runtime validation in one call:
 //
 //	func init() {
@@ -72,7 +72,7 @@ func RegisterOutputFormats(formats ...OutputFormat) {
 //	opts.Attach(cmd)
 //	opts.Output.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputYAML)
 //
-//	// In RunE — no args needed, uses the set from RestrictFormats:
+//	// In RunE (no args needed, uses the set from RestrictFormats):
 //	if err := opts.Output.ValidFormat(); err != nil {
 //	    return err
 //	}

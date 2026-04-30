@@ -156,7 +156,7 @@ func TestOutput_ValidFormat_SingleAllowed(t *testing.T) {
 }
 
 func TestOutput_ValidFormat_NoRestriction(t *testing.T) {
-	// No RestrictFormats called, no explicit args — all formats accepted.
+	// No RestrictFormats called, no explicit args: all formats accepted.
 	opts := &flagkit.Output{Format: flagkit.OutputYAML}
 	assert.NoError(t, opts.ValidFormat())
 }
@@ -168,11 +168,11 @@ func TestOutput_ValidFormat_UsesRestrictFormats(t *testing.T) {
 
 	opts.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
 
-	// Set format to an allowed value — should pass with no args.
+	// Set format to an allowed value; should pass with no args.
 	opts.Format = flagkit.OutputJSON
 	assert.NoError(t, opts.ValidFormat())
 
-	// Set format to a disallowed value — should fail with no args.
+	// Set format to a disallowed value; should fail with no args.
 	opts.Format = flagkit.OutputYAML
 	err := opts.ValidFormat()
 	assert.Error(t, err)
@@ -187,7 +187,7 @@ func TestOutput_ValidFormat_ExplicitOverridesStored(t *testing.T) {
 	// Restrict to json+text via RestrictFormats.
 	opts.RestrictFormats(cmd, flagkit.OutputJSON, flagkit.OutputText)
 
-	// Explicit args override the stored set — yaml is allowed here.
+	// Explicit args override the stored set; yaml is allowed here.
 	opts.Format = flagkit.OutputYAML
 	assert.NoError(t, opts.ValidFormat(flagkit.OutputYAML, flagkit.OutputJSON))
 
@@ -244,7 +244,7 @@ func TestOutput_RestrictFormats_JSONSchema(t *testing.T) {
 func TestOutput_RestrictFormats_NoFlag(t *testing.T) {
 	opts := &flagkit.Output{}
 	cmd := &cobra.Command{Use: "app"}
-	// Don't call Attach — no flag registered
+	// Don't call Attach; no flag registered.
 	opts.RestrictFormats(cmd, flagkit.OutputJSON) // should not panic
 }
 

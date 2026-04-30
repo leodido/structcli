@@ -346,7 +346,7 @@ func TestJSONSchema_ManualFlagRegexFallback(t *testing.T) {
 	SetEnvPrefix("")
 
 	cmd := &cobra.Command{Use: "app"}
-	// Manually added flag (not via Define) — no enum annotation set
+	// Manually added flag (not via Define): no enum annotation set.
 	cmd.Flags().String("mode", "", "Output mode {json,yaml,text}")
 
 	schemas, err := JSONSchema(cmd)
@@ -1095,7 +1095,7 @@ func TestSetupJSONSchema_WorksWithoutRunE(t *testing.T) {
 	SetEnvPrefix("APP")
 	t.Cleanup(func() { SetEnvPrefix("") })
 
-	// Root command with no RunE/Run — the common case for CLI apps
+	// Root command with no RunE/Run, the common case for CLI apps.
 	// where the root just shows help.
 	root := &cobra.Command{
 		Use: "app", SilenceErrors: true, SilenceUsage: true,

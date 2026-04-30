@@ -12,7 +12,7 @@ func init() {
 // DryRun provides a --dry-run flag for safe previewing of operations.
 //
 // The default is false. When true, commands should describe what they
-// would do without making changes. This is agent-friendly — AI agents
+// would do without making changes. This is agent-friendly: AI agents
 // can preview destructive operations before committing.
 //
 // Usage:

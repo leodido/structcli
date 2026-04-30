@@ -12,7 +12,7 @@ import (
 
 // LLMsTxtOptions configures the llms.txt generator.
 type LLMsTxtOptions struct {
-	ModulePath string // Go module path (eg. "github.com/myorg/mycli") — used to derive project URL
+	ModulePath string // Go module path (eg. "github.com/myorg/mycli"), used to derive project URL
 	IncludeMCP bool   // Mention --mcp in the output
 }
 
@@ -63,7 +63,7 @@ func LLMsTxt(rootCmd *cobra.Command, opts LLMsTxtOptions) ([]byte, error) {
 		}
 	}
 
-	// Commands index section — use CommandPath for unique anchors
+	// Commands index section. Uses CommandPath for unique anchors.
 	if len(callables) > 0 {
 		fmt.Fprintf(&buf, "\n## Commands\n\n")
 		for _, callable := range callables {

@@ -16,7 +16,7 @@ type Options interface {
 // Validatable is a struct that supports validation after unmarshalling.
 //
 // Validate is called automatically during Unmarshal(), after Transform.
-// Does not require Options (Attach) — works with plain struct pointers via Bind.
+// Does not require [Options] (Attach). Works with plain struct pointers via Bind.
 type Validatable interface {
 	Validate(context.Context) []error
 }
@@ -24,7 +24,7 @@ type Validatable interface {
 // Transformable is a struct that supports transformation after unmarshalling.
 //
 // Transform is called automatically during Unmarshal(), before Validate.
-// Does not require Options (Attach) — works with plain struct pointers via Bind.
+// Does not require [Options] (Attach). Works with plain struct pointers via Bind.
 type Transformable interface {
 	Transform(context.Context) error
 }
@@ -32,18 +32,20 @@ type Transformable interface {
 // ContextInjector is a struct that propagates values into the command context after unmarshalling.
 //
 // Context is called automatically during Unmarshal() to derive a new context.
-// Does not require Options (Attach) — works with plain struct pointers via Bind.
+// Does not require [Options] (Attach). Works with plain struct pointers via Bind.
 //
-// FromContext (reading values back from context) is a user-side pattern, not part of this interface.
+// Reading values back from context (FromContext) is a user-side pattern,
+// not part of this interface.
 type ContextInjector interface {
 	Context(context.Context) context.Context
 }
 
 // ValidatableOptions extends Options with validation capabilities.
 //
-// Deprecated: Use Validatable instead. ValidatableOptions requires implementing Attach,
-// which is unnecessary for validation. Validatable works with both Options implementors
-// and plain struct pointers.
+// For the Bind API, consider using [Validatable] instead. It does not
+// require implementing Attach and works with plain struct pointers.
+// ValidatableOptions remains the right choice when using Define/Unmarshal
+// directly or when the type already implements [Options].
 type ValidatableOptions interface {
 	Options
 	Validate(context.Context) []error
@@ -51,20 +53,22 @@ type ValidatableOptions interface {
 
 // TransformableOptions extends Options with transformation capabilities.
 //
-// Deprecated: Use Transformable instead. TransformableOptions requires implementing Attach,
-// which is unnecessary for transformation. Transformable works with both Options implementors
-// and plain struct pointers.
+// For the Bind API, consider using [Transformable] instead. It does not
+// require implementing Attach and works with plain struct pointers.
+// TransformableOptions remains the right choice when using Define/Unmarshal
+// directly or when the type already implements [Options].
 type TransformableOptions interface {
 	Options
 	Transform(context.Context) error
 }
 
-// EnumValuer is an optional interface that pflag.Value implementations can satisfy
-// to declare their allowed values at the type level.
+// EnumValuer is an optional interface that pflag.Value implementations can
+// satisfy to declare their allowed values at the type level.
 //
-// When a pflag.Value returned by a DefineHookFunc (built-in or custom) implements
-// EnumValuer, structcli stores the allowed values as a flag annotation during Define().
-// This is the authoritative source of enum values — no description string parsing needed.
+// When a pflag.Value returned by a DefineHookFunc (built-in or custom)
+// implements EnumValuer, structcli stores the allowed values as a flag
+// annotation during Define(). This is the authoritative source of enum
+// values; no description string parsing is needed.
 //
 // Example:
 //
@@ -79,9 +83,11 @@ type EnumValuer interface {
 
 // ContextOptions extends Options with context manipulation capabilities.
 //
-// Deprecated: Use ContextInjector instead. ContextInjector only requires the Context method
-// (propagation). FromContext is a user-side pattern — structcli never calls it internally.
-// ContextInjector works with both Options implementors and plain struct pointers.
+// For the Bind API, consider using [ContextInjector] instead. It only
+// requires the Context method (propagation) and works with plain struct
+// pointers. FromContext is a user-side pattern; structcli never calls it
+// internally. ContextOptions remains the right choice when using
+// Define/Unmarshal directly or when the type already implements [Options].
 type ContextOptions interface {
 	Options
 	Context(context.Context) context.Context

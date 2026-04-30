@@ -223,7 +223,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 		// Determine whether to represent hierarchy with the command name.
 		// Context-injecting options are treated as shared/common (no command name prefix in env vars).
-		// Prefer ContextInjector (standalone); fall back to deprecated ContextOptions.
+		// Prefer ContextInjector (standalone); fall back to ContextOptions.
 		cName := ""
 		_, isContextInjector := o.(ContextInjector)
 		_, isContextOptions := o.(ContextOptions)
@@ -437,7 +437,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				// We fallback to look up the hooks registries to avoid erroring out
 				if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
 				// Best-effort: attach a decode hook if one exists, but don't
-					// hard-error when missing — this is a fallback path, not a
+					// hard-error when missing. This is a fallback path, not a
 					// mandatory one like the other two call sites.
 					internalhooks.InferDecodeHooks(c, name, f.Type.String())
 

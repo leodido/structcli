@@ -14,7 +14,7 @@ func init() {
 // Timeout provides a --timeout flag for operation deadlines.
 //
 // The default is 30s. Accepts any value parseable by [time.ParseDuration].
-// This is agent-friendly — operations won't hang indefinitely.
+// This is agent-friendly: operations won't hang indefinitely.
 //
 // Usage:
 //
