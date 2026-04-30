@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-04-30
+
+### Added
+- `Bind(cmd, opts)` registers flag definitions and auto-unmarshal in a single call. Accepts plain struct pointers, `Options` implementors, and standalone capability interfaces.
+- `Setup(cmd, ...SetupOption)` orchestrates root command configuration via functional options (`WithAppName`, `WithConfig`, `WithDebug`, `WithFlagErrors`, `WithJSONSchema`, `WithMCP`, `WithHelpTopics`, `WithExclusions`, `WithValidateTagName`, `WithModTagName`).
+- `ExecuteC(cmd)` runs the command tree with an automatic bind pipeline (config loading, unmarshal, transform, validate, context injection) and returns `(*cobra.Command, error)`. `ExecuteOrExit` is now a thin wrapper over `ExecuteC`.
+- `Validatable`, `Transformable`, `ContextInjector` standalone capability interfaces. Work with plain struct pointers via `Bind` without requiring `Options`/`Attach`.
+- `WithAppName` retroactively patches env annotations on flags defined by earlier `Bind` calls.
+- `WithConfig` defers config file loading to the bind pipeline inside `ExecuteC`.
+- `DefaultValidateTagName` and `DefaultModTagName` exported constants.
+- `ConfigFlagAnnotation` exported constant (was internal `configFlagAnnotation`).
+- `flagkit.FlagEnumAnnotation` exported constant (was internal `flagEnumAnnotation`).
+- Runtime warning when `Bind`-registered command has subcommands but `TraverseChildren` is false (deduplicated, once-per-tree, singular/plural grammar).
+- Runtime warning when `Bind`-registered options exist but user calls `cmd.Execute()` instead of `ExecuteC` (per-tree `PersistentPreRunE`, no global state).
+
+### Changed
+- `ValidatableOptions`, `TransformableOptions`, `ContextOptions` are no longer marked deprecated. Godoc now guides `Bind` users toward standalone alternatives while keeping the composite interfaces as the right choice for `Define`/`Unmarshal` workflows.
+- All 29 internal annotation keys unified from legacy `___leodido_structcli_*` and intermediate `structcli/*` prefixes to `leodido/structcli/*` kebab-case convention.
+- `Unmarshal` and `Define` prefer standalone interfaces (`Validatable`, `Transformable`, `ContextInjector`) and fall back to composite `*Options` interfaces.
+- All examples rewritten to use `Bind` + `Setup` + `ExecuteC`/`ExecuteOrExit`.
+- README and `docs/ai-native.md` updated for the new API.
+- All em dashes and en dashes removed from `.go` source files.
+
+### Fixed
+- `--jsonschema`, `--debug-options`, and MCP interception now work on commands without `RunE`. `EnsureRunnable` sets a synthetic `RunE` so `PreRunE` fires; `SyntheticRunAnnotation` suppresses the misleading bare usage line.
+- Bind pipeline uses the owner command (not the executed command) for unmarshal and deduplicates shared options bound to multiple commands.
+- `hookStore` and `configOnce` persist across repeated `ExecuteC` calls on the same tree.
+- Wrapper closures no longer capture stale `configOnce` references.
+- Config file "using config file" message now prints during auto-load.
+
 ## [0.16.1] - 2026-04-23
 
 ### Added
@@ -169,7 +199,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `ResetGlobals()` to `Reset()`.
 
-[Unreleased]: https://github.com/leodido/structcli/compare/v0.16.1...HEAD
+[Unreleased]: https://github.com/leodido/structcli/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/leodido/structcli/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/leodido/structcli/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/leodido/structcli/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/leodido/structcli/compare/v0.14.0...v0.15.0
