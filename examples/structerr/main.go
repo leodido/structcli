@@ -14,19 +14,19 @@
 //	# Missing required flag (StructuredError exit_code 10)
 //	go run . srv
 //
-//	# Invalid flag value — wrong type (StructuredError exit_code 11)
+//	# Invalid flag value: wrong type (StructuredError exit_code 11)
 //	go run . srv --port abc
 //
-//	# Invalid flag value — via short flag (StructuredError exit_code 11)
+//	# Invalid flag value: via short flag (StructuredError exit_code 11)
 //	go run . srv -p xyz
 //
 //	# Unknown flag (StructuredError exit_code 12)
 //	go run . srv --nonexistent
 //
-//	# Validation failed — invalid email (StructuredError exit_code 13)
+//	# Validation failed: invalid email (StructuredError exit_code 13)
 //	go run . usr add --email notanemail --age 25 --name "John"
 //
-//	# Validation failed — age out of range (StructuredError exit_code 13)
+//	# Validation failed: age out of range (StructuredError exit_code 13)
 //	go run . usr add --email test@example.com --age 10 --name "John"
 //
 //	# Unknown command (StructuredError exit_code 14)
@@ -105,7 +105,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "myapp",
 		Short: "Structured error demo",
-		// No need for SilenceErrors/SilenceUsage — ExecuteOrExit sets them automatically
+		// No need for SilenceErrors/SilenceUsage; ExecuteOrExit sets them automatically.
 	}
 
 	// AI-native features: JSON Schema + typed flag errors

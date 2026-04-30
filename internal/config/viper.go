@@ -148,7 +148,7 @@ func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]s
 					// When viper has already merged the flat key and the
 					// dotted path into a nested map (e.g. both "output"
 					// and "output.format" are set), the value is already
-					// a map — no restructuring needed.
+					// a map, so no restructuring is needed.
 					if _, alreadyNested := aliasValue.(map[string]any); alreadyNested {
 						continue
 					}
@@ -179,7 +179,7 @@ func KeyRemappingHook(aliasToPathMap map[string]string, defaultsMap map[string]s
 					finalKey := pathParts[len(pathParts)-1]
 					currentMap[finalKey] = aliasValue
 
-					// Delete the original flattened key — unless the alias
+					// Delete the original flattened key, unless the alias
 					// is the same as the first path segment, in which case
 					// the restructured map lives under that key.
 					if alias != pathParts[0] {

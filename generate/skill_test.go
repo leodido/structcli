@@ -25,7 +25,7 @@ func TestSkill_YAMLFrontmatter(t *testing.T) {
 }
 
 func TestSkill_NameKebabCase(t *testing.T) {
-	// Cobra's Name() returns the first word of Use — so Use should already be kebab-case
+	// Cobra's Name() returns the first word of Use, so Use should already be kebab-case.
 	root := &cobra.Command{
 		Use:  "my-cool-app",
 		RunE: func(cmd *cobra.Command, args []string) error { return nil },

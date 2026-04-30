@@ -3,7 +3,7 @@
 // All generators consume [structcli.JSONSchema] with [jsonschema.WithFullTree]
 // and produce []byte output. The caller decides where to write the files.
 //
-// The generators produce mechanically correct scaffolds — every flag name, type,
+// The generators produce mechanically correct scaffolds. Every flag name, type,
 // default, env var, and required marker comes from the same struct definition that
 // powers --jsonschema. Humans should add on top:
 //   - Trigger phrases for skill discovery ("use when user asks to deploy")

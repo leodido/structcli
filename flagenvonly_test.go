@@ -348,7 +348,7 @@ func TestUnmarshal_EnvOnly_RequiredMissing(t *testing.T) {
 	}
 	require.NoError(t, Define(cmd, opts))
 
-	// Execute without setting the env var — cobra's required flag check fires
+	// Execute without setting the env var; cobra's required flag check fires.
 	cmd.SetArgs([]string{})
 	err := cmd.Execute()
 	require.Error(t, err)

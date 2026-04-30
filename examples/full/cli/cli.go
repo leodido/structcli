@@ -122,7 +122,7 @@ func makeSrvC(commonOpts *UtilityFlags) (*cobra.Command, error) {
 			fmt.Fprintln(c.OutOrStdout(), "|--srvC.RunE")
 		},
 	}
-	// Use Attach (not Bind) — srv has subcommands and ServerOptions should
+	// Use Attach (not Bind) because srv has subcommands and ServerOptions should
 	// only be unmarshalled when srv itself runs, not for child commands.
 	if err := opts.Attach(srvC); err != nil {
 		return nil, fmt.Errorf("srv: attach options: %w", err)
@@ -315,7 +315,7 @@ func makeLogsC() (*cobra.Command, error) {
   full logs -s api --quiet`,
 		RunE: func(c *cobra.Command, args []string) error {
 			// opts is already populated by the bind pipeline.
-			// Per-command format validation — uses the set from RestrictFormats
+			// Per-command format validation. Uses the set from RestrictFormats.
 			if err := opts.Output.ValidFormat(); err != nil {
 				return err
 			}
@@ -382,7 +382,7 @@ func NewRootC(exitOnDebug bool) (*cobra.Command, error) {
 		TraverseChildren: true,
 	}
 
-	// User hook — config loading and unmarshal are handled by the bind pipeline,
+	// User hook. Config loading and unmarshal are handled by the bind pipeline,
 	// but we keep this hook for observable output in tests.
 	rootC.PersistentPreRunE = func(c *cobra.Command, args []string) error {
 		fmt.Fprintln(c.OutOrStdout(), "|-rootC.PersistentPreRunE")

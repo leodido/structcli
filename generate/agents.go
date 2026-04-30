@@ -124,7 +124,7 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 		buf.WriteString("\n")
 	}
 
-	// Config File section — use annotation, not hardcoded flag name
+	// Config File section. Uses annotation, not hardcoded flag name.
 	configFlagName := findConfigFlagName(rootCmd)
 	if configFlagName != "" {
 		fmt.Fprintf(&buf, "### Config File\n\nSupports YAML/JSON/TOML config files. Use `--%s` to specify path.\n\n", configFlagName)
@@ -139,7 +139,7 @@ func Agents(rootCmd *cobra.Command, opts AgentsOptions) ([]byte, error) {
 	}
 	buf.WriteString("\n")
 
-	// Development Notes — emitted when flagkit types are detected
+	// Development Notes. Emitted when flagkit types are detected.
 	if hasFlagKitFlags(rootCmd) {
 		buf.WriteString("## Development Notes\n\n")
 		buf.WriteString("This CLI uses [structcli](https://github.com/leodido/structcli) with the `flagkit` package\n")

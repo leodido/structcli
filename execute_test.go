@@ -205,7 +205,7 @@ func TestExecuteC_AncestorBeforeDescendant(t *testing.T) {
 	}
 	root.AddCommand(child)
 
-	// Bind rootOpts on child too — flags are local per command.
+	// Bind rootOpts on child too; flags are local per command.
 	// The ancestor-before-descendant contract is about unmarshal order
 	// when both root and child have bound options.
 	require.NoError(t, Bind(root, rootOpts))
@@ -332,7 +332,7 @@ func TestExecuteC_Idempotent(t *testing.T) {
 	assert.Equal(t, 1111, opts.Port)
 	assert.Equal(t, 1, runCount)
 
-	// Second execution on same tree — wrappers should not stack
+	// Second execution on same tree; wrappers should not stack.
 	cmd.SetArgs([]string{"--port", "2222"})
 	_, err = ExecuteC(cmd)
 	require.NoError(t, err)
@@ -800,13 +800,13 @@ func TestExecuteC_TraverseChildrenWarning_OncePerTree(t *testing.T) {
 	var stderr bytes.Buffer
 	root.SetErr(&stderr)
 
-	// First execution — warning fires.
+	// First execution: warning fires.
 	root.SetArgs([]string{"sub"})
 	_, err := ExecuteC(root)
 	require.NoError(t, err)
 	assert.Contains(t, stderr.String(), "TraverseChildren is false")
 
-	// Second execution — warning should not repeat.
+	// Second execution: warning should not repeat.
 	stderr.Reset()
 	root.SetArgs([]string{"sub"})
 	_, err = ExecuteC(root)

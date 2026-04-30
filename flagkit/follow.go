@@ -50,7 +50,7 @@ func init() {
 //
 // When false (the default), commands should print current output and exit.
 // When true, commands should stream output continuously. This default is
-// agent-friendly — AI agents and scripts won't hang on indefinite tailing.
+// agent-friendly: AI agents and scripts won't hang on indefinite tailing.
 //
 // Usage:
 //

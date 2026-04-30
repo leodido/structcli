@@ -204,7 +204,7 @@ func TestSetupDebug_WorksWithoutRunE(t *testing.T) {
 
 	output := out.String()
 	// The wrapped RunE returns nil when debug is active, so the synthetic
-	// Help() body never runs — output should be empty (no help text).
+	// Help() body never runs; output should be empty (no help text).
 	assert.NotContains(t, output, "Usage:", "debug interception should prevent help output")
 }
 

@@ -25,7 +25,7 @@ const (
 // Attach is called. Otherwise flags are defined directly from struct tags.
 //
 // Multiple Bind calls per command are supported; unmarshal order matches call order (FIFO).
-// Define runs immediately — flags exist on the command after Bind returns.
+// Define runs immediately; flags exist on the command after Bind returns.
 //
 // As a side effect, the first Bind call on a command tree installs a
 // [cobra.Command.PersistentPreRunE] on root that warns to stderr when
@@ -99,7 +99,7 @@ func Bind(c *cobra.Command, opts any) error {
 	// Limitation: Cobra (without EnableTraverseRunHooks) only runs the
 	// nearest ancestor's PersistentPreRunE. If a child command defines
 	// its own PersistentPreRunE, root's hook is shadowed and the warning
-	// won't fire. This is acceptable — the cmd.Execute() path is already
+	// won't fire. This is acceptable because the cmd.Execute() path is already
 	// the "wrong" path, and the warning is best-effort.
 	if root.Annotations[bindWarnAnnotation] != "true" {
 		origPreRunE := root.PersistentPreRunE
@@ -109,7 +109,7 @@ func Bind(c *cobra.Command, opts any) error {
 			// Warn only when ExecuteC is not active AND the bind pipeline
 			// wrapper was never installed. If a previous ExecuteC call
 			// installed the wrapper, auto-unmarshal works even through
-			// cmd.Execute() — the wrapper is idempotent and persists.
+			// cmd.Execute(). The wrapper is idempotent and persists.
 			if root.Annotations[executeCActiveAnnotation] != "true" &&
 				root.Annotations[bindPipelineAnnotation] != "true" {
 				root.PrintErrln("Warning: Bind-registered options exist but ExecuteC/ExecuteOrExit was not used.",

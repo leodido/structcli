@@ -424,7 +424,7 @@ func TestProperty_Validation_ErrorsAreWellTyped(t *testing.T) {
 		}
 
 		// Check against each known error type with concrete typed pointers.
-		// Using *any as the errors.As target would match everything — each
+		// Using *any as the errors.As target would match everything; each
 		// check must use a concretely-typed pointer variable.
 		var (
 			invalidBoolTag     *structclierrors.InvalidBooleanTagError

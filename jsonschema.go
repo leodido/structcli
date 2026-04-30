@@ -16,7 +16,7 @@ import (
 )
 
 // enumPattern matches the {val1,val2,...} pattern in flag usage strings.
-// Values must be simple identifiers (alphanumeric, hyphens, underscores) — this avoids
+// Values must be simple identifiers (alphanumeric, hyphens, underscores) to avoid
 // matching config search path patterns like {/etc/app,...} or similar non-enum braces.
 var enumPattern = regexp.MustCompile(`\{([\w-]+(?:,[\w-]+)+)\}`)
 

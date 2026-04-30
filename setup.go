@@ -231,7 +231,7 @@ func applyAppName(cmd *cobra.Command, appName string) error {
 func patchTreeEnvPrefix(c *cobra.Command, oldPrefix, newPrefix string) {
 	internalenv.PatchEnvPrefix(c, oldPrefix, newPrefix)
 	// Re-bind env vars with the updated annotations.
-	// Errors here are non-fatal — flags without env annotations are simply skipped.
+	// Errors here are non-fatal. Flags without env annotations are simply skipped.
 	_ = internalenv.BindEnv(c)
 
 	for _, sub := range c.Commands() {

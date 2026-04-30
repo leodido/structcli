@@ -18,7 +18,7 @@ const ProtocolVersion = "2024-11-05"
 // Parameters:
 //   - argv: the command path and flag arguments (excluding the root command
 //     name). Provided for informational use or conditional subtree building.
-//     The factory must not call SetArgs — the caller handles that.
+//     The factory must not call SetArgs; the caller handles that.
 //   - stdout, stderr: writers that must receive all command output. Wire these
 //     into any closures that capture output streams at construction time.
 //

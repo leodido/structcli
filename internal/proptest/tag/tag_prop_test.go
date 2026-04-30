@@ -15,7 +15,7 @@ import (
 	"pgregory.net/rapid"
 )
 
-// Intentionally duplicated from internal/tag/tag.go — P1.1 cross-checks
+// Intentionally duplicated from internal/tag/tag.go. P1.1 cross-checks
 // IsValidFlagName against this independent copy. If the production regex
 // changes without updating this one, P1.1 will catch the drift.
 var validFlagNameRegex = regexp.MustCompile(`^[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*$`)
@@ -228,7 +228,7 @@ func TestProperty_ParseFlagPresets_SemicolonPrecedence(t *testing.T) {
 		if name1 == name2 {
 			name2 = name2 + "x"
 		}
-		// Value with comma inside — should NOT be treated as separator
+		// Value with comma inside: should NOT be treated as separator.
 		value1 := "a,b"
 		value2 := "c"
 		tag := name1 + "=" + value1 + ";" + name2 + "=" + value2

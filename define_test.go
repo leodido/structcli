@@ -3594,7 +3594,7 @@ func (f *enumValuerFlag) String() string   { return f.val }
 func (f *enumValuerFlag) Set(s string) error { f.val = s; return nil }
 func (f *enumValuerFlag) Type() string     { return "string" }
 func (f *enumValuerFlag) EnumValues() []string {
-	// These are the REAL allowed values — intentionally different from the description
+	// These are the REAL allowed values, intentionally different from the description.
 	return []string{"alpha", "beta", "gamma"}
 }
 
@@ -3849,7 +3849,7 @@ func (suite *structcliSuite) TestDefine_ValidateAnnotation_CustomTagNames() {
 	assert.Equal(suite.T(), []string{"min=3"}, bothFlag.Annotations[flagValidateAnnotation])
 	assert.Equal(suite.T(), []string{"lcase"}, bothFlag.Annotations[flagModAnnotation])
 
-	// No custom tags — annotations should not be present
+	// No custom tags; annotations should not be present.
 	plainFlag := cmd.Flags().Lookup("plain")
 	require.NotNil(suite.T(), plainFlag)
 	_, hasVal := plainFlag.Annotations[flagValidateAnnotation]

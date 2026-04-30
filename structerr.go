@@ -20,7 +20,7 @@ import (
 // These are ONLY used as fallbacks when SetupFlagErrors has not been called
 // (ie. the CLI author did not opt into typed flag error interception).
 // When SetupFlagErrors is active, flag errors are intercepted as typed FlagError
-// via errors.As — no regex needed for those paths.
+// via errors.As, so no regex is needed for those paths.
 var (
 	// "required flag(s) "port" not set" or "required flag(s) "port", "host" not set"
 	reRequiredFlags = regexp.MustCompile(`^required flag\(s\) (.+) not set$`)
@@ -51,7 +51,7 @@ var (
 //
 // When active, cobra's flag parsing errors (invalid values, unknown flags) are
 // wrapped in typed [structclierrors.FlagError] values. [HandleError] then uses
-// errors.As to classify them — no regex parsing at classification time.
+// errors.As to classify them, eliminating regex parsing at classification time.
 //
 // Call this on the root command before Execute():
 //
@@ -78,7 +78,7 @@ func SetupFlagErrors(rootC *cobra.Command) {
 			return structclierrors.NewFlagError(structclierrors.FlagErrorUnknown, m[1], "", err)
 		}
 
-		// Unrecognized flag error — wrap so it's still typed
+		// Unrecognized flag error. Wrap so it's still typed.
 		return structclierrors.NewFlagError(structclierrors.FlagErrorInvalidValue, "", "", err)
 	})
 }
@@ -122,13 +122,13 @@ type Violation struct {
 
 // HandleError classifies err, writes a JSON StructuredError to w, and returns a semantic exit code.
 //
-// The cmd parameter must be the command where the error originated — not the root command.
+// The cmd parameter must be the command where the error originated, not the root command.
 // This is because HandleError looks up flag metadata (type, enum values, env var bindings)
 // from cmd's flag annotations to produce accurate error details. If the root command is
 // passed for a subcommand error, the metadata lookup yields empty results and the output
 // is degraded (no expected type, no enum check, no env var attribution).
 //
-// Use [ExecuteOrExit] to get this right automatically — it uses cobra's ExecuteC to obtain
+// Use [ExecuteOrExit] to get this right automatically. It uses cobra's ExecuteC to obtain
 // the correct command. If calling HandleError directly, use [cobra.Command.ExecuteC]:
 //
 //	cmd, err := rootCmd.ExecuteC()
@@ -218,10 +218,10 @@ func classify(cmd *cobra.Command, err error) *StructuredError {
 		return se
 	}
 
-	// 2. Typed flag errors from SetupFlagErrors (errors.As — no regex needed)
+	// 2. Typed flag errors from SetupFlagErrors (errors.As, no regex needed).
 	// FlagError carries only the flag name, value, and kind. Metadata enrichment
 	// (expected type, enum values, env vars) happens here via the same code path
-	// as the regex fallback — using the correct command from ExecuteC().
+	// as the regex fallback, using the correct command from ExecuteC().
 	var flagErr *structclierrors.FlagError
 	if errors.As(err, &flagErr) {
 		switch flagErr.Kind {
@@ -261,7 +261,7 @@ func classify(cmd *cobra.Command, err error) *StructuredError {
 		}
 	}
 
-	// Unknown command (no typed error possible — cobra creates these inline)
+	// Unknown command (no typed error possible; cobra creates these inline)
 	if m := reUnknownCommand.FindStringSubmatch(errMsg); m != nil {
 		return classifyUnknownCommand(cmd, m[1], cmdPath, errMsg)
 	}
@@ -431,7 +431,7 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 		return se
 	}
 
-	// Multiple missing flags — no per-flag enrichment
+	// Multiple missing flags. No per-flag enrichment.
 	return &StructuredError{
 		Error:    "missing_required_flag",
 		ExitCode: exitcode.MissingRequiredFlag,
@@ -443,11 +443,11 @@ func classifyMissingRequired(cmd *cobra.Command, cmdPath, flagList, errMsg strin
 // classifyInvalidArg handles the `invalid argument "val" for "flags" flag:` cobra error.
 // It does source attribution to determine if the bad value came from the CLI, an env var, or config.
 func classifyInvalidArg(cmd *cobra.Command, cmdPath, gotValue, flagSpec, errMsg string) *StructuredError {
-	// flagSpec is like "-p, --port" or "--port" — extract the long name
+	// flagSpec is like "-p, --port" or "--port"; extract the long name.
 	flagName := extractLongFlagName(flagSpec)
 	expected := flagType(cmd, flagName)
 
-	// Check if the flag has enum annotations — if so, this might be an enum violation
+	// Check if the flag has enum annotations. If so, this might be an enum violation.
 	if enumVals := flagEnumValues(cmd, flagName); len(enumVals) > 0 {
 		if !contains(enumVals, gotValue) {
 			return &StructuredError{
@@ -536,7 +536,7 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 	fieldName, gotValue, expectedType := parseDecodeError(errMsg)
 
 	if fieldName == "" {
-		// Can't parse the specific field — treat as a config-origin decode failure.
+		// Can't parse the specific field. Treat as a config-origin decode failure.
 		return &StructuredError{
 			Error:    "config_invalid_value",
 			ExitCode: exitcode.ConfigInvalidValue,
@@ -553,7 +553,7 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 		expectedType = flagType(cmd, flagName)
 	}
 
-	// Check if the flag has enum annotations — if so, this might be an enum violation
+	// Check if the flag has enum annotations. If so, this might be an enum violation.
 	if flagName != "" && gotValue != "" {
 		if enumVals := flagEnumValues(cmd, flagName); len(enumVals) > 0 {
 			if !contains(enumVals, gotValue) {
@@ -595,7 +595,7 @@ func classifyUnmarshalError(cmd *cobra.Command, cmdPath, errMsg string) *Structu
 			}
 	}
 
-	// Not from env — could be from config or default
+	// Not from env; could be from config or default.
 	return &StructuredError{
 		Error:    "config_invalid_value",
 		ExitCode: exitcode.ConfigInvalidValue,

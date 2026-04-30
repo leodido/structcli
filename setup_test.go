@@ -123,7 +123,7 @@ func TestSetup_WithFlagErrors(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	err := Setup(cmd, WithFlagErrors())
 	require.NoError(t, err)
-	// SetupFlagErrors doesn't register flags — it intercepts errors.
+	// SetupFlagErrors doesn't register flags; it intercepts errors.
 }
 
 func TestSetup_AllOptions(t *testing.T) {
@@ -205,7 +205,7 @@ func TestSetup_WithAppName_PatchesExistingFlags(t *testing.T) {
 		Port int `flag:"port" default:"3000" flagenv:"true"`
 	}{}
 
-	// Bind first — no global prefix, but command name "test" is baked in
+	// Bind first. No global prefix, but command name "test" is baked in.
 	// by GetEnv as a pseudo-prefix, so annotation is "TEST_PORT".
 	require.NoError(t, Bind(cmd, opts))
 
@@ -215,7 +215,7 @@ func TestSetup_WithAppName_PatchesExistingFlags(t *testing.T) {
 	require.NotEmpty(t, envsBefore)
 	assert.Equal(t, "TEST_PORT", envsBefore[0], "before Setup, env uses command name as prefix")
 
-	// Setup with AppName — on root command, the command name pseudo-prefix
+	// Setup with AppName. On root command, the command name pseudo-prefix
 	// is replaced by the real app prefix: TEST_PORT → MYAPP_PORT.
 	require.NoError(t, Setup(cmd, WithAppName("myapp")))
 
@@ -239,7 +239,7 @@ func TestSetup_WithAppName_BindBeforeSetup_EnvWorks(t *testing.T) {
 		Port int `flag:"port" default:"3000" flagenv:"true"`
 	}{}
 
-	// Bind before Setup (ordering independence — AC3).
+	// Bind before Setup (ordering independence, AC3).
 	require.NoError(t, Bind(cmd, opts))
 	require.NoError(t, Setup(cmd, WithAppName("myapp")))
 
@@ -267,7 +267,7 @@ func TestSetup_WithAppName_SetupBeforeBind_EnvWorks(t *testing.T) {
 		Port int `flag:"port" default:"3000" flagenv:"true"`
 	}{}
 
-	// Setup before Bind (AC4) — prefix is set before Define runs.
+	// Setup before Bind (AC4). Prefix is set before Define runs.
 	require.NoError(t, Setup(cmd, WithAppName("myapp")))
 	require.NoError(t, Bind(cmd, opts))
 
@@ -499,7 +499,7 @@ func TestSetup_WithAppNameAndConfig_FullIntegration(t *testing.T) {
 	assert.Equal(t, "example.com", opts.Host, "config value should be loaded")
 	assert.Equal(t, "MYAPP", EnvPrefix(), "prefix should be set")
 
-	// Verify env annotation was patched — child commands include command name.
+	// Verify env annotation was patched; child commands include command name.
 	f := child.Flags().Lookup("host")
 	require.NotNil(t, f)
 	envs := f.Annotations[internalenv.FlagAnnotation]

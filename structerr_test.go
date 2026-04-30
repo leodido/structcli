@@ -318,7 +318,7 @@ func TestHandleError_MissingRequiredFlagWithEnvVarSet(t *testing.T) {
 	_ = cmd.MarkFlagRequired("port")
 	_ = cmd.Flags().SetAnnotation("port", internalenv.FlagAnnotation, []string{"MYCLI_PORT"})
 
-	// Env var IS set with a valid value — cobra still complains because it doesn't check env vars
+	// Env var IS set with a valid value, but cobra still complains because it doesn't check env vars.
 	t.Setenv("MYCLI_PORT", "3000")
 
 	err := fmt.Errorf(`required flag(s) "port" not set`)
@@ -333,7 +333,7 @@ func TestHandleError_MissingRequiredFlagWithEnvVarSet(t *testing.T) {
 	assert.Equal(t, "port", se.Flag)
 	assert.Empty(t, se.EnvVar)
 	assert.Empty(t, se.Hint)
-	// NOT env_invalid_value — the env var value is fine
+	// NOT env_invalid_value; the env var value is fine.
 	assert.NotEqual(t, "env_invalid_value", se.Error)
 }
 
@@ -852,7 +852,7 @@ func TestHandleError_InvalidFlagEnum_ValidValue(t *testing.T) {
 	_ = cmd.Flags().SetAnnotation("priority", flagEnumAnnotation, []string{"1", "2", "3"})
 
 	// Cobra error for invalid argument where "abc" is NOT in enum set
-	// This tests: value not in enum AND type error — enum takes precedence
+	// This tests: value not in enum AND type error. Enum takes precedence.
 	err := fmt.Errorf(`invalid argument "abc" for "--priority" flag: strconv.ParseInt: parsing "abc": invalid syntax`)
 	code := HandleError(cmd, err, &buf)
 
@@ -1173,7 +1173,7 @@ func TestHandleError_InvalidFlagValue_FromEmptyEnvVarRegexFallback(t *testing.T)
 }
 
 func TestHandleError_FlagError_UsesCommandPath(t *testing.T) {
-	// FlagError no longer carries CommandPath — HandleError uses cmd.CommandPath()
+	// FlagError no longer carries CommandPath; HandleError uses cmd.CommandPath().
 	root := &cobra.Command{Use: "myapp"}
 	srv := &cobra.Command{Use: "srv", RunE: func(c *cobra.Command, args []string) error { return nil }}
 	root.AddCommand(srv)

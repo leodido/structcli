@@ -49,7 +49,7 @@ func getConfigOnce(root *cobra.Command) *sync.Once {
 
 // ExecuteC prepares the command tree for execution and delegates to cmd.ExecuteC().
 //
-// Preparation (idempotent — safe to call multiple times on the same tree):
+// Preparation (idempotent, safe to call multiple times on the same tree):
 //   - Sets SilenceErrors and SilenceUsage on the root command.
 //   - Runs SetupUsage on every command in the tree.
 //   - Recursively wraps PersistentPreRunE on every command to run the bind pipeline
@@ -225,7 +225,7 @@ func wrapBindPipeline(c *cobra.Command) {
 
 		// Replay original persistent hooks from root to the command whose
 		// wrapper Cobra selected (which is cmd's closest ancestor with a
-		// PersistentPreRunE — i.e., this command c, since we wrapped it).
+		// PersistentPreRunE, i.e. this command c since we wrapped it).
 		// We replay all ancestors' original hooks in root-first order so
 		// user hooks on parent commands still fire.
 		if err := replayOriginalHooks(cmd, args); err != nil {

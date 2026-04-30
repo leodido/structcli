@@ -10,14 +10,14 @@ func TestConstants(t *testing.T) {
 		wantCat  string
 		wantName string
 	}{
-		// Runtime (0–9)
+		// Runtime (0-9)
 		{"OK", OK, CategoryOK, "OK"},
 		{"Error", Error, CategoryRuntime, "Error"},
 		{"PermissionDenied", PermissionDenied, CategoryRuntime, "PermissionDenied"},
 		{"Timeout", Timeout, CategoryRuntime, "Timeout"},
 		{"Interrupted", Interrupted, CategoryRuntime, "Interrupted"},
 
-		// Input (10–19)
+		// Input (10-19)
 		{"MissingRequiredFlag", MissingRequiredFlag, CategoryInput, "MissingRequiredFlag"},
 		{"InvalidFlagValue", InvalidFlagValue, CategoryInput, "InvalidFlagValue"},
 		{"UnknownFlag", UnknownFlag, CategoryInput, "UnknownFlag"},
@@ -25,7 +25,7 @@ func TestConstants(t *testing.T) {
 		{"UnknownCommand", UnknownCommand, CategoryInput, "UnknownCommand"},
 		{"InvalidFlagEnum", InvalidFlagEnum, CategoryInput, "InvalidFlagEnum"},
 
-		// Config/env (20–29)
+		// Config/env (20-29)
 		{"ConfigParseError", ConfigParseError, CategoryConfig, "ConfigParseError"},
 		{"ConfigUnknownKey", ConfigUnknownKey, CategoryConfig, "ConfigUnknownKey"},
 		{"ConfigInvalidValue", ConfigInvalidValue, CategoryConfig, "ConfigInvalidValue"},

@@ -38,7 +38,7 @@ func FuzzStringToIntSlice(f *testing.F) {
 	f.Add("  1 , 2 , 3  ")
 	f.Add("999999999999999999999")
 	f.Add("-1,0,1")
-	f.Add("[1,2,3]") // error path — this hook doesn't strip brackets
+	f.Add("[1,2,3]") // error path: this hook doesn't strip brackets
 
 	hook := StringToIntSliceHookFunc(",").(decodeHookFuncType)
 	target := reflect.TypeOf([]int(nil))
@@ -48,7 +48,7 @@ func FuzzStringToIntSlice(f *testing.F) {
 	})
 }
 
-// FuzzStringToCSVStringSlice is not needed — the hook's string branch calls
+// FuzzStringToCSVStringSlice is not needed because the hook's string branch calls
 // readAsCSV(raw) with no preprocessing, so FuzzReadAsCSV covers it.
 
 func FuzzStringToBoolSlice(f *testing.F) {
@@ -147,7 +147,7 @@ func FuzzStringToInt64Map(f *testing.F) {
 	})
 }
 
-// StringToRawBytesHookFunc is not fuzzed — it is []byte(s) and cannot panic.
+// StringToRawBytesHookFunc is not fuzzed. It is []byte(s) and cannot panic.
 
 func FuzzStringToHexBytes(f *testing.F) {
 	f.Add("48656c6c6f")
@@ -195,7 +195,7 @@ func FuzzStringToIPMask(f *testing.F) {
 	})
 }
 
-// FuzzStringToIPSlice is not needed — the hook's string branch calls
+// FuzzStringToIPSlice is not needed because the hook's string branch calls
 // parseIPSlice(raw) with no preprocessing, so FuzzParseIPSlice covers it.
 
 func FuzzStringToZapcoreLevel(f *testing.F) {

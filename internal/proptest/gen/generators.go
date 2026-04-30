@@ -85,7 +85,7 @@ type TagSet struct {
 }
 
 // ToStructTag converts a TagSet to a reflect.StructTag string.
-// Values must not contain '"' or '\\' — these break struct tag encoding
+// Values must not contain '"' or '\\' because these break struct tag encoding
 // and cause Tag.Get to return truncated or empty results.
 func (ts TagSet) ToStructTag() reflect.StructTag {
 	var parts []string
@@ -157,7 +157,7 @@ type FieldSpec struct {
 	Tags TagSet
 }
 
-// UniqueFieldSpecs generates 1–maxFields field specs with unique valid flag names.
+// UniqueFieldSpecs generates 1-maxFields field specs with unique valid flag names.
 func UniqueFieldSpecs(maxFields int) *rapid.Generator[[]FieldSpec] {
 	return rapid.Custom(func(t *rapid.T) []FieldSpec {
 		n := rapid.IntRange(1, maxFields).Draw(t, "fieldCount")

@@ -92,7 +92,7 @@ func (e *ValidationError) Details() []ValidationDetail {
 // Unwrap returns the inner errors so that errors.Is and errors.As
 // traverse into individual validation failures.
 //
-// The returned slice is the live internal slice — callers that need
+// The returned slice is the live internal slice. Callers that need
 // mutation-safe access should use [ValidationError.UnderlyingErrors] instead.
 func (e *ValidationError) Unwrap() []error {
 	return e.Errors
@@ -586,7 +586,7 @@ func NewInputError(inputType, message string) error {
 
 // FlagError represents a flag parsing error intercepted by [SetupFlagErrors].
 //
-// It carries only what's needed to identify the error — flag name, bad value,
+// It carries only what's needed to identify the error: flag name, bad value,
 // and error kind. Metadata enrichment (expected type, enum values, env vars)
 // happens at classification time in [HandleError], which receives the correct
 // subcommand from [ExecuteC].
