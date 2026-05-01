@@ -3,8 +3,60 @@ package structcli
 import (
 	"context"
 
+	internalhooks "github.com/leodido/structcli/internal/hooks"
 	"github.com/spf13/cobra"
 )
+
+// DefineHookFunc defines how to create a pflag.Value for a custom type
+// during Define/Bind.
+type DefineHookFunc = internalhooks.DefineHookFunc
+
+// DecodeHookFunc defines how to decode a raw value into a custom type
+// during Unmarshal.
+type DecodeHookFunc = internalhooks.DecodeHookFunc
+
+// CompleteHookFunc defines how to provide shell completion candidates
+// for a flag.
+type CompleteHookFunc = internalhooks.CompleteHookFunc
+
+// FieldHook bundles the Define and Decode hooks for a single struct field.
+//
+// Both hooks are optional: if Define is nil the field falls through to the
+// type registry or built-in handling; if Decode is nil the default decode
+// path is used.
+type FieldHook struct {
+	// Define creates the pflag.Value for this field.
+	Define DefineHookFunc
+
+	// Decode converts raw input to the field's type during Unmarshal.
+	Decode DecodeHookFunc
+}
+
+// FieldHookProvider provides per-field Define/Decode hooks.
+//
+// Implement this interface when the same type needs different flag behavior
+// in different fields, or when a standard type needs custom handling for a
+// specific field.
+//
+// Map keys are struct field names (e.g., "ListenAddr", not the flag name
+// "listen"). Unknown keys that do not match any struct field cause an error
+// at Define/Bind time.
+//
+// Precedence: FieldHookProvider > [RegisterType] > built-in registry.
+type FieldHookProvider interface {
+	FieldHooks() map[string]FieldHook
+}
+
+// FieldCompleter provides per-field shell completion hooks.
+//
+// Map keys are struct field names. Works for any field that becomes a flag,
+// not only fields with [FieldHookProvider] hooks.
+//
+// If a completion function is already registered on a flag before Define,
+// structcli preserves it (the FieldCompleter hook is not applied).
+type FieldCompleter interface {
+	CompletionHooks() map[string]CompleteHookFunc
+}
 
 // Options represents a struct that can define command-line flags, env vars, config file keys.
 //

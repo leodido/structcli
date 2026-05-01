@@ -136,6 +136,51 @@ func (suite *structcliSuite) TestStoreCompletionHookFunc_PanicsOnInvalidHookValu
 	)
 }
 
+func (suite *structcliSuite) TestStoreDecodeHookFuncDirect() {
+	cmd := &cobra.Command{Use: "testcmd"}
+	cmd.Flags().String("custom-field", "", "test flag")
+
+	decodeFn := func(input any) (any, error) {
+		return input, nil
+	}
+	targetType := reflect.TypeOf("")
+
+	internalhooks.StoreDecodeHookFuncDirect(cmd, "custom-field", decodeFn, targetType)
+
+	scope := internalscope.Get(cmd)
+	expectedKey := fmt.Sprintf("customDecodeHook_%s_%s", cmd.Name(), "custom-field")
+
+	storedHook, exists := scope.GetCustomDecodeHook(expectedKey)
+	require.True(suite.T(), exists, "Custom decode hook should be stored in scope")
+	assert.NotNil(suite.T(), storedHook, "Stored hook should not be nil")
+
+	flag := cmd.Flags().Lookup("custom-field")
+	require.NotNil(suite.T(), flag, "Flag should exist")
+
+	annotations := flag.Annotations[internalhooks.FlagDecodeHookAnnotation]
+	require.NotNil(suite.T(), annotations, "Flag should have decode hook annotation")
+	require.Len(suite.T(), annotations, 1, "Should have exactly one annotation")
+	assert.Equal(suite.T(), expectedKey, annotations[0], "Annotation should contain the correct key")
+}
+
+func (suite *structcliSuite) TestStoreCompletionHookFuncDirect() {
+	cmd := &cobra.Command{Use: "testcmd"}
+	cmd.Flags().String("mode", "", "test flag")
+
+	completeFn := func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"dev", "prod"}, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	internalhooks.StoreCompletionHookFuncDirect(cmd, "mode", completeFn)
+
+	completion, exists := cmd.GetFlagCompletionFunc("mode")
+	require.True(suite.T(), exists, "completion function should be registered")
+
+	suggestions, directive := completion(cmd, nil, "")
+	assert.Equal(suite.T(), []string{"dev", "prod"}, suggestions)
+	assert.Equal(suite.T(), cobra.ShellCompDirectiveNoFileComp, directive)
+}
+
 type zapcoreLevelOptions struct {
 	LogLevel zapcore.Level `default:"info" flagdescr:"the logging level" flagenv:"true"`
 }
