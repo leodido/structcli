@@ -984,3 +984,61 @@ func StoreDecodeHookFunc(c *cobra.Command, flagname string, decodeM reflect.Valu
 		panic(fmt.Sprintf("structcli: SetAnnotation on just-registered flag %q: %v", flagname, err))
 	}
 }
+
+// sanitizeTypeName converts a Go type name to a safe annotation suffix.
+// e.g., "main.HostPort" -> "main_HostPort", "[]byte" -> "_byte"
+func sanitizeTypeName(typeName string) string {
+	r := strings.NewReplacer(
+		".", "_",
+		"[", "_",
+		"]", "",
+		"*", "Ptr",
+		"/", "_",
+	)
+
+	return r.Replace(typeName)
+}
+
+// StoreDecodeHookFuncDirect stores a typed decode hook for a flag.
+// Unlike StoreDecodeHookFunc, it calls the function directly without
+// reflect.Value.Call, enabling dead-code elimination.
+func StoreDecodeHookFuncDirect(c *cobra.Command, flagname string, decodeFn DecodeHookFunc, target reflect.Type) {
+	s := internalscope.Get(c)
+
+	hookFunc := func(from reflect.Type, to reflect.Type, data any) (any, error) {
+		if to != target {
+			return data, nil
+		}
+		if from.Kind() != reflect.String {
+			return data, nil
+		}
+
+		return decodeFn(data)
+	}
+
+	k := fmt.Sprintf("customDecodeHook_%s_%s", c.Name(), flagname)
+	s.SetCustomDecodeHook(k, hookFunc)
+
+	if err := c.Flags().SetAnnotation(flagname, FlagDecodeHookAnnotation, []string{k}); err != nil {
+		panic(fmt.Sprintf("structcli: SetAnnotation on just-registered flag %q: %v", flagname, err))
+	}
+}
+
+// RegisterUserDecodeHook registers a user-provided DecodeHookFunc for a type
+// into both decode registries. The annotation name is derived from the type name.
+func RegisterUserDecodeHook(typeName string, fn DecodeHookFunc) {
+	ann := fmt.Sprintf("RegisterTypeTo%sHookFunc", sanitizeTypeName(typeName))
+
+	hook := func(from reflect.Type, to reflect.Type, data any) (any, error) {
+		if to.String() != typeName {
+			return data, nil
+		}
+		if from.Kind() != reflect.String {
+			return data, nil
+		}
+
+		return fn(data)
+	}
+
+	RegisterDecodeHook(typeName, ann, hook)
+}

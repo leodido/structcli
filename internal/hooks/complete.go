@@ -36,3 +36,12 @@ func StoreCompletionHookFunc(c *cobra.Command, flagName string, completeM reflec
 		panic(fmt.Sprintf("structcli: RegisterFlagCompletionFunc(%q) on just-registered flag: %v", flagName, err))
 	}
 }
+
+// StoreCompletionHookFuncDirect registers a typed completion hook for a flag.
+// Unlike StoreCompletionHookFunc, it calls the function directly without
+// reflect.Value.Call, enabling dead-code elimination.
+func StoreCompletionHookFuncDirect(c *cobra.Command, flagName string, fn CompleteHookFunc) {
+	if err := c.RegisterFlagCompletionFunc(flagName, cobra.CompletionFunc(fn)); err != nil {
+		panic(fmt.Sprintf("structcli: RegisterFlagCompletionFunc(%q) on just-registered flag: %v", flagName, err))
+	}
+}
