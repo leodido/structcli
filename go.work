@@ -3,6 +3,7 @@ go 1.24.4
 use (
 	.
 	./examples/collections
+	./examples/customtypes
 	./examples/full
 	./examples/loginsvc
 	./examples/mcp-command-factory
