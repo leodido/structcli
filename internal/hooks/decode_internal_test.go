@@ -271,16 +271,16 @@ func TestStringToInt64MapHookFunc_InvalidMapValue(t *testing.T) {
 	assert.Contains(t, err.Error(), `invalid map value for key "ok"`)
 }
 
-func TestStoreDecodeHookFunc_WrapperBehavior(t *testing.T) {
+func TestStoreDecodeHookFuncDirect_WrapperBehavior(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("mode", "", "mode")
 
-	StoreDecodeHookFunc(
+	StoreDecodeHookFuncDirect(
 		cmd,
 		"mode",
-		reflect.ValueOf(func(input any) (any, error) {
+		func(input any) (any, error) {
 			return strings.ToUpper(input.(string)), nil
-		}),
+		},
 		reflect.TypeOf(""),
 	)
 
@@ -302,17 +302,17 @@ func TestStoreDecodeHookFunc_WrapperBehavior(t *testing.T) {
 	assert.Equal(t, "dev", out)
 }
 
-func TestStoreDecodeHookFunc_WrapperPropagatesErrors(t *testing.T) {
+func TestStoreDecodeHookFuncDirect_WrapperPropagatesErrors(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("mode", "", "mode")
 
 	expectedErr := errors.New("boom")
-	StoreDecodeHookFunc(
+	StoreDecodeHookFuncDirect(
 		cmd,
 		"mode",
-		reflect.ValueOf(func(input any) (any, error) {
+		func(input any) (any, error) {
 			return nil, expectedErr
-		}),
+		},
 		reflect.TypeOf(""),
 	)
 
@@ -492,85 +492,3 @@ func TestStringToIntEnumHookFunc_AliasCollisionPanics(t *testing.T) {
 		})
 	})
 }
-
-func TestStoreDecodeHookFuncDirect_WrapperBehavior(t *testing.T) {
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("mode", "", "mode")
-
-	StoreDecodeHookFuncDirect(
-		cmd,
-		"mode",
-		func(input any) (any, error) {
-			return strings.ToUpper(input.(string)), nil
-		},
-		reflect.TypeOf(""),
-	)
-
-	flag := cmd.Flags().Lookup("mode")
-	require.NotNil(t, flag)
-	annotations := flag.Annotations[FlagDecodeHookAnnotation]
-	require.Len(t, annotations, 1)
-
-	hook, exists := internalscope.Get(cmd).GetCustomDecodeHook(annotations[0])
-	require.True(t, exists)
-	hookFunc := hook.(func(reflect.Type, reflect.Type, any) (any, error))
-
-	// Matching target type: hook is applied
-	out, err := hookFunc(reflect.TypeOf(""), reflect.TypeOf(""), "dev")
-	require.NoError(t, err)
-	assert.Equal(t, "DEV", out)
-
-	// Non-matching target type: passthrough
-	out, err = hookFunc(reflect.TypeOf(""), reflect.TypeOf(int(0)), "dev")
-	require.NoError(t, err)
-	assert.Equal(t, "dev", out)
-}
-
-func TestStoreDecodeHookFuncDirect_PropagatesErrors(t *testing.T) {
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("mode", "", "mode")
-
-	expectedErr := errors.New("boom")
-	StoreDecodeHookFuncDirect(
-		cmd,
-		"mode",
-		func(input any) (any, error) {
-			return nil, expectedErr
-		},
-		reflect.TypeOf(""),
-	)
-
-	flag := cmd.Flags().Lookup("mode")
-	require.NotNil(t, flag)
-	hook, exists := internalscope.Get(cmd).GetCustomDecodeHook(flag.Annotations[FlagDecodeHookAnnotation][0])
-	require.True(t, exists)
-	hookFunc := hook.(func(reflect.Type, reflect.Type, any) (any, error))
-
-	_, err := hookFunc(reflect.TypeOf(""), reflect.TypeOf(""), "dev")
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestRegisterUserDecodeHook(t *testing.T) {
-	snap := SnapshotDecodeRegistries()
-	defer RestoreDecodeRegistries(snap)
-
-	RegisterUserDecodeHook("test.Custom", func(input any) (any, error) {
-		return "decoded:" + input.(string), nil
-	})
-
-	data, ok := DecodeHookRegistry["test.Custom"]
-	require.True(t, ok)
-	assert.Equal(t, "RegisterTypeTotest_CustomHookFunc", data.ann)
-
-	_, ok = AnnotationToDecodeHookRegistry["RegisterTypeTotest_CustomHookFunc"]
-	assert.True(t, ok)
-}
-
-func TestSanitizeTypeName(t *testing.T) {
-	assert.Equal(t, "main_HostPort", sanitizeTypeName("main.HostPort"))
-	assert.Equal(t, "_byte", sanitizeTypeName("[]byte"))
-	assert.Equal(t, "map_stringint", sanitizeTypeName("map[string]int"))
-	assert.Equal(t, "Ptrmain_Foo", sanitizeTypeName("*main.Foo"))
-}
-
-

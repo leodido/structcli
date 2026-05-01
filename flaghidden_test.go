@@ -89,18 +89,23 @@ type hiddenGroupOptions struct {
 func (o *hiddenGroupOptions) Attach(c *cobra.Command) error { return nil }
 
 type hiddenCustomOptions struct {
-	Mode string `flagcustom:"true" flag:"mode" flaghidden:"true" flagdescr:"hidden custom"`
+	Mode string `flag:"mode" flaghidden:"true" flagdescr:"hidden custom"`
 }
 
-func (o *hiddenCustomOptions) DefineMode(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	fieldPtr := fieldValue.Addr().Interface().(*string)
-	*fieldPtr = "default"
+func (o *hiddenCustomOptions) FieldHooks() map[string]FieldHook {
+	return map[string]FieldHook{
+		"Mode": {
+			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+				fieldPtr := fieldValue.Addr().Interface().(*string)
+				*fieldPtr = "default"
 
-	return values.NewString(fieldPtr), descr
-}
-
-func (o *hiddenCustomOptions) DecodeMode(input any) (any, error) {
-	return input, nil
+				return values.NewString(fieldPtr), descr
+			},
+			Decode: func(input any) (any, error) {
+				return input, nil
+			},
+		},
+	}
 }
 
 func (o *hiddenCustomOptions) Attach(c *cobra.Command) error { return nil }

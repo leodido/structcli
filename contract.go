@@ -21,9 +21,9 @@ type CompleteHookFunc = internalhooks.CompleteHookFunc
 
 // FieldHook bundles the Define and Decode hooks for a single struct field.
 //
-// Both hooks are optional: if Define is nil the field falls through to the
-// type registry or built-in handling; if Decode is nil the default decode
-// path is used.
+// If Define is nil, the field falls through to the type registry or built-in
+// handling. If Decode is nil, the default decode path is used.
+// Setting Decode without Define is an error (caught at Define/Bind time).
 type FieldHook struct {
 	// Define creates the pflag.Value for this field.
 	Define DefineHookFunc

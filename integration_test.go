@@ -315,20 +315,24 @@ type completionIntegrationOptions struct {
 
 func (o *completionIntegrationOptions) Attach(c *cobra.Command) error { return nil }
 
-func (o *completionIntegrationOptions) CompleteRegion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	candidates := []string{"us-east-1", "us-west-2", "eu-west-1"}
-	if toComplete == "" {
-		return candidates, cobra.ShellCompDirectiveNoFileComp
-	}
+func (o *completionIntegrationOptions) CompletionHooks() map[string]structcli.CompleteHookFunc {
+	return map[string]structcli.CompleteHookFunc{
+		"Region": func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			candidates := []string{"us-east-1", "us-west-2", "eu-west-1"}
+			if toComplete == "" {
+				return candidates, cobra.ShellCompDirectiveNoFileComp
+			}
 
-	filtered := make([]string, 0, len(candidates))
-	for _, candidate := range candidates {
-		if strings.HasPrefix(candidate, toComplete) {
-			filtered = append(filtered, candidate)
-		}
-	}
+			filtered := make([]string, 0, len(candidates))
+			for _, candidate := range candidates {
+				if strings.HasPrefix(candidate, toComplete) {
+					filtered = append(filtered, candidate)
+				}
+			}
 
-	return filtered, cobra.ShellCompDirectiveNoFileComp
+			return filtered, cobra.ShellCompDirectiveNoFileComp
+		},
+	}
 }
 
 func TestDefine_CompletionShellRequest_Integration(t *testing.T) {
@@ -406,7 +410,7 @@ func TestDefine_Integration(t *testing.T) {
 			assert.Contains(t, u, "Configuration Flags:", "The help output should contain the 'Configuration' group")
 			assert.Contains(t, u, "Deep Flags:", "The help output should contain the 'Deep' group")
 
-			// Ignore custom types (no flagcustom tag, not in the registry)
+			// Ignore custom types (not in the registry, no FieldHookProvider)
 			ignorecustomstringtypeFlag := f.Lookup("ignorecustomstringtype")
 			require.Nil(t, ignorecustomstringtypeFlag, "Pflag 'ignorecustomstringtype' should not be defined")
 
@@ -2222,120 +2226,131 @@ const (
 )
 
 type customDecodeHookOptions struct {
-	ServerMode ServerMode1 `flagcustom:"true" flag:"server-mode" flagdescr:"Server deployment mode" flagenv:"true"`
+	ServerMode ServerMode1 `flag:"server-mode" flagdescr:"Server deployment mode" flagenv:"true"`
 	LogLevel   string      `flag:"log-level" flagdescr:"Logging level"`
 }
 
-func (o *customDecodeHookOptions) DefineServerMode(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	enhancedDesc := descr + " (development, staging, production)"
-	fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
-	*fieldPtr = DevMode1
+func (o *customDecodeHookOptions) FieldHooks() map[string]structcli.FieldHook {
+	return map[string]structcli.FieldHook{
+		"ServerMode": {
+			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+				enhancedDesc := descr + " (development, staging, production)"
+				fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
+				*fieldPtr = DevMode1
 
-	// Since ServerMode1 is a string type, we can cast its pointer to *string and use our existing stringValue helper.
-	return values.NewString((*string)(fieldPtr)), enhancedDesc
-}
-
-func (o *customDecodeHookOptions) DecodeServerMode(input any) (any, error) {
-	str, ok := input.(string)
-	if !ok {
-		return input, nil // Not a string, pass through
-	}
-	switch strings.ToLower(strings.TrimSpace(str)) {
-	case "dev", "develop", "development":
-		return ServerMode1("development"), nil
-	case "stage", "staging":
-		return ServerMode1("staging"), nil
-	case "prod", "production":
-		return ServerMode1("production"), nil
-	case "test_custom_decode": // Special test value to verify hook was called
-		return ServerMode1("CUSTOM_DECODE_CALLED"), nil
-	default:
-		return nil, fmt.Errorf("invalid server mode: %s (must be development, staging, or production)", str)
+				return values.NewString((*string)(fieldPtr)), enhancedDesc
+			},
+			Decode: func(input any) (any, error) {
+				str, ok := input.(string)
+				if !ok {
+					return input, nil // Not a string, pass through
+				}
+				switch strings.ToLower(strings.TrimSpace(str)) {
+				case "dev", "develop", "development":
+					return ServerMode1("development"), nil
+				case "stage", "staging":
+					return ServerMode1("staging"), nil
+				case "prod", "production":
+					return ServerMode1("production"), nil
+				case "test_custom_decode": // Special test value to verify hook was called
+					return ServerMode1("CUSTOM_DECODE_CALLED"), nil
+				default:
+					return nil, fmt.Errorf("invalid server mode: %s (must be development, staging, or production)", str)
+				}
+			},
+		},
 	}
 }
 
 func (o *customDecodeHookOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
 
 type mixedHooksOptions struct {
-	ServerMode ServerMode1   `flagcustom:"true" flag:"server-mode" flagdescr:"Server mode"`
+	ServerMode ServerMode1   `flag:"server-mode" flagdescr:"Server mode"`
 	Timeout    time.Duration `flag:"timeout" flagdescr:"Request timeout"`
 	LogLevel   zapcore.Level `flag:"log-level" flagdescr:"Log level"`
 }
 
-// Implement the custom methods for ServerMode
-func (m *mixedHooksOptions) DefineServerMode(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
-	*fieldPtr = DevMode1
+func (m *mixedHooksOptions) FieldHooks() map[string]structcli.FieldHook {
+	return map[string]structcli.FieldHook{
+		"ServerMode": {
+			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+				fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
+				*fieldPtr = DevMode1
 
-	return values.NewString((*string)(fieldPtr)), descr
-}
-
-func (m *mixedHooksOptions) DecodeServerMode(input any) (any, error) {
-	str, ok := input.(string)
-	if !ok {
-		return input, nil
+				return values.NewString((*string)(fieldPtr)), descr
+			},
+			Decode: func(input any) (any, error) {
+				str, ok := input.(string)
+				if !ok {
+					return input, nil
+				}
+				if strings.ToLower(str) == "test" {
+					return ServerMode1("TEST_MODE"), nil
+				}
+				return ServerMode1(str), nil
+			},
+		},
 	}
-	if strings.ToLower(str) == "test" {
-		return ServerMode1("TEST_MODE"), nil
-	}
-	return ServerMode1(str), nil
 }
 
 func (o *mixedHooksOptions) Attach(c *cobra.Command) error { return structcli.Define(c, o) }
 
 type multiCustomOptions struct {
-	Mode1 ServerMode1 `flagcustom:"true" flagdescr:"First mode"`
-	Mode2 ServerMode2 `flagcustom:"true" flagdescr:"Second mode"`
+	Mode1 ServerMode1 `flagdescr:"First mode"`
+	Mode2 ServerMode2 `flagdescr:"Second mode"`
 	Level string      `flag:"level" flagdescr:"Normal field"`
 }
 
-func (m *multiCustomOptions) DefineMode1(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	enhancedDesc := descr + " (first custom mode)"
-	fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
-	*fieldPtr = DevMode1
+func (m *multiCustomOptions) FieldHooks() map[string]structcli.FieldHook {
+	return map[string]structcli.FieldHook{
+		"Mode1": {
+			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+				enhancedDesc := descr + " (first custom mode)"
+				fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
+				*fieldPtr = DevMode1
 
-	return values.NewString((*string)(fieldPtr)), enhancedDesc
-}
+				return values.NewString((*string)(fieldPtr)), enhancedDesc
+			},
+			Decode: func(input any) (any, error) {
+				str, ok := input.(string)
+				if !ok {
+					return input, nil
+				}
 
-func (m *multiCustomOptions) DecodeMode1(input any) (any, error) {
-	str, ok := input.(string)
-	if !ok {
-		return input, nil
-	}
+				switch strings.ToLower(strings.TrimSpace(str)) {
+				case "test1":
+					return ServerMode1("MODE1_CUSTOM_CALLED"), nil
+				case "dev", "development":
+					return ServerMode1("development"), nil
+				default:
+					return ServerMode1("mode1_" + str), nil
+				}
+			},
+		},
+		"Mode2": {
+			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+				enhancedDesc := descr + " (second custom mode)"
+				fieldPtr := fieldValue.Addr().Interface().(*ServerMode2)
+				*fieldPtr = StagingMode2
 
-	// Add prefix to distinguish from Mode2
-	switch strings.ToLower(strings.TrimSpace(str)) {
-	case "test1":
-		return ServerMode1("MODE1_CUSTOM_CALLED"), nil
-	case "dev", "development":
-		return ServerMode1("development"), nil
-	default:
-		return ServerMode1("mode1_" + str), nil
-	}
-}
+				return values.NewString((*string)(fieldPtr)), enhancedDesc
+			},
+			Decode: func(input any) (any, error) {
+				str, ok := input.(string)
+				if !ok {
+					return input, nil
+				}
 
-func (m *multiCustomOptions) DefineMode2(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	enhancedDesc := descr + " (second custom mode)"
-	fieldPtr := fieldValue.Addr().Interface().(*ServerMode2)
-	*fieldPtr = StagingMode2
-
-	return values.NewString((*string)(fieldPtr)), enhancedDesc
-}
-
-func (m *multiCustomOptions) DecodeMode2(input any) (any, error) {
-	str, ok := input.(string)
-	if !ok {
-		return input, nil
-	}
-
-	// Add different prefix to distinguish from Mode1
-	switch strings.ToLower(strings.TrimSpace(str)) {
-	case "test2":
-		return ServerMode2("MODE2_CUSTOM_CALLED"), nil
-	case "stage", "staging":
-		return ServerMode2("staging"), nil
-	default:
-		return ServerMode2("mode2_" + str), nil
+				switch strings.ToLower(strings.TrimSpace(str)) {
+				case "test2":
+					return ServerMode2("MODE2_CUSTOM_CALLED"), nil
+				case "stage", "staging":
+					return ServerMode2("staging"), nil
+				default:
+					return ServerMode2("mode2_" + str), nil
+				}
+			},
+		},
 	}
 }
 
@@ -2615,68 +2630,6 @@ func TestUnmarshal_CustomDecodeHook_ScopeRetrieval(t *testing.T) {
 		assert.Equal(t, ServerMode2("mode2_flag2"), opts.Mode2, "Mode2 flag should override config and be processed by custom hook")
 	})
 }
-
-type nestedSameCustomType struct {
-	ModeAgain ServerMode1 `flagcustom:"true" flagdescr:"First mode"`
-}
-
-func (m *nestedSameCustomType) DefineModeAgain(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	return nil, ""
-}
-
-func (m *nestedSameCustomType) DecodeModeAgain(input any) (any, error) {
-	return input, nil
-}
-
-type conflictingCustomType struct {
-	Mode  ServerMode1 `flagcustom:"true" flagdescr:"First mode"`
-	Level string      `flag:"level" flagdescr:"Normal field"`
-	Nest  nestedSameCustomType
-}
-
-func (m *conflictingCustomType) DefineMode(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	return nil, ""
-}
-
-func (m *conflictingCustomType) DecodeMode(input any) (any, error) {
-	return input, nil
-}
-
-func (m *conflictingCustomType) Attach(c *cobra.Command) error { return nil }
-
-type wrongDefineParamOptions struct {
-	CustomField string `flagcustom:"true"`
-}
-
-// Wrong signature: first parameter should be `name string`.
-func (o *wrongDefineParamOptions) DefineCustomField(p1 int, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-	return nil, ""
-}
-func (o *wrongDefineParamOptions) DecodeCustomField(i any) (any, error) { return i, nil }
-func (o *wrongDefineParamOptions) Attach(c *cobra.Command) error        { return structcli.Define(c, o) }
-
-type wrongDefineReturn1Options struct {
-	CustomField string `flagcustom:"true"`
-}
-
-// Wrong signature: first return value should be `pflag.Value`.
-func (o *wrongDefineReturn1Options) DefineCustomField(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (string, string) {
-	return "", ""
-}
-func (o *wrongDefineReturn1Options) DecodeCustomField(i any) (any, error) { return i, nil }
-func (o *wrongDefineReturn1Options) Attach(c *cobra.Command) error        { return structcli.Define(c, o) }
-
-type wrongDefineReturn2Options struct {
-	CustomField string `flagcustom:"true"`
-}
-
-// Wrong signature: second return value should be `string`.
-func (o *wrongDefineReturn2Options) DefineCustomField(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, int) {
-	fieldPtr := fieldValue.Addr().Interface().(*string)
-	return values.NewString(fieldPtr), 0
-}
-func (o *wrongDefineReturn2Options) DecodeCustomField(i any) (any, error) { return i, nil }
-func (o *wrongDefineReturn2Options) Attach(c *cobra.Command) error        { return structcli.Define(c, o) }
 
 type remappingDatabaseOptions struct {
 	URL string `flag:"db-url" default:"postgres://default" flagdescr:"database URL"`
@@ -3158,67 +3111,6 @@ func TestUnmarshal_KeyRemapping_Characterization(t *testing.T) {
 
 		require.NoError(t, structcli.Unmarshal(srvCmd, opts))
 		assert.Equal(t, 9090, opts.Port)
-	})
-}
-
-func TestFlagCustom_Integration(t *testing.T) {
-	setupTest := func() {
-		viper.Reset()
-		structcli.Reset()
-	}
-
-	t.Run("MultipleFieldsWithSameCustomType", func(t *testing.T) {
-		setupTest()
-
-		opts := &conflictingCustomType{}
-		c := &cobra.Command{Use: "testcmd-custom-type"}
-
-		err := structcli.Define(c, opts)
-		require.Error(t, err)
-		require.ErrorIs(t, err, structclierrors.ErrConflictingType)
-		assert.Contains(t, err.Error(), "create distinct custom types for each field")
-		assert.Contains(t, err.Error(), "Mode")
-		assert.Contains(t, err.Error(), "Nest.ModeAgain")
-	})
-
-	t.Run("DefineHook_WrongParameterType", func(t *testing.T) {
-		setupTest()
-		opts := &wrongDefineParamOptions{}
-		cmd := &cobra.Command{Use: "test"}
-
-		err := opts.Attach(cmd)
-		require.Error(t, err)
-		var e *structclierrors.InvalidDefineHookSignatureError
-		require.ErrorAs(t, err, &e, "error should be of type InvalidDefineHookSignatureError")
-
-		assert.Contains(t, e.Error(), "define hook parameter 0 has wrong type", "Error should complain about the first parameter")
-		assert.Contains(t, e.Error(), "expected string, got int", "Error should specify the expected and actual types")
-	})
-
-	t.Run("DefineHook_WrongFirstReturnValue", func(t *testing.T) {
-		setupTest()
-		opts := &wrongDefineReturn1Options{}
-		cmd := &cobra.Command{Use: "test"}
-
-		err := opts.Attach(cmd)
-		require.Error(t, err)
-		var e *structclierrors.InvalidDefineHookSignatureError
-		require.ErrorAs(t, err, &e, "error should be of type InvalidDefineHookSignatureError")
-
-		assert.Contains(t, e.Error(), "define hook first return value must be a pflag.Value")
-	})
-
-	t.Run("DefineHook_WrongSecondReturnValue", func(t *testing.T) {
-		setupTest()
-		opts := &wrongDefineReturn2Options{}
-		cmd := &cobra.Command{Use: "test"}
-
-		err := opts.Attach(cmd)
-		require.Error(t, err)
-		var e *structclierrors.InvalidDefineHookSignatureError
-		require.ErrorAs(t, err, &e, "error should be of type InvalidDefineHookSignatureError")
-
-		assert.Contains(t, e.Error(), "define hook second return value must be a string")
 	})
 }
 

@@ -197,7 +197,7 @@ func TestRegisterEnum_NoFlagcustomNeeded(t *testing.T) {
 
 	opts := &enumOptions{}
 	cmd := &cobra.Command{Use: "app"}
-	// Define succeeds without flagcustom:"true"
+	// Define succeeds via the type registry
 	require.NoError(t, Define(cmd, opts))
 
 	// Flag exists and works

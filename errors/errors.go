@@ -3,7 +3,6 @@ package errors
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 )
 
@@ -113,20 +112,14 @@ func (e *ValidationError) UnderlyingErrors() []error {
 
 // These are all DefinitionError
 var (
-	ErrInvalidBooleanTag            = errors.New("invalid boolean tag value")
-	ErrInvalidFlagEnvTag            = errors.New("invalid flagenv tag value")
-	ErrInvalidShorthand             = errors.New("invalid shorthand flag")
-	ErrMissingDefineHook            = errors.New("missing custom flag definition hook")
-	ErrMissingDecodeHook            = errors.New("missing custom flag decoding hook")
-	ErrInvalidDefineHookSignature   = errors.New("invalid define hook signature")
-	ErrInvalidDecodeHookSignature   = errors.New("invalid decode hook signature")
-	ErrInvalidCompleteHookSignature = errors.New("invalid complete hook signature")
-	ErrInvalidTagUsage              = errors.New("invalid tag usage")
-	ErrConflictingTags              = errors.New("conflicting struct tags")
-	ErrConflictingType              = errors.New("conflicting struct field types")
-	ErrUnsupportedType              = errors.New("unsupported field type")
-	ErrDuplicateFlag                = errors.New("duplicate flag name")
-	ErrInvalidFlagName              = errors.New("invalid flag name")
+	ErrInvalidBooleanTag = errors.New("invalid boolean tag value")
+	ErrInvalidFlagEnvTag = errors.New("invalid flagenv tag value")
+	ErrInvalidShorthand  = errors.New("invalid shorthand flag")
+	ErrInvalidTagUsage   = errors.New("invalid tag usage")
+	ErrConflictingTags   = errors.New("conflicting struct tags")
+	ErrUnsupportedType   = errors.New("unsupported field type")
+	ErrDuplicateFlag     = errors.New("duplicate flag name")
+	ErrInvalidFlagName   = errors.New("invalid flag name")
 )
 
 // DefinitionError represents an error that occurred while processing a struct field's tags at definition time.
@@ -216,102 +209,6 @@ func (e *InvalidShorthandError) Unwrap() error {
 	return ErrInvalidShorthand
 }
 
-// MissingDefineHookError represents a missing custom flag definition hook
-type MissingDefineHookError struct {
-	FieldName    string
-	ExpectedHook string
-}
-
-func (e *MissingDefineHookError) Error() string {
-	return fmt.Sprintf("field '%s': flagcustom='true' but missing define hook '%s'", e.FieldName, e.ExpectedHook)
-}
-
-func (e *MissingDefineHookError) Field() string {
-	return e.FieldName
-}
-
-func (e *MissingDefineHookError) Unwrap() error {
-	return ErrMissingDefineHook
-}
-
-// MissingDecodeHookError represents a missing custom flag decoding hook
-type MissingDecodeHookError struct {
-	FieldName    string
-	ExpectedHook string
-}
-
-func (e *MissingDecodeHookError) Error() string {
-	return fmt.Sprintf("field '%s': flagcustom='true' but missing decode hook '%s'", e.FieldName, e.ExpectedHook)
-}
-
-func (e *MissingDecodeHookError) Field() string {
-	return e.FieldName
-}
-
-func (e *MissingDecodeHookError) Unwrap() error {
-	return ErrMissingDecodeHook
-}
-
-// InvalidDecodeHookSignatureError represents an invalid custom flag definition hook
-type InvalidDecodeHookSignatureError struct {
-	FieldName string
-	HookName  string
-	Message   string
-}
-
-func (e *InvalidDecodeHookSignatureError) Error() string {
-	return fmt.Sprintf("field '%s': invalid '%s' decode hook: %s",
-		e.FieldName, e.HookName, e.Message)
-}
-
-func (e *InvalidDecodeHookSignatureError) Field() string {
-	return e.FieldName
-}
-
-func (e *InvalidDecodeHookSignatureError) Unwrap() error {
-	return ErrInvalidDecodeHookSignature
-}
-
-// InvalidDefineHookSignatureError represents an invalid custom flag definition hook
-type InvalidDefineHookSignatureError struct {
-	FieldName string
-	HookName  string
-	Message   string
-}
-
-func (e *InvalidDefineHookSignatureError) Error() string {
-	return fmt.Sprintf("field '%s': invalid '%s' define hook: %s",
-		e.FieldName, e.HookName, e.Message)
-}
-
-func (e *InvalidDefineHookSignatureError) Field() string {
-	return e.FieldName
-}
-
-func (e *InvalidDefineHookSignatureError) Unwrap() error {
-	return ErrInvalidDefineHookSignature
-}
-
-// InvalidCompleteHookSignatureError represents an invalid completion hook.
-type InvalidCompleteHookSignatureError struct {
-	FieldName string
-	HookName  string
-	Message   string
-}
-
-func (e *InvalidCompleteHookSignatureError) Error() string {
-	return fmt.Sprintf("field '%s': invalid '%s' completion hook: %s",
-		e.FieldName, e.HookName, e.Message)
-}
-
-func (e *InvalidCompleteHookSignatureError) Field() string {
-	return e.FieldName
-}
-
-func (e *InvalidCompleteHookSignatureError) Unwrap() error {
-	return ErrInvalidCompleteHookSignature
-}
-
 // InvalidTagUsageError represents invalid tag usages
 type InvalidTagUsageError struct {
 	FieldName string
@@ -352,30 +249,6 @@ func (e *ConflictingTagsError) Field() string {
 }
 func (e *ConflictingTagsError) Unwrap() error {
 	return ErrConflictingTags
-}
-
-// ConflictingTypeError represents conflicting struct fields having the same custom type
-type ConflictingTypeError struct {
-	Type     reflect.Type
-	TypeName string
-	Fields   []string
-	Message  string
-}
-
-func (e *ConflictingTypeError) Error() string {
-	return fmt.Sprintf(
-		"fields [%s]: conflicting type [%s]: %s",
-		strings.Join(e.Fields, ", "),
-		e.TypeName,
-		e.Message,
-	)
-}
-
-func (e *ConflictingTypeError) Field() string {
-	return strings.Join(e.Fields, ", ")
-}
-func (e *ConflictingTypeError) Unwrap() error {
-	return ErrConflictingType
 }
 
 // UnsupportedTypeError represents an unsupported field type
@@ -445,44 +318,6 @@ func NewInvalidShorthandError(fieldName, shorthand string) error {
 	}
 }
 
-func NewMissingDefineHookError(fieldName, hookName string) error {
-	return &MissingDefineHookError{
-		FieldName:    fieldName,
-		ExpectedHook: hookName,
-	}
-}
-
-func NewMissingDecodeHookError(fieldName, hookName string) error {
-	return &MissingDecodeHookError{
-		FieldName:    fieldName,
-		ExpectedHook: hookName,
-	}
-}
-
-func NewInvalidDecodeHookSignatureError(fieldName, hookName string, err error) error {
-	return &InvalidDecodeHookSignatureError{
-		FieldName: fieldName,
-		HookName:  hookName,
-		Message:   err.Error(),
-	}
-}
-
-func NewInvalidDefineHookSignatureError(fieldName, hookName string, err error) error {
-	return &InvalidDefineHookSignatureError{
-		FieldName: fieldName,
-		HookName:  hookName,
-		Message:   err.Error(),
-	}
-}
-
-func NewInvalidCompleteHookSignatureError(fieldName, hookName string, err error) error {
-	return &InvalidCompleteHookSignatureError{
-		FieldName: fieldName,
-		HookName:  hookName,
-		Message:   err.Error(),
-	}
-}
-
 func NewInvalidTagUsageError(fieldName, tagName, message string) error {
 	return &InvalidTagUsageError{
 		FieldName: fieldName,
@@ -496,15 +331,6 @@ func NewConflictingTagsError(fieldName string, tags []string, message string) er
 		FieldName:       fieldName,
 		ConflictingTags: tags,
 		Message:         message,
-	}
-}
-
-func NewConflictingTypeError(fieldType reflect.Type, fields []string, message string) error {
-	return &ConflictingTypeError{
-		Fields:   fields,
-		Type:     fieldType,
-		TypeName: fieldType.String(),
-		Message:  message,
 	}
 }
 
