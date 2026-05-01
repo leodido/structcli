@@ -585,7 +585,7 @@ For a complete, runnable implementation of this pattern, see the loginsvc exampl
 
 ### 🎯 Enum Registration
 
-Register string or integer enum types once in `init()` and use them as plain struct fields — no `flagcustom:"true"`, no `Define`/`Decode` methods needed. structcli handles flag creation, help text with allowed values, shell completion, validation, and config/env decoding automatically.
+Register string or integer enum types once in `init()` and use them as plain struct fields. structcli handles flag creation, help text with allowed values, shell completion, validation, and config/env decoding automatically.
 
 #### String enums (`RegisterEnum`)
 
@@ -637,57 +637,104 @@ See [full example](examples/full/cli/cli.go) for enum registration in a complete
 
 ### 🪃 Custom Type Handlers
 
-For types that need custom parsing logic beyond what enum registration provides — non-enum custom types, special validation, or custom `pflag.Value` implementations — use `flagcustom:"true"` with method hooks on your options struct.
+For types that need custom parsing logic beyond what enum registration provides, structcli offers two mechanisms: **per-type registration** and **per-field hooks**.
 
-Implement these methods:
+#### Per-type: `RegisterType[T]`
 
-- `Define<FieldName>`: return a `pflag.Value` and enhanced description for the flag.
-- `Decode<FieldName>`: decode the raw input into your custom type during Unmarshal.
-- `Complete<FieldName>` (optional): provide shell completion candidates. `structcli.Define()` auto-registers it.
+Register custom hooks for a type once in `init()`. Every struct field of type `T` uses them automatically — no special tags needed. `RegisterType` panics on nil hooks or duplicate registration — call it in `init()` before any `Define`/`Bind`.
 
 ```go
+import (
+    "github.com/leodido/structcli"
+    "github.com/leodido/structcli/values"
+)
+
+type ListenAddress struct {
+    Host string
+    Port int
+    raw  string
+}
+
+func init() {
+    structcli.RegisterType[ListenAddress](structcli.TypeHooks[ListenAddress]{
+        Define: func(name, short, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+            ptr := fv.Addr().Interface().(*ListenAddress)
+            *ptr = ListenAddress{Host: "localhost", Port: 8080, raw: "localhost:8080"}
+
+            return values.NewString(&ptr.raw), descr + " (host:port)"
+        },
+        Decode: func(input any) (any, error) {
+            return ParseListenAddress(input.(string))
+        },
+    })
+}
+
 type ServerOptions struct {
-	// Custom type requiring special parsing logic
-	ListenAddr ListenAddress `flagcustom:"true" flag:"listen" flagdescr:"Listen address"`
-}
-
-// DefineListenAddr returns a pflag.Value for the custom ListenAddress type.
-func (o *ServerOptions) DefineListenAddr(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
-    fieldPtr := fieldValue.Addr().Interface().(*ListenAddress)
-    *fieldPtr = ListenAddress{Host: "localhost", Port: 8080}
-
-    return structclivalues.NewString((*string)(&fieldPtr.raw)), descr + " (host:port)"
-}
-
-// DecodeListenAddr converts the string input to a ListenAddress.
-func (o *ServerOptions) DecodeListenAddr(input any) (any, error) {
-    return ParseListenAddress(input.(string))
-}
-
-// CompleteListenAddr provides shell completion for --listen.
-func (o *ServerOptions) CompleteListenAddr(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-    return []string{"localhost:8080", "0.0.0.0:8080", "0.0.0.0:443"}, cobra.ShellCompDirectiveNoFileComp
-}
-
-func (o *ServerOptions) Attach(c *cobra.Command) error {
-    return structcli.Define(c, o)
+    ListenAddr ListenAddress `flag:"listen" flagdescr:"Listen address"`
 }
 ```
 
-Types using `flagcustom:"true"` require the `Options` interface (`Attach` method) because the `Define<Field>`/`Decode<Field>` methods are discovered on the receiver. `Bind` works too — it detects `Options` implementors and delegates to `Attach`.
+Both `Define` and `Decode` are required. Panics on duplicate registration or nil hooks. Call in `init()` before any `Define`/`Bind` calls.
 
-For enum types, prefer `RegisterEnum`/`RegisterIntEnum` instead. They handle the same concerns with less boilerplate.
+For enum types, prefer `RegisterEnum`/`RegisterIntEnum` — they wrap `RegisterType` with less boilerplate.
 
-`Complete<FieldName>` works for any field that becomes a flag (not only `flagcustom:"true"` fields).
+#### Per-field: `FieldHookProvider` and `FieldCompleter`
+
+When the same type needs different behavior in different fields, or when a standard type needs custom handling for a specific field, implement `FieldHookProvider` on your options struct. Map keys are struct field names.
+
+```go
+type ServerOptions struct {
+    ListenAddr string `flag:"listen" flagdescr:"Listen address"`
+    Mode       string `flag:"mode" flagdescr:"Server mode"`
+}
+
+func (o *ServerOptions) FieldHooks() map[string]structcli.FieldHook {
+    return map[string]structcli.FieldHook{
+        "ListenAddr": {
+            Define: func(name, short, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+                ptr := fv.Addr().Interface().(*string)
+                *ptr = "localhost:8080"
+
+                return values.NewString(ptr), descr + " (host:port)"
+            },
+            Decode: func(input any) (any, error) {
+                return input, nil
+            },
+        },
+    }
+}
+```
+
+For shell completion, implement `FieldCompleter`:
+
+```go
+func (o *ServerOptions) CompletionHooks() map[string]structcli.CompleteHookFunc {
+    return map[string]structcli.CompleteHookFunc{
+        "ListenAddr": func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+            return []string{"localhost:8080", "0.0.0.0:8080", "0.0.0.0:443"}, cobra.ShellCompDirectiveNoFileComp
+        },
+    }
+}
+```
+
+`FieldCompleter` works for any field that becomes a flag, not only fields with `FieldHookProvider` hooks.
+
+#### Precedence
+
+Hook resolution follows this order (highest to lowest):
+
+1. **`FieldHookProvider`** — per-field hooks on the options struct
+2. **`RegisterType`** / **`RegisterEnum`** — per-type hooks in the global registry
+3. **Built-in registry** — `time.Duration`, `zapcore.Level`, `slog.Level`, etc.
 
 Completion precedence:
 
 - If a completion function is already registered on a flag before `Define`, structcli preserves it.
-- If `Define` auto-registers `Complete<FieldName>`, a later manual `RegisterFlagCompletionFunc` on the same flag returns Cobra's `already registered` error.
+- If `Define` auto-registers a `FieldCompleter` hook, a later manual `RegisterFlagCompletionFunc` on the same flag returns Cobra's `already registered` error.
 
 In [values](/values/values.go) we provide `pflag.Value` implementations for standard types.
 
-See [full example](examples/full/cli/cli.go) for more details.
+See the [custom types example](examples/customtypes/main.go) for a runnable demo of all three mechanisms, or the [full example](examples/full/cli/cli.go) for a complete CLI.
 
 ### 🧱 Built-in Custom Types
 
@@ -901,7 +948,6 @@ Use these tags in your struct fields to control the behavior:
 | `flaghidden`   | Hides the flag from help/usage output and machine-readable schemas while keeping it fully functional (`"true"`/`"false"`)               | `flaghidden:"true"`         |
 | `flaggroup`    | Assigns the flag to a group in the help message                                                                                         | `flaggroup:"Database"`      |
 | `flagignore`   | Skips creating a flag for this field (`"true"`/`"false"`)                                                                               | `flagignore:"true"`         |
-| `flagcustom`   | Uses a custom `Define<FieldName>` method for advanced flag creation and a custom `Decode<FieldName>` method for advanced value decoding | `flagcustom:"true"`         |
 | `flagtype`     | Specifies a special flag type. Currently supports `count`                                                                               | `flagtype:"count"`          |
 
 `flagpreset` is syntactic sugar: it creates alias flags that set the canonical flag value.
@@ -915,7 +961,7 @@ It does not bypass transform/validate flow.
 - `flaghidden:"true" + flagenv:"true"` — hidden from help, but **accepts CLI input** via `--flag=value`. Use for flags that should be discoverable only by advanced users or scripts.
 - `flagenv:"only"` — hidden from help, **rejects CLI input** at runtime. The field is settable only via environment variable or config file. Use for secrets and deployment-time configuration that should never appear on a command line.
 
-`flagenv:"only"` is incompatible with `flagshort`, `flagpreset`, `flagtype`, and `flagcustom` (these are CLI-only concepts). It supports `flagdescr`, `flaggroup`, `flagrequired`, and `default`.
+`flagenv:"only"` is incompatible with `flagshort`, `flagpreset`, and `flagtype` (these are CLI-only concepts). It supports `flagdescr`, `flaggroup`, `flagrequired`, and `default`. `FieldHookProvider` Define/Decode hooks work normally on `flagenv:"only"` fields (the flag is created then hidden). `FieldCompleter` hooks are skipped since hidden flags have no CLI completion.
 
 ## 📖 Documentation
 
