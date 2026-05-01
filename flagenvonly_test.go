@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"reflect"
 	"testing"
 
 	structclierrors "github.com/leodido/structcli/errors"
 	internalenv "github.com/leodido/structcli/internal/env"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,19 +66,6 @@ type envOnlyWithTypeOptions struct {
 }
 
 func (o *envOnlyWithTypeOptions) Attach(c *cobra.Command) error { return nil }
-
-type envOnlyWithCustomOptions struct {
-	Bad string `flagenv:"only" flag:"bad" flagcustom:"true"`
-}
-
-func (o *envOnlyWithCustomOptions) Attach(c *cobra.Command) error { return nil }
-
-func (o *envOnlyWithCustomOptions) DefineBad(name, alias, group string, f reflect.StructField, v reflect.Value) (pflag.Value, string) {
-	return nil, ""
-}
-func (o *envOnlyWithCustomOptions) DecodeBad(name, alias, group string, f reflect.StructField, v reflect.Value) error {
-	return nil
-}
 
 type envOnlyWithIgnoreOptions struct {
 	Bad string `flagenv:"only" flagignore:"true"`
@@ -213,17 +198,6 @@ func TestDefine_EnvOnly_RejectsType(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, structclierrors.ErrConflictingTags)
 	assert.Contains(t, err.Error(), "flagtype cannot be used with flagenv='only'")
-}
-
-func TestDefine_EnvOnly_RejectsCustom(t *testing.T) {
-	resetEnvOnlyTestState()
-
-	cmd := &cobra.Command{Use: "app"}
-	opts := &envOnlyWithCustomOptions{}
-	err := Define(cmd, opts)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, structclierrors.ErrConflictingTags)
-	assert.Contains(t, err.Error(), "flagcustom cannot be used with flagenv='only'")
 }
 
 func TestDefine_EnvOnly_RejectsIgnore(t *testing.T) {

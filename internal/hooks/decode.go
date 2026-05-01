@@ -167,6 +167,38 @@ func RegisterDecodeHook(typeName, annotationName string, hook mapstructure.Decod
 	AnnotationToDecodeHookRegistry[annotationName] = hook
 }
 
+// RegisterUserDecodeHook wraps a user-provided DecodeHookFunc into a
+// mapstructure.DecodeHookFunc and registers it for the given type name.
+// The wrapper filters by target type (exact match) and source kind (string).
+func RegisterUserDecodeHook(typeName string, decode DecodeHookFunc) {
+	annName := fmt.Sprintf("RegisterTypeTo%sHookFunc", sanitizeTypeName(typeName))
+
+	hook := func(from reflect.Type, to reflect.Type, data any) (any, error) {
+		if to.String() != typeName {
+			return data, nil
+		}
+		if from.Kind() != reflect.String {
+			return data, nil
+		}
+
+		return decode(data)
+	}
+
+	RegisterDecodeHook(typeName, annName, mapstructure.DecodeHookFunc(hook))
+}
+
+func sanitizeTypeName(typeName string) string {
+	r := strings.NewReplacer(
+		".", "_",
+		"[", "_",
+		"]", "",
+		"*", "Ptr",
+		"/", "_",
+	)
+
+	return r.Replace(typeName)
+}
+
 // StringToEnumHookFunc creates a decode hook that converts string values to a
 // ~string enum type during configuration unmarshaling. It supports
 // case-insensitive matching and aliases.
@@ -946,63 +978,8 @@ func parseIPv4Mask(s string) net.IPMask {
 	return net.IPv4Mask(mask[12], mask[13], mask[14], mask[15])
 }
 
-func StoreDecodeHookFunc(c *cobra.Command, flagname string, decodeM reflect.Value, target reflect.Type) {
-	s := internalscope.Get(c)
-
-	// Wrap that adapts user method to mapstructure.DecodeHookFuncType signature
-	hookFunc := func(from reflect.Type, to reflect.Type, data any) (any, error) {
-		// Only apply this hook to the specific target type
-		if to != target {
-			return data, nil
-		}
-
-		// Only convert from string env var and config file values
-		// They always come as strings
-		if from.Kind() != reflect.String {
-			return data, nil
-		}
-
-		// Call user's decode hook: DecodeX(input interface{}) (target, error)
-		results := decodeM.Call([]reflect.Value{reflect.ValueOf(data)})
-
-		if len(results) != 2 {
-			return nil, fmt.Errorf("user decode method must return (value, error)")
-		}
-
-		// Check if error is not nil
-		if !results[1].IsNil() {
-			return nil, results[1].Interface().(error)
-		}
-
-		return results[0].Interface(), nil
-	}
-
-	k := fmt.Sprintf("customDecodeHook_%s_%s", c.Name(), flagname)
-	s.SetCustomDecodeHook(k, hookFunc)
-
-	if err := c.Flags().SetAnnotation(flagname, FlagDecodeHookAnnotation, []string{k}); err != nil {
-		panic(fmt.Sprintf("structcli: SetAnnotation on just-registered flag %q: %v", flagname, err))
-	}
-}
-
-// sanitizeTypeName converts a Go type name to a safe annotation suffix.
-// e.g., "main.HostPort" -> "main_HostPort", "[]byte" -> "_byte"
-func sanitizeTypeName(typeName string) string {
-	r := strings.NewReplacer(
-		".", "_",
-		"[", "_",
-		"]", "",
-		"*", "Ptr",
-		"/", "_",
-	)
-
-	return r.Replace(typeName)
-}
-
-// StoreDecodeHookFuncDirect stores a typed decode hook for a flag.
-// Unlike StoreDecodeHookFunc, it calls the function directly without
-// reflect.Value.Call, enabling dead-code elimination.
-func StoreDecodeHookFuncDirect(c *cobra.Command, flagname string, decodeFn DecodeHookFunc, target reflect.Type) {
+// StoreDecodeHookFuncDirect registers a typed decode hook for a flag.
+func StoreDecodeHookFuncDirect(c *cobra.Command, flagname string, decode DecodeHookFunc, target reflect.Type) {
 	s := internalscope.Get(c)
 
 	hookFunc := func(from reflect.Type, to reflect.Type, data any) (any, error) {
@@ -1013,7 +990,7 @@ func StoreDecodeHookFuncDirect(c *cobra.Command, flagname string, decodeFn Decod
 			return data, nil
 		}
 
-		return decodeFn(data)
+		return decode(data)
 	}
 
 	k := fmt.Sprintf("customDecodeHook_%s_%s", c.Name(), flagname)
@@ -1022,23 +999,4 @@ func StoreDecodeHookFuncDirect(c *cobra.Command, flagname string, decodeFn Decod
 	if err := c.Flags().SetAnnotation(flagname, FlagDecodeHookAnnotation, []string{k}); err != nil {
 		panic(fmt.Sprintf("structcli: SetAnnotation on just-registered flag %q: %v", flagname, err))
 	}
-}
-
-// RegisterUserDecodeHook registers a user-provided DecodeHookFunc for a type
-// into both decode registries. The annotation name is derived from the type name.
-func RegisterUserDecodeHook(typeName string, fn DecodeHookFunc) {
-	ann := fmt.Sprintf("RegisterTypeTo%sHookFunc", sanitizeTypeName(typeName))
-
-	hook := func(from reflect.Type, to reflect.Type, data any) (any, error) {
-		if to.String() != typeName {
-			return data, nil
-		}
-		if from.Kind() != reflect.String {
-			return data, nil
-		}
-
-		return fn(data)
-	}
-
-	RegisterDecodeHook(typeName, ann, hook)
 }

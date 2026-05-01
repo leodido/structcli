@@ -78,8 +78,7 @@ type TagSet struct {
 	FlagHidden   string // "true" or "false" or ""
 	FlagRequired string // "true" or "false" or ""
 	FlagIgnore   string // "true" or "false" or ""
-	FlagCustom   string // "true" or "false" or ""
-	FlagEnv      string // "true", "false", "only", or ""
+	FlagEnv string // "true", "false", "only", or ""
 	FlagPreset   string
 	Default      string
 }
@@ -101,7 +100,6 @@ func (ts TagSet) ToStructTag() reflect.StructTag {
 	add("flaghidden", ts.FlagHidden)
 	add("flagrequired", ts.FlagRequired)
 	add("flagignore", ts.FlagIgnore)
-	add("flagcustom", ts.FlagCustom)
 	add("flagenv", ts.FlagEnv)
 	add("flagpreset", ts.FlagPreset)
 	add("default", ts.Default)

@@ -3,7 +3,6 @@ package errors
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,26 +12,26 @@ import (
 func TestInvalidBooleanTagError_ErrorMessage(t *testing.T) {
 	err := &InvalidBooleanTagError{
 		FieldName: "InvalidCustom",
-		TagName:   "flagcustom",
+		TagName:   "flaghidden",
 		TagValue:  "invalid",
 	}
 
-	expected := "field 'InvalidCustom': tag 'flagcustom=invalid': invalid boolean value"
+	expected := "field 'InvalidCustom': tag 'flaghidden=invalid': invalid boolean value"
 	assert.Equal(t, expected, err.Error())
 }
 
 func TestInvalidBooleanTagError_ContainsExpectedStrings(t *testing.T) {
 	err := &InvalidBooleanTagError{
 		FieldName: "SomeField",
-		TagName:   "flagcustom",
+		TagName:   "flaghidden",
 		TagValue:  "bad_value",
 	}
 
 	errorMsg := err.Error()
 
-	// These are the strings our flagcustom test expects to find
+	// These are the strings our flaghidden test expects to find
 	assert.Contains(t, errorMsg, "SomeField")
-	assert.Contains(t, errorMsg, "flagcustom")
+	assert.Contains(t, errorMsg, "flaghidden")
 	assert.Contains(t, errorMsg, "bad_value")
 }
 
@@ -61,13 +60,13 @@ func TestInvalidBooleanTagError_ErrorsIs(t *testing.T) {
 }
 
 func TestInvalidBooleanTagError_ErrorsAs(t *testing.T) {
-	err := NewInvalidBooleanTagError("TestField", "flagcustom", "maybe")
+	err := NewInvalidBooleanTagError("TestField", "flaghidden", "maybe")
 
 	// Test errors.As() functionality
 	var boolErr *InvalidBooleanTagError
 	require.True(t, errors.As(err, &boolErr))
 	assert.Equal(t, "TestField", boolErr.FieldName)
-	assert.Equal(t, "flagcustom", boolErr.TagName)
+	assert.Equal(t, "flaghidden", boolErr.TagName)
 	assert.Equal(t, "maybe", boolErr.TagValue)
 
 	// Test DefinitionError interface extraction
@@ -162,46 +161,6 @@ func TestInvalidShorthandError_ErrorsIs(t *testing.T) {
 	}
 
 	assert.True(t, errors.Is(err, ErrInvalidShorthand))
-	assert.False(t, errors.Is(err, ErrInvalidBooleanTag))
-}
-
-func TestMissingDefineHookError_ErrorMessage(t *testing.T) {
-	err := &MissingDefineHookError{
-		FieldName:    "ServerMode",
-		ExpectedHook: "DefineServerMode",
-	}
-
-	expected := "field 'ServerMode': flagcustom='true' but missing define hook 'DefineServerMode'"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestMissingDefineHookError_ErrorsIs(t *testing.T) {
-	err := &MissingDefineHookError{
-		FieldName:    "TestField",
-		ExpectedHook: "DefineTestField",
-	}
-
-	assert.True(t, errors.Is(err, ErrMissingDefineHook))
-	assert.False(t, errors.Is(err, ErrInvalidBooleanTag))
-}
-
-func TestMissingDecodeHookError_ErrorMessage(t *testing.T) {
-	err := &MissingDecodeHookError{
-		FieldName:    "ServerMode",
-		ExpectedHook: "DecodeServerMode",
-	}
-
-	expected := "field 'ServerMode': flagcustom='true' but missing decode hook 'DecodeServerMode'"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestMissingDecodeHookError_ErrorsIs(t *testing.T) {
-	err := &MissingDecodeHookError{
-		FieldName:    "TestField",
-		ExpectedHook: "DecodeTestField",
-	}
-
-	assert.True(t, errors.Is(err, ErrMissingDecodeHook))
 	assert.False(t, errors.Is(err, ErrInvalidBooleanTag))
 }
 
@@ -394,24 +353,6 @@ func TestNewInvalidShorthandError_Constructor(t *testing.T) {
 	assert.Equal(t, "verb", shortErr.Shorthand)
 }
 
-func TestNewMissingDefineHookError_Constructor(t *testing.T) {
-	err := NewMissingDefineHookError("ServerMode", "DefineServerMode")
-
-	var hookErr *MissingDefineHookError
-	require.True(t, errors.As(err, &hookErr))
-	assert.Equal(t, "ServerMode", hookErr.FieldName)
-	assert.Equal(t, "DefineServerMode", hookErr.ExpectedHook)
-}
-
-func TestNewMissingDecodeHookError_Constructor(t *testing.T) {
-	err := NewMissingDecodeHookError("ServerMode", "DecodeServerMode")
-
-	var hookErr *MissingDecodeHookError
-	require.True(t, errors.As(err, &hookErr))
-	assert.Equal(t, "ServerMode", hookErr.FieldName)
-	assert.Equal(t, "DecodeServerMode", hookErr.ExpectedHook)
-}
-
 func TestNewInvalidTagUsageError_Constructor(t *testing.T) {
 	err := NewInvalidTagUsageError("TestField", "flagrequired", "cannot ignore required field")
 
@@ -465,22 +406,6 @@ func TestDefinitionError_Interface_MultipleTypes(t *testing.T) {
 			field: "ShortField",
 		},
 		{
-			name: "MissingDefineHookError",
-			err: &MissingDefineHookError{
-				FieldName:    "CustomField",
-				ExpectedHook: "DefineCustomField",
-			},
-			field: "CustomField",
-		},
-		{
-			name: "MissingDecodeHookError",
-			err: &MissingDecodeHookError{
-				FieldName:    "CustomField",
-				ExpectedHook: "DecodeCustomField",
-			},
-			field: "CustomField",
-		},
-		{
 			name: "InvalidTagUsage",
 			err: &InvalidTagUsageError{
 				FieldName: "InvalidTagField",
@@ -497,16 +422,6 @@ func TestDefinitionError_Interface_MultipleTypes(t *testing.T) {
 				Message:         "conflict",
 			},
 			field: "ConflictField",
-		},
-		{
-			name: "ConflictingTypeError",
-			err: &ConflictingTypeError{
-				Type:     reflect.TypeOf(""),
-				TypeName: "string",
-				Fields:   []string{"ConflictField1", "ConflictField2"},
-				Message:  "conflict",
-			},
-			field: "ConflictField1, ConflictField2",
 		},
 		{
 			name: "UnsupportedTypeError",
@@ -544,7 +459,7 @@ func TestDefinitionError_Interface_MultipleTypes(t *testing.T) {
 }
 
 func TestErrorChaining_WithWrapping(t *testing.T) {
-	originalErr := NewInvalidBooleanTagError("TestField", "flagcustom", "invalid")
+	originalErr := NewInvalidBooleanTagError("TestField", "flaghidden", "invalid")
 
 	// Test wrapping with additional context
 	wrappedErr := fmt.Errorf("failed to process field: %w", originalErr)
@@ -629,7 +544,7 @@ func TestValidationError_ErrorMessage_WithoutContextName_NilErrors(t *testing.T)
 }
 
 func TestValidationError_UnderlyingErrors_ReturnsCorrectSlice(t *testing.T) {
-	err1 := NewInvalidBooleanTagError("Field1", "flagcustom", "invalid")
+	err1 := NewInvalidBooleanTagError("Field1", "flaghidden", "invalid")
 	err2 := fmt.Errorf("errorf")
 	err3 := errors.New("custom error")
 
@@ -704,7 +619,7 @@ func TestValidationError_Unwrap_ErrorsIs(t *testing.T) {
 func TestValidationError_Unwrap_ErrorsAs(t *testing.T) {
 	inner := &InvalidBooleanTagError{
 		FieldName: "Field1",
-		TagName:   "flagcustom",
+		TagName:   "flaghidden",
 		TagValue:  "bad",
 	}
 	ve := &ValidationError{
@@ -760,345 +675,6 @@ func TestValidationError_Unwrap_ErrorsAsStillMatchesSelf(t *testing.T) {
 	assert.Equal(t, "test", target.ContextName)
 }
 
-func TestInvalidDecodeHookSignatureError_ErrorMessage(t *testing.T) {
-	err := &InvalidDecodeHookSignatureError{
-		FieldName: "ServerMode",
-		HookName:  "DecodeServerMode",
-		Message:   "decode hook must have signature: func(input interface{}) (interface{}, error)",
-	}
-
-	expected := "field 'ServerMode': invalid 'DecodeServerMode' decode hook: decode hook must have signature: func(input interface{}) (interface{}, error)"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestInvalidDecodeHookSignatureError_ContainsExpectedStrings(t *testing.T) {
-	err := &InvalidDecodeHookSignatureError{
-		FieldName: "CustomField",
-		HookName:  "DecodeCustomField",
-		Message:   "wrong signature",
-	}
-
-	errorMsg := err.Error()
-	assert.Contains(t, errorMsg, "CustomField")
-	assert.Contains(t, errorMsg, "DecodeCustomField")
-	assert.Contains(t, errorMsg, "wrong signature")
-	assert.Contains(t, errorMsg, "decode hook")
-}
-
-func TestInvalidDecodeHookSignatureError_FieldInterface(t *testing.T) {
-	err := &InvalidDecodeHookSignatureError{
-		FieldName: "TestField",
-		HookName:  "DecodeTestField",
-		Message:   "invalid signature",
-	}
-
-	// Test that it implements DefinitionError interface
-	var fieldErr DefinitionError = err
-	assert.Equal(t, "TestField", fieldErr.Field())
-}
-
-func TestInvalidDecodeHookSignatureError_ErrorsIs(t *testing.T) {
-	err := &InvalidDecodeHookSignatureError{
-		FieldName: "TestField",
-		HookName:  "DecodeTestField",
-		Message:   "invalid signature",
-	}
-
-	// Test errors.Is() functionality
-	assert.True(t, errors.Is(err, ErrInvalidDecodeHookSignature))
-	assert.False(t, errors.Is(err, ErrInvalidDefineHookSignature))
-	assert.False(t, errors.Is(err, ErrInvalidBooleanTag))
-}
-
-func TestInvalidDecodeHookSignatureError_ErrorsAs(t *testing.T) {
-	originalErr := errors.New("parameter 0 has wrong type")
-	err := NewInvalidDecodeHookSignatureError("TestField", "DecodeTestField", originalErr)
-
-	// Test errors.As() functionality
-	var decodeErr *InvalidDecodeHookSignatureError
-	require.True(t, errors.As(err, &decodeErr))
-	assert.Equal(t, "TestField", decodeErr.FieldName)
-	assert.Equal(t, "DecodeTestField", decodeErr.HookName)
-	assert.Equal(t, "parameter 0 has wrong type", decodeErr.Message)
-
-	// Test DefinitionError interface extraction
-	var fieldErr DefinitionError
-	require.True(t, errors.As(err, &fieldErr))
-	assert.Equal(t, "TestField", fieldErr.Field())
-}
-
-func TestInvalidDefineHookSignatureError_ErrorMessage(t *testing.T) {
-	err := &InvalidDefineHookSignatureError{
-		FieldName: "ServerMode",
-		HookName:  "DefineServerMode",
-		Message:   "define hook must have signature: func(c *cobra.Command, name, short, descr string, structField reflect.StructField, fieldValue reflect.Value)",
-	}
-
-	expected := "field 'ServerMode': invalid 'DefineServerMode' define hook: define hook must have signature: func(c *cobra.Command, name, short, descr string, structField reflect.StructField, fieldValue reflect.Value)"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestInvalidDefineHookSignatureError_ContainsExpectedStrings(t *testing.T) {
-	err := &InvalidDefineHookSignatureError{
-		FieldName: "CustomField",
-		HookName:  "DefineCustomField",
-		Message:   "wrong number of parameters",
-	}
-
-	errorMsg := err.Error()
-	assert.Contains(t, errorMsg, "CustomField")
-	assert.Contains(t, errorMsg, "DefineCustomField")
-	assert.Contains(t, errorMsg, "wrong number of parameters")
-	assert.Contains(t, errorMsg, "define hook")
-}
-
-func TestInvalidDefineHookSignatureError_FieldInterface(t *testing.T) {
-	err := &InvalidDefineHookSignatureError{
-		FieldName: "TestField",
-		HookName:  "DefineTestField",
-		Message:   "invalid signature",
-	}
-
-	// Test that it implements DefinitionError interface
-	var fieldErr DefinitionError = err
-	assert.Equal(t, "TestField", fieldErr.Field())
-}
-
-func TestInvalidDefineHookSignatureError_ErrorsIs(t *testing.T) {
-	err := &InvalidDefineHookSignatureError{
-		FieldName: "TestField",
-		HookName:  "DefineTestField",
-		Message:   "invalid signature",
-	}
-
-	// Test errors.Is() functionality
-	assert.True(t, errors.Is(err, ErrInvalidDefineHookSignature))
-	assert.False(t, errors.Is(err, ErrInvalidDecodeHookSignature))
-	assert.False(t, errors.Is(err, ErrInvalidBooleanTag))
-}
-
-func TestInvalidDefineHookSignatureError_ErrorsAs(t *testing.T) {
-	originalErr := errors.New("parameter 1 has wrong type")
-	err := NewInvalidDefineHookSignatureError("TestField", "DefineTestField", originalErr)
-
-	// Test errors.As() functionality
-	var defineErr *InvalidDefineHookSignatureError
-	require.True(t, errors.As(err, &defineErr))
-	assert.Equal(t, "TestField", defineErr.FieldName)
-	assert.Equal(t, "DefineTestField", defineErr.HookName)
-	assert.Equal(t, "parameter 1 has wrong type", defineErr.Message)
-
-	// Test DefinitionError interface extraction
-	var fieldErr DefinitionError
-	require.True(t, errors.As(err, &fieldErr))
-	assert.Equal(t, "TestField", fieldErr.Field())
-}
-
-func TestInvalidCompleteHookSignatureError_ErrorMessage(t *testing.T) {
-	err := &InvalidCompleteHookSignatureError{
-		FieldName: "ServerMode",
-		HookName:  "CompleteServerMode",
-		Message:   "complete hook must have signature: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)",
-	}
-
-	expected := "field 'ServerMode': invalid 'CompleteServerMode' completion hook: complete hook must have signature: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestInvalidCompleteHookSignatureError_ContainsExpectedStrings(t *testing.T) {
-	err := &InvalidCompleteHookSignatureError{
-		FieldName: "CustomField",
-		HookName:  "CompleteCustomField",
-		Message:   "wrong return type",
-	}
-
-	errorMsg := err.Error()
-	assert.Contains(t, errorMsg, "CustomField")
-	assert.Contains(t, errorMsg, "CompleteCustomField")
-	assert.Contains(t, errorMsg, "wrong return type")
-	assert.Contains(t, errorMsg, "completion hook")
-}
-
-func TestInvalidCompleteHookSignatureError_FieldInterface(t *testing.T) {
-	err := &InvalidCompleteHookSignatureError{
-		FieldName: "TestField",
-		HookName:  "CompleteTestField",
-		Message:   "invalid signature",
-	}
-
-	var fieldErr DefinitionError = err
-	assert.Equal(t, "TestField", fieldErr.Field())
-}
-
-func TestInvalidCompleteHookSignatureError_ErrorsIs(t *testing.T) {
-	err := &InvalidCompleteHookSignatureError{
-		FieldName: "TestField",
-		HookName:  "CompleteTestField",
-		Message:   "invalid signature",
-	}
-
-	assert.True(t, errors.Is(err, ErrInvalidCompleteHookSignature))
-	assert.False(t, errors.Is(err, ErrInvalidDefineHookSignature))
-	assert.False(t, errors.Is(err, ErrInvalidDecodeHookSignature))
-}
-
-func TestInvalidCompleteHookSignatureError_ErrorsAs(t *testing.T) {
-	originalErr := errors.New("parameter 2 has wrong type")
-	err := NewInvalidCompleteHookSignatureError("TestField", "CompleteTestField", originalErr)
-
-	var completeErr *InvalidCompleteHookSignatureError
-	require.True(t, errors.As(err, &completeErr))
-	assert.Equal(t, "TestField", completeErr.FieldName)
-	assert.Equal(t, "CompleteTestField", completeErr.HookName)
-	assert.Equal(t, "parameter 2 has wrong type", completeErr.Message)
-
-	var fieldErr DefinitionError
-	require.True(t, errors.As(err, &fieldErr))
-	assert.Equal(t, "TestField", fieldErr.Field())
-}
-
-func TestConflictingTagsError_ErrorMessage(t *testing.T) {
-	err := &ConflictingTagsError{
-		FieldName:       "TestField",
-		ConflictingTags: []string{"flagignore", "flagrequired"},
-		Message:         "cannot ignore a required field",
-	}
-	expected := "field 'TestField': conflicting tags [flagignore, flagrequired]: cannot ignore a required field"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestConflictingTagsError_ErrorsIs(t *testing.T) {
-	err := &ConflictingTagsError{
-		FieldName:       "TestField",
-		ConflictingTags: []string{"tag1", "tag2"},
-		Message:         "conflict message",
-	}
-	assert.True(t, errors.Is(err, ErrConflictingTags))
-	assert.False(t, errors.Is(err, ErrUnsupportedType))
-}
-
-func TestNewConflictingTagsError_Constructor(t *testing.T) {
-	tags := []string{"flagignore", "flagrequired"}
-	err := NewConflictingTagsError("TestField", tags, "cannot ignore required field")
-	var conflictErr *ConflictingTagsError
-	require.True(t, errors.As(err, &conflictErr))
-	assert.Equal(t, "TestField", conflictErr.FieldName)
-	assert.Equal(t, tags, conflictErr.ConflictingTags)
-	assert.Equal(t, "cannot ignore required field", conflictErr.Message)
-}
-
-func TestConflictingTypeError_ErrorMessage(t *testing.T) {
-	// Create a test type for the error
-	var testValue int
-	testType := reflect.TypeOf(testValue)
-
-	err := &ConflictingTypeError{
-		Type:     testType,
-		TypeName: testType.String(),
-		Fields:   []string{"Field1", "Field2", "Field3"},
-		Message:  "create distinct custom types for each field",
-	}
-
-	expected := "fields [Field1, Field2, Field3]: conflicting type [int]: create distinct custom types for each field"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestConflictingTypeError_ContainsExpectedStrings(t *testing.T) {
-	// Create a test type for the error
-	type CustomStruct struct {
-		Name string
-	}
-	testType := reflect.TypeOf(CustomStruct{})
-
-	err := &ConflictingTypeError{
-		Type:     testType,
-		TypeName: testType.String(),
-		Fields:   []string{"FieldA", "FieldB"},
-		Message:  "multiple fields cannot use the same custom type",
-	}
-
-	errorMsg := err.Error()
-	assert.Contains(t, errorMsg, "FieldA")
-	assert.Contains(t, errorMsg, "FieldB")
-	assert.Contains(t, errorMsg, testType.String())
-	assert.Contains(t, errorMsg, "multiple fields cannot use the same custom type")
-	assert.Contains(t, errorMsg, "conflicting type")
-}
-
-func TestConflictingTypeError_FieldInterface(t *testing.T) {
-	var testValue string
-	testType := reflect.TypeOf(testValue)
-
-	err := &ConflictingTypeError{
-		Type:     testType,
-		TypeName: testType.String(),
-		Fields:   []string{"FirstField", "SecondField"},
-		Message:  "test message",
-	}
-
-	// Test that it implements DefinitionError interface
-	var fieldErr DefinitionError = err
-	assert.Equal(t, "FirstField, SecondField", fieldErr.Field())
-}
-
-func TestConflictingTypeError_ErrorsIs(t *testing.T) {
-	var testValue bool
-	testType := reflect.TypeOf(testValue)
-
-	err := &ConflictingTypeError{
-		Type:     testType,
-		TypeName: testType.String(),
-		Fields:   []string{"BoolField1", "BoolField2"},
-		Message:  "conflicting boolean fields",
-	}
-
-	// Test errors.Is() functionality
-	assert.True(t, errors.Is(err, ErrConflictingType))
-	assert.False(t, errors.Is(err, ErrConflictingTags))
-	assert.False(t, errors.Is(err, ErrUnsupportedType))
-	assert.False(t, errors.Is(err, ErrInvalidBooleanTag))
-}
-
-func TestConflictingTypeError_ErrorsAs(t *testing.T) {
-	type TestType struct {
-		Value int
-	}
-	testType := reflect.TypeOf(TestType{})
-	fields := []string{"TestField1", "TestField2"}
-
-	err := NewConflictingTypeError(testType, fields, "test conflict message")
-
-	// Test errors.As() functionality
-	var conflictErr *ConflictingTypeError
-	require.True(t, errors.As(err, &conflictErr))
-	assert.Equal(t, testType, conflictErr.Type)
-	assert.Equal(t, testType.String(), conflictErr.TypeName)
-	assert.Equal(t, fields, conflictErr.Fields)
-	assert.Equal(t, "test conflict message", conflictErr.Message)
-
-	// Test DefinitionError interface extraction
-	var fieldErr DefinitionError
-	require.True(t, errors.As(err, &fieldErr))
-	assert.Equal(t, "TestField1, TestField2", fieldErr.Field())
-}
-
-func TestNewConflictingTypeError_Constructor(t *testing.T) {
-	type CustomType struct {
-		Data string
-	}
-	testType := reflect.TypeOf(CustomType{})
-	fields := []string{"CustomField1", "CustomField2", "CustomField3"}
-	message := "create distinct custom types for each field"
-
-	err := NewConflictingTypeError(testType, fields, message)
-
-	var conflictErr *ConflictingTypeError
-	require.True(t, errors.As(err, &conflictErr))
-	assert.Equal(t, testType, conflictErr.Type)
-	assert.Equal(t, testType.String(), conflictErr.TypeName)
-	assert.Equal(t, fields, conflictErr.Fields)
-	assert.Equal(t, message, conflictErr.Message)
-}
 
 func TestInputError_ErrorMessage(t *testing.T) {
 	err := &InputError{
@@ -1132,7 +708,7 @@ func TestInputError_ErrorsIs(t *testing.T) {
 	require.True(t, errors.Is(err, ErrInputValue))
 	assert.False(t, errors.Is(err, ErrInvalidBooleanTag))
 	assert.False(t, errors.Is(err, ErrInvalidShorthand))
-	assert.False(t, errors.Is(err, ErrMissingDefineHook))
+	assert.False(t, errors.Is(err, ErrInvalidTagUsage))
 }
 
 func TestInputError_ErrorsAs(t *testing.T) {
@@ -1266,7 +842,7 @@ func TestInputError_Vs_DefinitionError_Distinction(t *testing.T) {
 	inputErr := NewInputError("nil", "cannot define flags from nil value")
 
 	// Create a DefinitionError
-	fieldErr := NewInvalidBooleanTagError("TestField", "flagcustom", "invalid")
+	fieldErr := NewInvalidBooleanTagError("TestField", "flaghidden", "invalid")
 
 	// InputError should NOT implement DefinitionError interface
 	var defErr DefinitionError

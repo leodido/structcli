@@ -8,8 +8,9 @@ import (
 )
 
 // RegisterEnum registers a string-based enum type for automatic flag handling.
-// After registration, struct fields of type E work without flagcustom:"true"
-// or manual Define/Decode/Complete hook methods.
+// After registration, struct fields of type E work without any special tag
+// or interface. This is a convenience wrapper over [RegisterType] for the
+// common case of string-based enums with named values and aliases.
 //
 // values maps each enum constant to its string representations. The first
 // string in each slice is the canonical name shown in help text and shell
@@ -59,7 +60,7 @@ func RegisterEnum[E ~string](values map[E][]string) {
 // Values appear in help text sorted by their integer value.
 //
 // Unsigned integer types (~uint, ~uint8, etc.) are not supported. For those,
-// use flagcustom:"true" with manual Define/Decode/Complete hooks.
+// use [RegisterType] with manual Define/Decode hooks.
 //
 // Must be called in init() before any Define() calls. Panics if the type
 // is already registered, or if values is empty.

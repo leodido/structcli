@@ -152,7 +152,36 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 	if !val.IsValid() {
 		val = internalreflect.GetValue(internalreflect.GetValuePtr(o).Interface())
 	}
-	structPtr := internalreflect.GetValuePtr(o)
+	// Resolve per-field hooks from interfaces (no MethodByName).
+	var fieldHooks map[string]FieldHook
+	if fhp, ok := o.(FieldHookProvider); ok {
+		fieldHooks = fhp.FieldHooks()
+	}
+	var completionHooks map[string]CompleteHookFunc
+	if fc, ok := o.(FieldCompleter); ok {
+		completionHooks = fc.CompletionHooks()
+	}
+
+	// Validate hook map keys against actual struct fields.
+	if len(fieldHooks) > 0 || len(completionHooks) > 0 {
+		fieldNames := make(map[string]bool, val.NumField())
+		for i := range val.NumField() {
+			fieldNames[val.Type().Field(i).Name] = true
+		}
+		for key, fh := range fieldHooks {
+			if !fieldNames[key] {
+				return fmt.Errorf("FieldHookProvider: key %q does not match any struct field in %s", key, val.Type().Name())
+			}
+			if fh.Define == nil && fh.Decode != nil {
+				return fmt.Errorf("FieldHookProvider: key %q has Decode without Define (Define is required when Decode is set)", key)
+			}
+		}
+		for key := range completionHooks {
+			if !fieldNames[key] {
+				return fmt.Errorf("FieldCompleter: key %q does not match any struct field in %s", key, val.Type().Name())
+			}
+		}
+	}
 
 	for i := range val.NumField() {
 		field := val.Field(i)
@@ -244,9 +273,10 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		// Lint: suggest flagenv:"only" when flaghidden:"true" + flagenv:"true" is used
 		// without any flag-specific tags that would be incompatible with flagenv:"only".
 		if hidden && envMode == internalenv.EnvOn && kind != reflect.Struct {
-			custom, _ := strconv.ParseBool(f.Tag.Get("flagcustom"))
 			flagType := f.Tag.Get("flagtype")
-			if short == "" && len(presets) == 0 && flagType == "" && !custom {
+			fh, hasFieldHook := fieldHooks[f.Name]
+			hasDefineHook := hasFieldHook && fh.Define != nil
+			if short == "" && len(presets) == 0 && flagType == "" && !hasDefineHook {
 				fmt.Fprintf(c.ErrOrStderr(),
 					"structcli: field '%s': flaghidden:\"true\" + flagenv:\"true\" can be replaced with flagenv:\"only\" (which also rejects CLI input)\n",
 					f.Name,
@@ -380,14 +410,16 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				mustSetAnnotation(fs, name, internalenv.FlagEnvOnlyAnnotation, []string{"true"})
 			}
 			applyPresetAliases()
-			completeHookName := fmt.Sprintf("Complete%s", f.Name)
-			completeHookFunc := structPtr.MethodByName(completeHookName)
-			if completeHookFunc.IsValid() {
-				if _, exists := c.GetFlagCompletionFunc(name); !exists {
-					internalhooks.StoreCompletionHookFunc(c, name, completeHookFunc)
+			// Register per-field completion hook from FieldCompleter interface.
+			// Skipped for envOnly fields: hidden flags have no CLI completion.
+			if !envOnly {
+				if completeHook, ok := completionHooks[f.Name]; ok {
+					if _, exists := c.GetFlagCompletionFunc(name); !exists {
+						internalhooks.StoreCompletionHookFuncDirect(c, name, completeHook)
+					}
 				}
 			}
-			// Auto-register enum completion when no explicit Complete hook exists
+			// Auto-register enum completion when no explicit completion hook exists.
 			if _, exists := c.GetFlagCompletionFunc(name); !exists {
 				if fl := c.Flags().Lookup(name); fl != nil {
 					if ev, ok := fl.Value.(EnumValuer); ok {
@@ -402,56 +434,23 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			}
 		}
 
-		// Flags with `flagcustom:"true"` tag (validation already done)
-		custom, _ := strconv.ParseBool(f.Tag.Get("flagcustom"))
-		if custom && kind != reflect.Struct {
-			defineHookName := fmt.Sprintf("Define%s", f.Name)
-			decodeHookName := fmt.Sprintf("Decode%s", f.Name)
+		// Per-field hooks from FieldHookProvider take highest precedence.
+		if fh, ok := fieldHooks[f.Name]; ok && kind != reflect.Struct {
+			if fh.Define != nil {
+				returnedValue, returnedUsage := fh.Define(name, short, descr, f, field)
+				c.Flags().VarP(returnedValue, name, short, returnedUsage)
 
-			if structPtr.IsValid() {
-				defineHookFunc := structPtr.MethodByName(defineHookName)
-				decodeHookFunc := structPtr.MethodByName(decodeHookName)
-
-				if defineHookFunc.IsValid() {
-					// Call user's define hook
-					results := defineHookFunc.Call([]reflect.Value{
-						reflect.ValueOf(name),
-						reflect.ValueOf(short),
-						reflect.ValueOf(descr),
-						reflect.ValueOf(f),
-						reflect.ValueOf(field),
-					})
-
-					returnedValue := results[0].Interface().(pflag.Value)
-					returnedUsage := results[1].Interface().(string)
-					c.Flags().VarP(returnedValue, name, short, returnedUsage)
-
-					// Register user's decode hook (`Unmarshal` will call it)
-					internalhooks.StoreDecodeHookFunc(c, name, decodeHookFunc, f.Type)
-
-					finalizeFieldDefinition()
-
-					continue
-				}
-				// The users set `flagcustom:"true"` but they didn't define a custom define hook
-				// We fallback to look up the hooks registries to avoid erroring out
-				if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
-				// Best-effort: attach a decode hook if one exists, but don't
-					// hard-error when missing. This is a fallback path, not a
-					// mandatory one like the other two call sites.
-					internalhooks.InferDecodeHooks(c, name, f.Type.String())
-
-					finalizeFieldDefinition()
-
-					continue
+				if fh.Decode != nil {
+					internalhooks.StoreDecodeHookFuncDirect(c, name, fh.Decode, f.Type)
 				}
 
-				// This should never happen since validation would have caught missing hooks
-				return fmt.Errorf("internal error: custom flag %s passed validation but no hooks found", f.Name)
+				finalizeFieldDefinition()
+
+				continue
 			}
 		}
 
-		// Check registry for known custom types
+		// Check registry for known custom types (RegisterType, RegisterEnum, built-ins).
 		if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
 			if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
 				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
@@ -462,7 +461,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			continue
 		}
 
-		// Skip custom types that aren't in registry
+		// Non-standard types without registry hooks or per-field hooks are skipped.
 		if !internaltag.IsStandardType(f.Type) && kind != reflect.Struct && kind != reflect.Slice {
 			continue
 		}

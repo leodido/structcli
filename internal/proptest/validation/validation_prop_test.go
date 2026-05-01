@@ -28,7 +28,7 @@ func newCmd() *cobra.Command {
 func TestProperty_IsValidBoolTag_NoPanicAndTypedErrors(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		input := rapid.String().Draw(t, "input")
-		result, err := internalvalidation.IsValidBoolTag("Field", "flagcustom", input)
+		result, err := internalvalidation.IsValidBoolTag("Field", "flaghidden", input)
 		if err != nil {
 			var target *structclierrors.InvalidBooleanTagError
 			if !errors.As(err, &target) {
@@ -123,14 +123,13 @@ func TestProperty_Validation_AllowsHiddenAndRequired(t *testing.T) {
 // --- P2.5: Validation rejects leaf-only tags on struct-typed fields ---
 
 func TestProperty_Validation_RejectsLeafOnlyTagsOnStructFields(t *testing.T) {
-	// Tags like flagshort, flagcustom, flagignore, flagrequired, flaghidden
+	// Tags like flagshort, flagignore, flagrequired, flaghidden
 	// are valid only on leaf (non-struct) fields and rejected on struct fields.
 	tags := []struct {
 		name string
 		tag  string
 	}{
 		{"flagshort", `flagshort:"x"`},
-		{"flagcustom", `flagcustom:"true"`},
 		{"flagignore", `flagignore:"true"`},
 		{"flagrequired", `flagrequired:"true"`},
 		{"flaghidden", `flaghidden:"true"`},
@@ -266,7 +265,7 @@ func TestProperty_Validation_RejectsInvalidFlagNames(t *testing.T) {
 
 func TestProperty_Validation_RejectsInvalidBooleanTagValues(t *testing.T) {
 	// flagenv is excluded: it accepts "only" in addition to booleans and uses InvalidFlagEnvTagError.
-	boolTags := []string{"flagcustom", "flagignore", "flagrequired", "flaghidden"}
+	boolTags := []string{"flagignore", "flagrequired", "flaghidden"}
 
 	for _, tagName := range boolTags {
 		tagName := tagName
@@ -342,8 +341,6 @@ func TestProperty_Validation_AcceptsWellFormedStructs(t *testing.T) {
 // --- P2.9b: flagenv:"only" rejects incompatible flag-specific tags ---
 
 func TestProperty_Validation_EnvOnlyRejectsIncompatibleTags(t *testing.T) {
-	// flagcustom is omitted: it requires matching Define/Decode hook methods
-	// on the struct, which cannot be generated via reflect.StructOf.
 	incompatibleTags := []struct {
 		tagName string
 		tagVal  string
@@ -427,19 +424,13 @@ func TestProperty_Validation_ErrorsAreWellTyped(t *testing.T) {
 		// Using *any as the errors.As target would match everything; each
 		// check must use a concretely-typed pointer variable.
 		var (
-			invalidBoolTag     *structclierrors.InvalidBooleanTagError
-			invalidShorthand   *structclierrors.InvalidShorthandError
-			invalidTagUsage    *structclierrors.InvalidTagUsageError
-			conflictingTags    *structclierrors.ConflictingTagsError
-			duplicateFlag      *structclierrors.DuplicateFlagError
-			invalidFlagName    *structclierrors.InvalidFlagNameError
-			conflictingType    *structclierrors.ConflictingTypeError
-			inputErr           *structclierrors.InputError
-			missingDefineHook  *structclierrors.MissingDefineHookError
-			missingDecodeHook  *structclierrors.MissingDecodeHookError
-			invalidDefineSig   *structclierrors.InvalidDefineHookSignatureError
-			invalidDecodeSig   *structclierrors.InvalidDecodeHookSignatureError
-			invalidCompleteSig *structclierrors.InvalidCompleteHookSignatureError
+			invalidBoolTag   *structclierrors.InvalidBooleanTagError
+			invalidShorthand *structclierrors.InvalidShorthandError
+			invalidTagUsage  *structclierrors.InvalidTagUsageError
+			conflictingTags  *structclierrors.ConflictingTagsError
+			duplicateFlag    *structclierrors.DuplicateFlagError
+			invalidFlagName  *structclierrors.InvalidFlagNameError
+			inputErr         *structclierrors.InputError
 		)
 
 		switch {
@@ -449,13 +440,7 @@ func TestProperty_Validation_ErrorsAreWellTyped(t *testing.T) {
 		case errors.As(inner, &conflictingTags):
 		case errors.As(inner, &duplicateFlag):
 		case errors.As(inner, &invalidFlagName):
-		case errors.As(inner, &conflictingType):
 		case errors.As(inner, &inputErr):
-		case errors.As(inner, &missingDefineHook):
-		case errors.As(inner, &missingDecodeHook):
-		case errors.As(inner, &invalidDefineSig):
-		case errors.As(inner, &invalidDecodeSig):
-		case errors.As(inner, &invalidCompleteSig):
 		default:
 			t.Fatalf("validation returned unrecognized error type %T: %v", inner, inner)
 		}
