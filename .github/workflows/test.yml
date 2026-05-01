@@ -56,10 +56,12 @@ jobs:
           (cd examples/collections && go test -v -race -covermode=atomic -coverprofile=collections.cover.out -coverpkg=$PKGS ./...)
           (cd examples/full && go test -v -race -covermode=atomic -coverprofile=full.cover.out -coverpkg=$PKGS ./...)
           (cd examples/loginsvc && go test -v -race -covermode=atomic -coverprofile=loginsvc.cover.out -coverpkg=$PKGS ./...)
+          (cd examples/customtypes && go test -v -race -covermode=atomic -coverprofile=customtypes.cover.out -coverpkg=$PKGS ./...)
           cat lib.cover.out | grep -v "mode: atomic" >> coverage.out
           cat examples/collections/collections.cover.out | grep -v "mode: atomic" >> coverage.out
           cat examples/full/full.cover.out | grep -v "mode: atomic" >> coverage.out
           cat examples/loginsvc/loginsvc.cover.out | grep -v "mode: atomic" >> coverage.out
+          cat examples/customtypes/customtypes.cover.out | grep -v "mode: atomic" >> coverage.out
           go tool cover -func=coverage.out
 
       - name: Upload coverage
