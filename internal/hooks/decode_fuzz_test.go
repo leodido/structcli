@@ -161,7 +161,7 @@ func FuzzStringToHexBytes(f *testing.F) {
 	// Can't target structcli.Hex from internal package, so fuzz the
 	// underlying decode function directly.
 	f.Fuzz(func(t *testing.T, input string) {
-		decodeHexBytes(input)
+		DecodeHexBytes(input)
 	})
 }
 
@@ -174,7 +174,7 @@ func FuzzStringToBase64Bytes(f *testing.F) {
 	f.Add("SGVsbG8==") // wrong padding
 
 	f.Fuzz(func(t *testing.T, input string) {
-		decodeBase64Bytes(input)
+		DecodeBase64Bytes(input)
 	})
 }
 

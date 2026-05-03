@@ -225,6 +225,14 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			continue
 		}
 
+		// Reject removed flagcustom tag with a migration message.
+		if f.Tag.Get("flagcustom") != "" {
+			return fmt.Errorf(
+				"field %q: flagcustom tag is no longer supported; use RegisterType[T] for per-type hooks or implement FieldHookProvider for per-field hooks",
+				f.Name,
+			)
+		}
+
 		short := f.Tag.Get("flagshort")
 		defval := f.Tag.Get("default")
 		descr := f.Tag.Get("flagdescr")
@@ -452,8 +460,8 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 
 		// Check registry for known custom types (RegisterType, RegisterEnum, built-ins).
 		if internalhooks.InferDefineHooks(c, name, short, descr, f, field) {
-			if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
-				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
+			if !internalhooks.InferDecodeHooks(c, name, f.Type) {
+				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type)
 			}
 
 			finalizeFieldDefinition()
@@ -572,8 +580,8 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 				ref := field.Addr().Interface().(*[]int)
 				c.Flags().IntSliceVarP(ref, name, short, val, descr)
 			}
-			if !internalhooks.InferDecodeHooks(c, name, f.Type.String()) {
-				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type.String())
+			if !internalhooks.InferDecodeHooks(c, name, f.Type) {
+				return fmt.Errorf("internal error: missing decode hook for built-in type %s", f.Type)
 			}
 
 		default:

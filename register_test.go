@@ -13,10 +13,11 @@ import (
 type testCustomType struct{ val string }
 
 func TestRegisterType_Success(t *testing.T) {
+	typ := reflect.TypeFor[testCustomType]()
 	snap := internalhooks.SnapshotDecodeRegistries()
 	defer func() {
 		internalhooks.RestoreDecodeRegistries(snap)
-		delete(internalhooks.DefineHookRegistry, reflect.TypeFor[testCustomType]().String())
+		delete(internalhooks.DefineHookRegistry, typ)
 	}()
 
 	RegisterType(TypeHooks[testCustomType]{
@@ -28,15 +29,13 @@ func TestRegisterType_Success(t *testing.T) {
 		},
 	})
 
-	typeName := reflect.TypeFor[testCustomType]().String()
-
 	// Verify define hook registered
-	defineHook, ok := internalhooks.DefineHookRegistry[typeName]
+	defineHook, ok := internalhooks.DefineHookRegistry[typ]
 	require.True(t, ok, "define hook should be registered")
 	assert.NotNil(t, defineHook)
 
 	// Verify decode hook registered
-	_, ok = internalhooks.DecodeHookRegistry[typeName]
+	_, ok = internalhooks.DecodeHookRegistry[typ]
 	assert.True(t, ok, "decode hook should be registered")
 }
 
@@ -67,10 +66,11 @@ func TestRegisterType_PanicsOnNilDecode(t *testing.T) {
 }
 
 func TestRegisterType_PanicsOnDuplicate(t *testing.T) {
+	typ := reflect.TypeFor[testCustomType]()
 	snap := internalhooks.SnapshotDecodeRegistries()
 	defer func() {
 		internalhooks.RestoreDecodeRegistries(snap)
-		delete(internalhooks.DefineHookRegistry, reflect.TypeFor[testCustomType]().String())
+		delete(internalhooks.DefineHookRegistry, typ)
 	}()
 
 	hooks := TypeHooks[testCustomType]{

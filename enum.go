@@ -40,16 +40,17 @@ func RegisterEnum[E ~string](values map[E][]string) {
 		panic("structcli: RegisterEnum: values must not be empty")
 	}
 
-	typeName := reflect.TypeFor[E]().String()
+	typ := reflect.TypeFor[E]()
+	typeName := typ.String()
 
-	if _, exists := internalhooks.DefineHookRegistry[typeName]; exists {
+	if _, exists := internalhooks.DefineHookRegistry[typ]; exists {
 		panic(fmt.Sprintf("structcli: RegisterEnum: type %q is already registered", typeName))
 	}
 
-	internalhooks.DefineHookRegistry[typeName] = internalhooks.DefineStringEnumHookFunc(values)
+	internalhooks.DefineHookRegistry[typ] = internalhooks.DefineStringEnumHookFunc(values)
 
 	annName := fmt.Sprintf("StringTo%sHookFunc", typeName)
-	internalhooks.RegisterDecodeHook(typeName, annName, internalhooks.StringToEnumHookFunc(values))
+	internalhooks.RegisterDecodeHook(typ, annName, internalhooks.StringToEnumHookFunc(values))
 }
 
 // RegisterIntEnum registers an integer-based enum type for automatic flag handling.
@@ -86,15 +87,16 @@ func RegisterIntEnum[E ~int | ~int8 | ~int16 | ~int32 | ~int64](values map[E][]s
 		panic("structcli: RegisterIntEnum: values must not be empty")
 	}
 
-	typeName := reflect.TypeFor[E]().String()
+	typ := reflect.TypeFor[E]()
+	typeName := typ.String()
 
-	if _, exists := internalhooks.DefineHookRegistry[typeName]; exists {
+	if _, exists := internalhooks.DefineHookRegistry[typ]; exists {
 		panic(fmt.Sprintf("structcli: RegisterIntEnum: type %q is already registered", typeName))
 	}
 
-	internalhooks.DefineHookRegistry[typeName] = internalhooks.DefineIntEnumHookFunc(values)
+	internalhooks.DefineHookRegistry[typ] = internalhooks.DefineIntEnumHookFunc(values)
 
 	annName := fmt.Sprintf("StringTo%sHookFunc", typeName)
-	internalhooks.RegisterDecodeHook(typeName, annName, internalhooks.StringToIntEnumHookFunc(values))
+	internalhooks.RegisterDecodeHook(typ, annName, internalhooks.StringToIntEnumHookFunc(values))
 }
 

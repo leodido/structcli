@@ -24,14 +24,16 @@ func TestInferDecodeHooks(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("durations", "", "durations")
 
-	ok := InferDecodeHooks(cmd, "durations", "[]time.Duration")
+	ok := InferDecodeHooks(cmd, "durations", reflect.TypeFor[[]time.Duration]())
 	require.True(t, ok)
 
 	flag := cmd.Flags().Lookup("durations")
 	require.NotNil(t, flag)
 	assert.Equal(t, []string{"StringToDurationSliceHookFunc"}, flag.Annotations[FlagDecodeHookAnnotation])
 
-	found := InferDecodeHooks(cmd, "durations", "missing.Type")
+	// Unregistered type returns false.
+	type missingType struct{}
+	found := InferDecodeHooks(cmd, "durations", reflect.TypeFor[missingType]())
 	assert.False(t, found)
 }
 
@@ -41,7 +43,7 @@ func TestInferDecodeHooks_PanicsOnUnknownFlag(t *testing.T) {
 
 	assert.PanicsWithValue(t,
 		`structcli: SetAnnotation on just-registered flag "durations": no such flag -durations`,
-		func() { InferDecodeHooks(cmd, "durations", "[]time.Duration") },
+		func() { InferDecodeHooks(cmd, "durations", reflect.TypeFor[[]time.Duration]()) },
 	)
 }
 
@@ -405,10 +407,11 @@ func TestRegisterDecodeHook(t *testing.T) {
 	snap := SnapshotDecodeRegistries()
 	defer RestoreDecodeRegistries(snap)
 
+	typ := reflect.TypeFor[testEnv]()
 	hook := StringToEnumHookFunc(testEnvValues())
-	RegisterDecodeHook("test.Env", "StringToTestEnvHookFunc", hook)
+	RegisterDecodeHook(typ, "StringToTestEnvHookFunc", hook)
 
-	data, ok := DecodeHookRegistry["test.Env"]
+	data, ok := DecodeHookRegistry[typ]
 	require.True(t, ok)
 	assert.Equal(t, "StringToTestEnvHookFunc", data.ann)
 
@@ -421,10 +424,10 @@ func TestRegisterDecodeHook_DuplicatePanics(t *testing.T) {
 	defer RestoreDecodeRegistries(snap)
 
 	hook := StringToEnumHookFunc(testEnvValues())
-	RegisterDecodeHook("test.Env", "StringToTestEnvHookFunc", hook)
+	RegisterDecodeHook(reflect.TypeFor[testEnv](), "StringToTestEnvHookFunc", hook)
 
 	assert.Panics(t, func() {
-		RegisterDecodeHook("test.Env2", "StringToTestEnvHookFunc", hook)
+		RegisterDecodeHook(reflect.TypeFor[testPriority](), "StringToTestEnvHookFunc", hook)
 	})
 }
 
