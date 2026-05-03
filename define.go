@@ -152,7 +152,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 	if !val.IsValid() {
 		val = internalreflect.GetValue(internalreflect.GetValuePtr(o).Interface())
 	}
-	// Resolve per-field hooks from interfaces (no MethodByName).
+	// Resolve per-field hooks from interfaces.
 	var fieldHooks map[string]FieldHook
 	if fhp, ok := o.(FieldHookProvider); ok {
 		fieldHooks = fhp.FieldHooks()
@@ -480,9 +480,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 			continue
 		}
 
-		// Built-in special cases are handled through the define/decode hook registries.
-		// The remaining gaps are the still-open slice/map/CSV items tracked in TODO.md,
-		// not the shipped byte/net/IP families.
+		// Standard Go types handled inline via cobra/pflag primitives.
 		switch kind {
 		case reflect.Struct:
 			// NOTE > field.Interface() doesn't work because it actually returns a copy of the object wrapping the interface

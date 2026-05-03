@@ -154,7 +154,7 @@ $ mycli srv --jsonschema
 }
 ```
 
-Use `--jsonschema=tree` to dump the entire command subtree in a single call — no need to invoke each subcommand separately:
+Use `--jsonschema=tree` to dump the entire command subtree in a single call: no need to invoke each subcommand separately:
 
 ```console
 $ mycli --jsonschema=tree   # JSON array of schemas for all commands
@@ -167,7 +167,7 @@ Use `exitcode.Category(code)` and `exitcode.IsRetryable(code)` to decide what to
 
 For CLIs that capture output streams during command construction, configure `mcp.Options.CommandFactory` so each MCP tool call builds a fresh command with the tool-call stdout and stderr writers. This keeps MCP protocol output separate from command output while preserving the existing command tree schema. If the command constructor requires stdin, the factory can wire a non-interactive reader such as `strings.NewReader("")`.
 
-For build-time discovery, `generate.WriteAll` produces SKILL.md, llms.txt, and AGENTS.md from the same struct definitions — wire it into `//go:generate` and the files stay in sync automatically.
+For build-time discovery, `generate.WriteAll` produces SKILL.md, llms.txt, and AGENTS.md from the same struct definitions: wire it into `//go:generate` and the files stay in sync automatically.
 
 Read the full [AI-native guide](docs/ai-native.md) or walk through the runnable [structured error example](examples/structerr/README.md).
 
@@ -237,7 +237,7 @@ From the previous options struct, you get the following env vars automatically:
 - `FULL_SRV_LOGFILE`, `FULL_SRV_LOG_FILE`
 
 Every struct field with the `flagenv:"true"` tag gets an environment variable (two if the struct field also has the `flag:"..."` tag, see struct field `LogFile`).
-Use `flagenv:"only"` for fields that should be settable exclusively via environment variable or config file — CLI usage (`--flag=value`) is rejected at runtime.
+Use `flagenv:"only"` for fields that should be settable exclusively via environment variable or config file: CLI usage (`--flag=value`) is rejected at runtime.
 
 The prefix of the environment variable name is the CLI name plus the command name to which those options are attached to.
 
@@ -266,7 +266,7 @@ structcli.Setup(rootCmd,
 
 When enabled, `Unmarshal` fails if command-relevant config contains unknown keys.
 
-`WithAppName` sets the env prefix. `WithConfig` registers the `--config` flag and defers config loading to `ExecuteC`'s bind pipeline (before auto-unmarshal). Ordering between `Setup` and `Bind` does not matter — `WithAppName` retroactively patches env annotations on already-defined flags.
+`WithAppName` sets the env prefix. `WithConfig` registers the `--config` flag and defers config loading to `ExecuteC`'s bind pipeline (before auto-unmarshal). Ordering between `Setup` and `Bind` does not matter: `WithAppName` retroactively patches env annotations on already-defined flags.
 
 Individual `SetupConfig`, `SetupDebug`, etc. remain available for power users who need fine-grained control.
 
@@ -415,7 +415,7 @@ Or standalone: `structcli.SetupDebug(rootCmd, debug.Options{})`.
 
 The flag accepts `text` (default when used bare) or `json` for machine-readable output. Truthy values like `true`, `1`, `yes` are treated as `text` for backward compatibility.
 
-**Text output** — an aligned table showing each flag's resolved value and where it came from:
+**Text output**: an aligned table showing each flag's resolved value and where it came from:
 
 ```bash
 ❯ go run examples/full/main.go srv --debug-options --config examples/full/config.yaml -p 3333
@@ -443,7 +443,7 @@ The flag accepts `text` (default when used bare) or `json` for machine-readable 
 #   ...
 ```
 
-**JSON output** — structured data for AI agents and tooling:
+**JSON output**: structured data for AI agents and tooling:
 
 ```bash
 ❯ go run examples/full/main.go srv --debug-options=json --config examples/full/config.yaml -p 3333
@@ -478,7 +478,7 @@ Call this after all subcommands and flags are defined (typically right before `E
 
 By default the commands appear as regular subcommands under "Available Commands:". Set `ReferenceSection: true` to move them into a dedicated "Reference:" section instead.
 
-**Environment variable listing** — `mycli env-vars`:
+**Environment variable listing**: `mycli env-vars`:
 
 ```
 Environment Variables
@@ -491,7 +491,7 @@ Environment Variables
     MYCLI_SERVE_PORT  --port  int            8080
 ```
 
-**Configuration key listing** — `mycli config-keys`:
+**Configuration key listing**: `mycli config-keys`:
 
 ```
 Configuration Keys
@@ -513,7 +513,7 @@ Configuration Keys
 
 With `ReferenceSection: true`, both topics appear under "Reference:" in `--help` output instead of "Available Commands:". Flags marked `flagenv:"only"` show an `(env-only)` suffix in the env-vars listing and are excluded from config-keys (since they are hidden). Config keys derived from embedded struct field paths appear as aliases (e.g., `database.maxconns` → `alias for --database.maxconns`).
 
-For machine-readable cross-tree data, use `--jsonschema=tree` instead — it provides the same information in structured JSON.
+For machine-readable cross-tree data, use `--jsonschema=tree` instead: it provides the same information in structured JSON.
 
 ### ↪️ Sharing Options Between Commands
 
@@ -546,7 +546,7 @@ func (o *CommonOptions) FromContext(ctx context.Context) error { /* ... */ }
 func (o *CommonOptions) Initialize() error { /* ... */ }
 ```
 
-Bind the shared struct to the root command. `Bind` registers it for auto-unmarshal — the bind pipeline populates it and calls `Context()` to inject it before any `PreRunE` or `RunE` fires.
+Bind the shared struct to the root command. `Bind` registers it for auto-unmarshal: the bind pipeline populates it and calls `Context()` to inject it before any `PreRunE` or `RunE` fires.
 
 ```go
 structcli.Bind(rootC, commonOpts)
@@ -554,7 +554,7 @@ structcli.Bind(rootC, commonOpts)
 
 > **Important:** `Bind` on root creates **local** flags on the root command. By default, Cobra rejects unknown flags before finding the subcommand, so `app --loglevel info sub` would fail. Set `rootC.TraverseChildren = true` so root parses its own flags first, then resolves the subcommand. Alternatively, bind the shared struct on each leaf command that needs the flags.
 
-If you need to initialize computed state (like a logger) after unmarshal, use a `PersistentPreRunE` hook — by the time it fires, `commonOpts` is already populated:
+If you need to initialize computed state (like a logger) after unmarshal, use a `PersistentPreRunE` hook: by the time it fires, `commonOpts` is already populated:
 
 ```go
 rootC.PersistentPreRunE = func(c *cobra.Command, args []string) error {
@@ -641,7 +641,7 @@ For types that need custom parsing logic beyond what enum registration provides,
 
 #### Per-type: `RegisterType[T]`
 
-Register custom hooks for a type once in `init()`. Every struct field of type `T` uses them automatically — no special tags needed. `RegisterType` panics on nil hooks or duplicate registration — call it in `init()` before any `Define`/`Bind`.
+Register custom hooks for a type once in `init()`. Every struct field of type `T` uses them automatically: no special tags needed. `RegisterType` panics on nil hooks or duplicate registration: call it in `init()` before any `Define`/`Bind`.
 
 ```go
 import (
@@ -676,7 +676,7 @@ type ServerOptions struct {
 
 Both `Define` and `Decode` are required. Panics on duplicate registration or nil hooks. Call in `init()` before any `Define`/`Bind` calls.
 
-For enum types, prefer `RegisterEnum`/`RegisterIntEnum` — they wrap `RegisterType` with less boilerplate.
+For enum types, prefer `RegisterEnum`/`RegisterIntEnum`: they wrap `RegisterType` with less boilerplate.
 
 #### Per-field: `FieldHookProvider` and `FieldCompleter`
 
@@ -723,9 +723,9 @@ func (o *ServerOptions) CompletionHooks() map[string]structcli.CompleteHookFunc 
 
 Hook resolution follows this order (highest to lowest):
 
-1. **`FieldHookProvider`** — per-field hooks on the options struct
-2. **`RegisterType`** / **`RegisterEnum`** — per-type hooks in the global registry
-3. **Built-in registry** — `time.Duration`, `zapcore.Level`, `slog.Level`, etc.
+1. **`FieldHookProvider`**: per-field hooks on the options struct
+2. **`RegisterType`** / **`RegisterEnum`**: per-type hooks in the global registry
+3. **Built-in registry**: `time.Duration`, `zapcore.Level`, `slog.Level`, etc.
 
 Completion precedence:
 
@@ -826,7 +826,7 @@ func (o *LogsOptions) Attach(c *cobra.Command) error {
 }
 ```
 
-`Attach` is needed here because of the custom `flagkit.AnnotateCommand` call. For structs without custom define-time logic, use `structcli.Bind(cmd, opts)` instead — it handles both plain structs and `Options` implementors.
+`Attach` is needed here because of the custom `flagkit.AnnotateCommand` call. For structs without custom define-time logic, use `structcli.Bind(cmd, opts)` instead: it handles both plain structs and `Options` implementors.
 
 Available types:
 
@@ -958,8 +958,8 @@ It does not bypass transform/validate flow.
 
 **`flaghidden:"true" + flagenv:"true"` vs `flagenv:"only"`:**
 
-- `flaghidden:"true" + flagenv:"true"` — hidden from help, but **accepts CLI input** via `--flag=value`. Use for flags that should be discoverable only by advanced users or scripts.
-- `flagenv:"only"` — hidden from help, **rejects CLI input** at runtime. The field is settable only via environment variable or config file. Use for secrets and deployment-time configuration that should never appear on a command line.
+- `flaghidden:"true" + flagenv:"true"`: hidden from help, but **accepts CLI input** via `--flag=value`. Use for flags that should be discoverable only by advanced users or scripts.
+- `flagenv:"only"`: hidden from help, **rejects CLI input** at runtime. The field is settable only via environment variable or config file. Use for secrets and deployment-time configuration that should never appear on a command line.
 
 `flagenv:"only"` is incompatible with `flagshort`, `flagpreset`, and `flagtype` (these are CLI-only concepts). It supports `flagdescr`, `flaggroup`, `flagrequired`, and `default`. `FieldHookProvider` Define/Decode hooks work normally on `flagenv:"only"` fields (the flag is created then hidden). `FieldCompleter` hooks are skipped since hidden flags have no CLI completion.
 

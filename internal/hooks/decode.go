@@ -30,8 +30,7 @@ type decodingAnnotation struct {
 	fx  mapstructure.DecodeHookFunc
 }
 
-// DecodeHookRegistry maps reflect.Type to decode hook metadata.
-// Keyed by reflect.Type for collision-safe lookups.
+// DecodeHookRegistry maps types to their decode hook metadata.
 var DecodeHookRegistry = map[reflect.Type]decodingAnnotation{
 	reflect.TypeFor[time.Duration](): {
 		"StringToTimeDurationHookFunc",
@@ -169,7 +168,7 @@ var decodeHookSeq uint64
 
 // RegisterUserDecodeHook wraps a user-provided DecodeHookFunc into a
 // mapstructure.DecodeHookFunc and registers it for the given type.
-// The wrapper filters by target type (reflect.Type equality) and source kind (string).
+// The wrapper filters by target type and source kind (string).
 func RegisterUserDecodeHook(typ reflect.Type, decode DecodeHookFunc) {
 	decodeHookSeq++
 	annName := fmt.Sprintf("userDecodeHook_%d", decodeHookSeq)
@@ -771,7 +770,6 @@ func StringToRawBytesHookFunc() mapstructure.DecodeHookFunc {
 }
 
 // StringToNamedBytesHookFunc converts encoded textual input into a named []byte type.
-// Matches by reflect.Type equality for collision safety.
 func StringToNamedBytesHookFunc(targetType reflect.Type, decode func(string) ([]byte, error)) mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,

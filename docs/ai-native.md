@@ -76,7 +76,7 @@ Programmatic APIs:
 
 `WithHelpTopics` (or standalone `SetupHelpTopics`) adds two reference commands to the root: `env-vars` and `config-keys`. These list every environment variable binding and every valid configuration file key across the command tree.
 
-Unlike `--jsonschema` (machine-readable), help topics produce plain text grouped by command with aligned columns — useful for humans and for agents that prefer scanning text over parsing JSON.
+Unlike `--jsonschema` (machine-readable), help topics produce plain text grouped by command with aligned columns. Useful for humans and for agents that prefer scanning text over parsing JSON.
 
 - Flags with `flagenv:"only"` show an `(env-only)` suffix in `env-vars` and are excluded from `config-keys`.
 - Config keys derived from embedded struct paths appear as aliases.
