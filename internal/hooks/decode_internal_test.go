@@ -419,16 +419,34 @@ func TestRegisterDecodeHook(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestRegisterDecodeHook_DuplicatePanics(t *testing.T) {
+func TestRegisterDecodeHook_DuplicateAnnotationPanics(t *testing.T) {
 	snap := SnapshotDecodeRegistries()
 	defer RestoreDecodeRegistries(snap)
 
 	hook := StringToEnumHookFunc(testEnvValues())
 	RegisterDecodeHook(reflect.TypeFor[testEnv](), "StringToTestEnvHookFunc", hook)
 
-	assert.Panics(t, func() {
-		RegisterDecodeHook(reflect.TypeFor[testPriority](), "StringToTestEnvHookFunc", hook)
-	})
+	assert.PanicsWithValue(t,
+		"duplicate annotation name 'StringToTestEnvHookFunc' in decode hook registry (type: internalhooks.testPriority)",
+		func() {
+			RegisterDecodeHook(reflect.TypeFor[testPriority](), "StringToTestEnvHookFunc", hook)
+		},
+	)
+}
+
+func TestRegisterDecodeHook_DuplicateTypePanics(t *testing.T) {
+	snap := SnapshotDecodeRegistries()
+	defer RestoreDecodeRegistries(snap)
+
+	hook := StringToEnumHookFunc(testEnvValues())
+	RegisterDecodeHook(reflect.TypeFor[testEnv](), "FirstAnnotation", hook)
+
+	assert.PanicsWithValue(t,
+		"duplicate decode hook registration for type internalhooks.testEnv",
+		func() {
+			RegisterDecodeHook(reflect.TypeFor[testEnv](), "SecondAnnotation", hook)
+		},
+	)
 }
 
 type testPriority int
