@@ -2233,7 +2233,7 @@ type customDecodeHookOptions struct {
 func (o *customDecodeHookOptions) FieldHooks() map[string]structcli.FieldHook {
 	return map[string]structcli.FieldHook{
 		"ServerMode": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				enhancedDesc := descr + " (development, staging, production)"
 				fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
 				*fieldPtr = DevMode1
@@ -2273,7 +2273,7 @@ type mixedHooksOptions struct {
 func (m *mixedHooksOptions) FieldHooks() map[string]structcli.FieldHook {
 	return map[string]structcli.FieldHook{
 		"ServerMode": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
 				*fieldPtr = DevMode1
 
@@ -2304,7 +2304,7 @@ type multiCustomOptions struct {
 func (m *multiCustomOptions) FieldHooks() map[string]structcli.FieldHook {
 	return map[string]structcli.FieldHook{
 		"Mode1": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				enhancedDesc := descr + " (first custom mode)"
 				fieldPtr := fieldValue.Addr().Interface().(*ServerMode1)
 				*fieldPtr = DevMode1
@@ -2328,7 +2328,7 @@ func (m *multiCustomOptions) FieldHooks() map[string]structcli.FieldHook {
 			},
 		},
 		"Mode2": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				enhancedDesc := descr + " (second custom mode)"
 				fieldPtr := fieldValue.Addr().Interface().(*ServerMode2)
 				*fieldPtr = StagingMode2

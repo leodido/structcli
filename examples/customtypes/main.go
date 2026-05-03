@@ -77,7 +77,7 @@ func init() {
 	// After this, any struct field of type HostPort works automatically.
 	// RegisterType panics if Define is nil, Decode is nil, or the type was already registered.
 	structcli.RegisterType(structcli.TypeHooks[HostPort]{
-		Define: func(name, short, descr string, _ reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+		Define: func(name, descr string, _ reflect.StructField, fv reflect.Value) (pflag.Value, string) {
 			ref := fv.Addr().Interface().(*HostPort)
 			*ref = HostPort{Host: "localhost", Port: 8080} // default
 
@@ -121,7 +121,7 @@ var validModes = []string{"development", "staging", "production"}
 func (o *ServerOptions) FieldHooks() map[string]structcli.FieldHook {
 	return map[string]structcli.FieldHook{
 		"Mode": {
-			Define: func(name, short, descr string, _ reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, _ reflect.StructField, fv reflect.Value) (pflag.Value, string) {
 				ref := fv.Addr().Interface().(*string)
 				*ref = "development"
 

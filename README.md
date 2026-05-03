@@ -657,7 +657,7 @@ type ListenAddress struct {
 
 func init() {
     structcli.RegisterType[ListenAddress](structcli.TypeHooks[ListenAddress]{
-        Define: func(name, short, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+        Define: func(name, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
             ptr := fv.Addr().Interface().(*ListenAddress)
             *ptr = ListenAddress{Host: "localhost", Port: 8080, raw: "localhost:8080"}
 
@@ -691,7 +691,7 @@ type ServerOptions struct {
 func (o *ServerOptions) FieldHooks() map[string]structcli.FieldHook {
     return map[string]structcli.FieldHook{
         "ListenAddr": {
-            Define: func(name, short, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+            Define: func(name, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
                 ptr := fv.Addr().Interface().(*string)
                 *ptr = "localhost:8080"
 

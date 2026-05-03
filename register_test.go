@@ -21,7 +21,7 @@ func TestRegisterType_Success(t *testing.T) {
 	}()
 
 	RegisterType(TypeHooks[testCustomType]{
-		Define: func(name, short, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+		Define: func(name, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
 			return nil, descr
 		},
 		Decode: func(input any) (any, error) {
@@ -56,7 +56,7 @@ func TestRegisterType_PanicsOnNilDecode(t *testing.T) {
 		"structcli: RegisterType[structcli.testCustomType]: Decode hook must not be nil",
 		func() {
 			RegisterType(TypeHooks[testCustomType]{
-				Define: func(name, short, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+				Define: func(name, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
 					return nil, descr
 				},
 				Decode: nil,
@@ -74,7 +74,7 @@ func TestRegisterType_PanicsOnDuplicate(t *testing.T) {
 	}()
 
 	hooks := TypeHooks[testCustomType]{
-		Define: func(name, short, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+		Define: func(name, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
 			return nil, descr
 		},
 		Decode: func(input any) (any, error) { return input, nil },

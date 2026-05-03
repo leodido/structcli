@@ -95,7 +95,7 @@ type hiddenCustomOptions struct {
 func (o *hiddenCustomOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"Mode": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				fieldPtr := fieldValue.Addr().Interface().(*string)
 				*fieldPtr = "default"
 

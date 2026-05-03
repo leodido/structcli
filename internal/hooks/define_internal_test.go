@@ -63,7 +63,7 @@ func TestDefineStringEnumHookFunc_CreatesFlag(t *testing.T) {
 	sf := reflect.StructField{Name: "Color", Type: reflect.TypeFor[testColor]()}
 	fv := reflect.ValueOf(&target).Elem()
 
-	pflagVal, usage := hook("color", "c", "pick a color", sf, fv)
+	pflagVal, usage := hook("color", "pick a color", sf, fv)
 
 	require.NotNil(t, pflagVal)
 	assert.Contains(t, usage, "{blue,green,red}")
@@ -87,7 +87,7 @@ func TestDefineStringEnumHookFunc_EnumValues(t *testing.T) {
 	sf := reflect.StructField{Name: "Color", Type: reflect.TypeFor[testColor]()}
 	fv := reflect.ValueOf(&target).Elem()
 
-	pflagVal, _ := hook("color", "", "color", sf, fv)
+	pflagVal, _ := hook("color", "color", sf, fv)
 
 	type enumValuer interface {
 		EnumValues() []string
@@ -118,7 +118,7 @@ func TestDefineIntEnumHookFunc_CreatesFlag(t *testing.T) {
 	sf := reflect.StructField{Name: "Severity", Type: reflect.TypeFor[testSeverity]()}
 	fv := reflect.ValueOf(&target).Elem()
 
-	pflagVal, usage := hook("severity", "", "task severity", sf, fv)
+	pflagVal, usage := hook("severity", "task severity", sf, fv)
 
 	require.NotNil(t, pflagVal)
 	assert.Contains(t, usage, "{low,medium,high}")
@@ -144,7 +144,7 @@ func TestDefineIntEnumHookFunc_EnumValues(t *testing.T) {
 	sf := reflect.StructField{Name: "Severity", Type: reflect.TypeFor[testSeverity]()}
 	fv := reflect.ValueOf(&target).Elem()
 
-	pflagVal, _ := hook("severity", "", "severity", sf, fv)
+	pflagVal, _ := hook("severity", "severity", sf, fv)
 
 	type enumValuerIface interface {
 		EnumValues() []string
