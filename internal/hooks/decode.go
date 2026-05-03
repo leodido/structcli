@@ -151,8 +151,11 @@ func RestoreDecodeRegistries(snap DecodeRegistrySnapshot) {
 
 // RegisterDecodeHook registers a decode hook for a custom type. It updates both
 // DecodeHookRegistry and AnnotationToDecodeHookRegistry. Panics on duplicate
-// annotation name (consistent with init() behavior).
+// type or annotation name.
 func RegisterDecodeHook(typ reflect.Type, annotationName string, hook mapstructure.DecodeHookFunc) {
+	if _, exists := DecodeHookRegistry[typ]; exists {
+		panic(fmt.Sprintf("duplicate decode hook registration for type %s", typ))
+	}
 	if _, exists := AnnotationToDecodeHookRegistry[annotationName]; exists {
 		panic(fmt.Sprintf("duplicate annotation name '%s' in decode hook registry (type: %s)", annotationName, typ))
 	}
@@ -161,11 +164,15 @@ func RegisterDecodeHook(typ reflect.Type, annotationName string, hook mapstructu
 	AnnotationToDecodeHookRegistry[annotationName] = hook
 }
 
+// decodeHookSeq is an incrementing counter for generating opaque annotation IDs.
+var decodeHookSeq uint64
+
 // RegisterUserDecodeHook wraps a user-provided DecodeHookFunc into a
 // mapstructure.DecodeHookFunc and registers it for the given type.
 // The wrapper filters by target type (reflect.Type equality) and source kind (string).
 func RegisterUserDecodeHook(typ reflect.Type, decode DecodeHookFunc) {
-	annName := fmt.Sprintf("RegisterTypeTo%sHookFunc", sanitizeTypeName(typ.String()))
+	decodeHookSeq++
+	annName := fmt.Sprintf("userDecodeHook_%d", decodeHookSeq)
 
 	hook := func(from reflect.Type, to reflect.Type, data any) (any, error) {
 		if to != typ {
@@ -179,18 +186,6 @@ func RegisterUserDecodeHook(typ reflect.Type, decode DecodeHookFunc) {
 	}
 
 	RegisterDecodeHook(typ, annName, mapstructure.DecodeHookFunc(hook))
-}
-
-func sanitizeTypeName(typeName string) string {
-	r := strings.NewReplacer(
-		".", "_",
-		"[", "_",
-		"]", "",
-		"*", "Ptr",
-		"/", "_",
-	)
-
-	return r.Replace(typeName)
 }
 
 // StringToEnumHookFunc creates a decode hook that converts string values to a
