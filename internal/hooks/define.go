@@ -21,8 +21,8 @@ import (
 // that knows how to set the underlying field's value, along with an optional enhanced
 // description for the flag's usage message.
 //
-// The short flag name is not passed here — the caller registers the returned
-// pflag.Value with the appropriate short name via VarP.
+// The short flag name is not passed here.
+// The caller registers the returned pflag.Value with the appropriate short name via VarP.
 type DefineHookFunc func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string)
 
 // DefineHookRegistry keeps track of the built-in flag definition functions.
