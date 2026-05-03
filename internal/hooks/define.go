@@ -15,14 +15,15 @@ import (
 	"github.com/thediveo/enumflag/v2"
 )
 
-// FIXME: remove short from the signature?
-
 // DefineHookFunc defines how to create a flag for a custom type.
 //
 // It receives flag metadata and struct field information and must return a pflag.Value
 // that knows how to set the underlying field's value, along with an optional enhanced
 // description for the flag's usage message.
-type DefineHookFunc func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string)
+//
+// The short flag name is not passed here — the caller registers the returned
+// pflag.Value with the appropriate short name via VarP.
+type DefineHookFunc func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string)
 
 // DefineHookRegistry keeps track of the built-in flag definition functions.
 // Keyed by reflect.Type for collision-safe lookups.
@@ -51,7 +52,7 @@ var defineHookRegistryByName = map[string]DefineHookFunc{}
 var byteSliceType = reflect.TypeOf([]byte(nil))
 
 func defineByteSliceValueHookFunc(newValue func(val []byte, ref *[]byte) pflag.Value) DefineHookFunc {
-	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Convert(byteSliceType).Interface().([]byte)
 		// The field may be a named type (e.g. structcli.Hex) so Addr().Interface()
 		// would yield *Hex, not *[]byte. Use reflect.NewAt to reinterpret the
@@ -63,11 +64,11 @@ func defineByteSliceValueHookFunc(newValue func(val []byte, ref *[]byte) pflag.V
 }
 
 func defineFlagSetValueHookFunc[T any](register func(fs *pflag.FlagSet, ref *T, name, short string, val T, usage string)) DefineHookFunc {
-	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(T)
 		ref := fieldValue.Addr().Interface().(*T)
 		fs := pflag.NewFlagSet(name, pflag.ContinueOnError)
-		register(fs, ref, name, short, val, descr)
+		register(fs, ref, name, "", val, descr)
 
 		return fs.Lookup(name).Value, descr
 	}
@@ -128,7 +129,7 @@ func DefineBase64BytesHookFunc() DefineHookFunc {
 }
 
 func DefineIPHookFunc() DefineHookFunc {
-	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(net.IP)
 		ref := fieldValue.Addr().Interface().(*net.IP)
 
@@ -137,7 +138,7 @@ func DefineIPHookFunc() DefineHookFunc {
 }
 
 func DefineIPMaskHookFunc() DefineHookFunc {
-	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(net.IPMask)
 		ref := fieldValue.Addr().Interface().(*net.IPMask)
 
@@ -146,7 +147,7 @@ func DefineIPMaskHookFunc() DefineHookFunc {
 }
 
 func DefineIPNetHookFunc() DefineHookFunc {
-	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(net.IPNet)
 		ref := fieldValue.Addr().Interface().(*net.IPNet)
 
@@ -155,7 +156,7 @@ func DefineIPNetHookFunc() DefineHookFunc {
 }
 
 func DefineIPSliceHookFunc() DefineHookFunc {
-	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().([]net.IP)
 		ref := fieldValue.Addr().Interface().(*[]net.IP)
 
@@ -164,7 +165,7 @@ func DefineIPSliceHookFunc() DefineHookFunc {
 }
 
 func DefineTimeDurationHookFunc() DefineHookFunc {
-	return func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Interface().(time.Duration)
 		ref := fieldValue.Addr().Interface().(*time.Duration)
 
@@ -194,7 +195,7 @@ func enumHelpText[L ~int | ~int8 | ~int16 | ~int32 | ~int64](levels map[L][]stri
 //
 // It returns an enum flag that implements pflag.Value.
 func DefineSlogLevelHookFunc() DefineHookFunc {
-	return func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		logLevels := map[slog.Level][]string{
 			slog.LevelDebug: {"debug"},
 			slog.LevelInfo:  {"info"},
@@ -214,7 +215,7 @@ func DefineSlogLevelHookFunc() DefineHookFunc {
 // DefineIntEnumHookFunc creates a DefineHookFunc for a registered integer-based enum.
 // It wraps enumflag/v2 and attaches EnumValuer metadata via WrapWithEnumValues.
 func DefineIntEnumHookFunc[E ~int | ~int8 | ~int16 | ~int32 | ~int64](values map[E][]string) DefineHookFunc {
-	return func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		fieldPtr := fieldValue.Addr().Interface().(*E)
 		enumFlag := enumflag.New(fieldPtr, structField.Type.String(), values, enumflag.EnumCaseInsensitive)
 		enumValues, enhancedDescr := enumHelpText(values, descr)
@@ -227,7 +228,7 @@ func DefineIntEnumHookFunc[E ~int | ~int8 | ~int16 | ~int32 | ~int64](values map
 // The returned hook creates an enumStringValue that validates on Set() and
 // appends "{val1,val2,...}" to the flag description.
 func DefineStringEnumHookFunc[E ~string](values map[E][]string) DefineHookFunc {
-	return func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+	return func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		target := fieldValue.Addr().Interface().(*E)
 		ev := structclivalues.NewEnumString(target, values)
 		enhancedDescr := descr + fmt.Sprintf(" {%s}", strings.Join(ev.EnumValues(), ","))
@@ -241,14 +242,14 @@ func DefineStringEnumHookFunc[E ~string](values map[E][]string) DefineHookFunc {
 // registry for types that cannot be referenced by reflect.TypeFor from this package.
 func InferDefineHooks(c *cobra.Command, name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) bool {
 	if defineFunc, ok := DefineHookRegistry[structField.Type]; ok {
-		value, usage := defineFunc(name, short, descr, structField, fieldValue)
+		value, usage := defineFunc(name, descr, structField, fieldValue)
 		c.Flags().VarP(value, name, short, usage)
 
 		return true
 	}
 
 	if defineFunc, ok := defineHookRegistryByName[structField.Type.String()]; ok {
-		value, usage := defineFunc(name, short, descr, structField, fieldValue)
+		value, usage := defineFunc(name, descr, structField, fieldValue)
 		c.Flags().VarP(value, name, short, usage)
 
 		return true

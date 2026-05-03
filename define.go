@@ -445,7 +445,7 @@ func define(c *cobra.Command, o any, startingGroup string, structPath string, ex
 		// Per-field hooks from FieldHookProvider take highest precedence.
 		if fh, ok := fieldHooks[f.Name]; ok && kind != reflect.Struct {
 			if fh.Define != nil {
-				returnedValue, returnedUsage := fh.Define(name, short, descr, f, field)
+				returnedValue, returnedUsage := fh.Define(name, descr, f, field)
 				c.Flags().VarP(returnedValue, name, short, returnedUsage)
 
 				if fh.Decode != nil {

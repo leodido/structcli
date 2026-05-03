@@ -278,7 +278,7 @@ type gotoCustomHookOptions struct {
 func (o *gotoCustomHookOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"Mode": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				fieldPtr := fieldValue.Addr().Interface().(*string)
 				*fieldPtr = "dev"
 
@@ -448,7 +448,7 @@ type comprehensiveCustomOptions struct {
 func (o *comprehensiveCustomOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"ServerMode": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				enhancedDesc := descr + fmt.Sprintf(" (%s,%s,%s)", string(development), string(staging), string(production))
 				fieldPtr := fieldValue.Addr().Interface().(*serverMode)
 				*fieldPtr = development // Set default
@@ -462,7 +462,7 @@ func (o *comprehensiveCustomOptions) FieldHooks() map[string]FieldHook {
 			},
 		},
 		"SomeConfig": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				enhancedDesc := descr + " (must be .yaml, .yml, or .json)"
 				fieldPtr := fieldValue.Addr().Interface().(*string)
 				*fieldPtr = "" // default
@@ -1399,7 +1399,7 @@ type flagEnvCombinedOptions struct {
 func (o *flagEnvCombinedOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"EnvWithCustom": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				fieldPtr := fieldValue.Addr().Interface().(*string)
 				*fieldPtr = "CUSTOM_DEFAULT"
 
@@ -1410,7 +1410,7 @@ func (o *flagEnvCombinedOptions) FieldHooks() map[string]FieldHook {
 			},
 		},
 		"InvalidEnvValid": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				fieldPtr := fieldValue.Addr().Interface().(*string)
 				*fieldPtr = "INVALID"
 
@@ -1448,7 +1448,7 @@ type validFlagEnvInteractionOptions struct {
 func (o *validFlagEnvInteractionOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"EnvWithCustom": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				fieldPtr := fieldValue.Addr().Interface().(*string)
 				*fieldPtr = "custom"
 
@@ -1717,7 +1717,7 @@ type flagIgnoreCombinedOptions struct {
 func (o *flagIgnoreCombinedOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"IgnoreWithCustom": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				fieldPtr := fieldValue.Addr().Interface().(*string)
 				*fieldPtr = "CUSTOM_DEFAULT"
 
@@ -1755,7 +1755,7 @@ type validFlagIgnoreInteractionOptions struct {
 func (o *validFlagIgnoreInteractionOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"IgnoreWithCustom": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				// This hook should NOT be called if flagignore:"true" is respected.
 				panic("FieldHooks[IgnoreWithCustom].Define should not have been called!")
 			},
@@ -3073,7 +3073,7 @@ func (o *enumCustomDefineHookOptions) Attach(c *cobra.Command) error { return ni
 func (o *enumCustomDefineHookOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"ServerMode": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				enhancedDesc := descr + fmt.Sprintf(" {%s,%s,%s}", string(development), string(staging), string(production))
 				fieldPtr := fieldValue.Addr().Interface().(*serverMode)
 				*fieldPtr = development
@@ -3125,7 +3125,7 @@ func (o enumValuerHookOptions) Attach(c *cobra.Command) error { return nil }
 func (o *enumValuerHookOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"Priority": {
-			Define: func(name, short, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				ref := fieldValue.Addr().Interface().(*string)
 				// Return a pflag.Value that implements EnumValuer with [alpha, beta, gamma]
 				// but the description says {x,y,z}
@@ -3316,7 +3316,7 @@ type flagCustomWithValidateOptions struct {
 func (o *flagCustomWithValidateOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"Token": {
-			Define: func(name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 				fieldPtr := fieldValue.Addr().Interface().(*string)
 				*fieldPtr = ""
 
@@ -3480,7 +3480,7 @@ type unknownFieldHookOptions struct {
 func (o *unknownFieldHookOptions) FieldHooks() map[string]FieldHook {
 	return map[string]FieldHook{
 		"Bogus": {
-			Define: func(name, short, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
+			Define: func(name, descr string, sf reflect.StructField, fv reflect.Value) (pflag.Value, string) {
 				return values.NewString(fv.Addr().Interface().(*string)), descr
 			},
 			Decode: func(input any) (any, error) { return input, nil },
