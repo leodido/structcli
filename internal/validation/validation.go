@@ -55,7 +55,7 @@ func Fields(val reflect.Value, prefix string, s *internalscope.Scope) error {
 		// because their exported fields are promoted and accessible.
 		if !field.CanInterface() {
 			if structF.Anonymous && structF.Type.Kind() == reflect.Struct {
-				_, hasDefineHook := internalhooks.DefineHookRegistry[structF.Type.String()]
+				_, hasDefineHook := internalhooks.DefineHookRegistry[structF.Type]
 				if !hasDefineHook {
 					if err := Fields(field, internalpath.GetFieldName(prefix, structF), s); err != nil {
 						return err
@@ -68,7 +68,7 @@ func Fields(val reflect.Value, prefix string, s *internalscope.Scope) error {
 		fieldName := internalpath.GetFieldName(prefix, structF)
 		// Some Go structs are handled as scalar/leaf values by built-in hooks
 		// (e.g. net.IPNet), so validation must not recurse into their exported fields.
-		_, hasDefineHook := internalhooks.DefineHookRegistry[structF.Type.String()]
+		_, hasDefineHook := internalhooks.DefineHookRegistry[structF.Type]
 		isStructKind := structF.Type.Kind() == reflect.Struct && !hasDefineHook
 
 		// Validate flagpreset tag syntax

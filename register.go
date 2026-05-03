@@ -28,7 +28,8 @@ type TypeHooks[T any] struct {
 // Panics if T is already registered (duplicate or conflict with a built-in).
 // Panics if Define is nil. Panics if Decode is nil.
 func RegisterType[T any](hooks TypeHooks[T]) {
-	typeName := reflect.TypeFor[T]().String()
+	typ := reflect.TypeFor[T]()
+	typeName := typ.String()
 
 	if hooks.Define == nil {
 		panic(fmt.Sprintf("structcli: RegisterType[%s]: Define hook must not be nil", typeName))
@@ -37,11 +38,11 @@ func RegisterType[T any](hooks TypeHooks[T]) {
 		panic(fmt.Sprintf("structcli: RegisterType[%s]: Decode hook must not be nil", typeName))
 	}
 
-	if _, exists := internalhooks.DefineHookRegistry[typeName]; exists {
+	if _, exists := internalhooks.DefineHookRegistry[typ]; exists {
 		panic(fmt.Sprintf("structcli: RegisterType[%s]: type is already registered", typeName))
 	}
 
-	internalhooks.DefineHookRegistry[typeName] = hooks.Define
+	internalhooks.DefineHookRegistry[typ] = hooks.Define
 
-	internalhooks.RegisterUserDecodeHook(typeName, hooks.Decode)
+	internalhooks.RegisterUserDecodeHook(typ, hooks.Decode)
 }

@@ -30,74 +30,68 @@ type decodingAnnotation struct {
 	fx  mapstructure.DecodeHookFunc
 }
 
-var DecodeHookRegistry = map[string]decodingAnnotation{
-	"time.Duration": {
+// DecodeHookRegistry maps reflect.Type to decode hook metadata.
+// Keyed by reflect.Type for collision-safe lookups.
+var DecodeHookRegistry = map[reflect.Type]decodingAnnotation{
+	reflect.TypeFor[time.Duration](): {
 		"StringToTimeDurationHookFunc",
 		mapstructure.StringToTimeDurationHookFunc(),
 	},
-	"[]time.Duration": {
+	reflect.TypeFor[[]time.Duration](): {
 		"StringToDurationSliceHookFunc",
 		StringToDurationSliceHookFunc(),
 	},
-	"[]bool": {
+	reflect.TypeFor[[]bool](): {
 		"StringToBoolSliceHookFunc",
 		StringToBoolSliceHookFunc(),
 	},
-	"[]uint": {
+	reflect.TypeFor[[]uint](): {
 		"StringToUintSliceHookFunc",
 		StringToUintSliceHookFunc(),
 	},
-	"map[string]string": {
+	reflect.TypeFor[map[string]string](): {
 		"StringToStringMapHookFunc",
 		StringToStringMapHookFunc(),
 	},
-	"map[string]int": {
+	reflect.TypeFor[map[string]int](): {
 		"StringToIntMapHookFunc",
 		StringToIntMapHookFunc(),
 	},
-	"map[string]int64": {
+	reflect.TypeFor[map[string]int64](): {
 		"StringToInt64MapHookFunc",
 		StringToInt64MapHookFunc(),
 	},
-	"net.IP": {
+	reflect.TypeFor[net.IP](): {
 		"StringToIPHookFunc",
 		mapstructure.StringToIPHookFunc(),
 	},
-	"net.IPMask": {
+	reflect.TypeFor[net.IPMask](): {
 		"StringToIPMaskHookFunc",
 		StringToIPMaskHookFunc(),
 	},
-	"net.IPNet": {
+	reflect.TypeFor[net.IPNet](): {
 		"StringToIPNetHookFunc",
 		mapstructure.StringToIPNetHookFunc(),
 	},
-	"[]net.IP": {
+	reflect.TypeFor[[]net.IP](): {
 		"StringToIPSliceHookFunc",
 		StringToIPSliceHookFunc(),
 	},
-	"slog.Level": {
+	reflect.TypeFor[slog.Level](): {
 		"StringToSlogLevelHookFunc",
 		StringToSlogLevelHookFunc(),
 	},
-	"[]string": {
+	reflect.TypeFor[[]string](): {
 		"StringToCSVStringSliceHookFunc",
 		StringToCSVStringSliceHookFunc(),
 	},
-	"[]int": {
+	reflect.TypeFor[[]int](): {
 		"StringToIntSliceHookFunc",
 		StringToIntSliceHookFunc(","),
 	},
-	"[]uint8": {
+	reflect.TypeFor[[]uint8](): {
 		"StringToRawBytesHookFunc",
 		StringToRawBytesHookFunc(),
-	},
-	"structcli.Hex": {
-		"StringToHexHookFunc",
-		StringToNamedBytesHookFunc("structcli.Hex", decodeHexBytes),
-	},
-	"structcli.Base64": {
-		"StringToBase64HookFunc",
-		StringToNamedBytesHookFunc("structcli.Base64", decodeBase64Bytes),
 	},
 }
 
@@ -107,17 +101,17 @@ var AnnotationToDecodeHookRegistry map[string]mapstructure.DecodeHookFunc
 func init() {
 	// Map annotations to decoding hook
 	AnnotationToDecodeHookRegistry = make(map[string]mapstructure.DecodeHookFunc)
-	for typename, data := range DecodeHookRegistry {
+	for typ, data := range DecodeHookRegistry {
 		if _, exists := AnnotationToDecodeHookRegistry[data.ann]; exists {
-			panic(fmt.Sprintf("duplicate annotation name '%s' found in decode hook registry (type: %s)", data.ann, typename))
+			panic(fmt.Sprintf("duplicate annotation name '%s' found in decode hook registry (type: %s)", data.ann, typ))
 		}
 
 		AnnotationToDecodeHookRegistry[data.ann] = data.fx
 	}
 }
 
-func InferDecodeHooks(c *cobra.Command, name, typename string) bool {
-	if data, ok := DecodeHookRegistry[typename]; ok {
+func InferDecodeHooks(c *cobra.Command, name string, typ reflect.Type) bool {
+	if data, ok := DecodeHookRegistry[typ]; ok {
 		if err := c.Flags().SetAnnotation(name, FlagDecodeHookAnnotation, []string{data.ann}); err != nil {
 			panic(fmt.Sprintf("structcli: SetAnnotation on just-registered flag %q: %v", name, err))
 		}
@@ -131,13 +125,13 @@ func InferDecodeHooks(c *cobra.Command, name, typename string) bool {
 // DecodeRegistrySnapshot holds opaque copies of both decode registries for
 // test isolation.
 type DecodeRegistrySnapshot struct {
-	registry    map[string]decodingAnnotation
+	registry    map[reflect.Type]decodingAnnotation
 	annotations map[string]mapstructure.DecodeHookFunc
 }
 
 // SnapshotDecodeRegistries returns a deep copy of both decode registries.
 func SnapshotDecodeRegistries() DecodeRegistrySnapshot {
-	dr := make(map[string]decodingAnnotation, len(DecodeHookRegistry))
+	dr := make(map[reflect.Type]decodingAnnotation, len(DecodeHookRegistry))
 	for k, v := range DecodeHookRegistry {
 		dr[k] = v
 	}
@@ -158,23 +152,23 @@ func RestoreDecodeRegistries(snap DecodeRegistrySnapshot) {
 // RegisterDecodeHook registers a decode hook for a custom type. It updates both
 // DecodeHookRegistry and AnnotationToDecodeHookRegistry. Panics on duplicate
 // annotation name (consistent with init() behavior).
-func RegisterDecodeHook(typeName, annotationName string, hook mapstructure.DecodeHookFunc) {
+func RegisterDecodeHook(typ reflect.Type, annotationName string, hook mapstructure.DecodeHookFunc) {
 	if _, exists := AnnotationToDecodeHookRegistry[annotationName]; exists {
-		panic(fmt.Sprintf("duplicate annotation name '%s' in decode hook registry (type: %s)", annotationName, typeName))
+		panic(fmt.Sprintf("duplicate annotation name '%s' in decode hook registry (type: %s)", annotationName, typ))
 	}
 
-	DecodeHookRegistry[typeName] = decodingAnnotation{ann: annotationName, fx: hook}
+	DecodeHookRegistry[typ] = decodingAnnotation{ann: annotationName, fx: hook}
 	AnnotationToDecodeHookRegistry[annotationName] = hook
 }
 
 // RegisterUserDecodeHook wraps a user-provided DecodeHookFunc into a
-// mapstructure.DecodeHookFunc and registers it for the given type name.
-// The wrapper filters by target type (exact match) and source kind (string).
-func RegisterUserDecodeHook(typeName string, decode DecodeHookFunc) {
-	annName := fmt.Sprintf("RegisterTypeTo%sHookFunc", sanitizeTypeName(typeName))
+// mapstructure.DecodeHookFunc and registers it for the given type.
+// The wrapper filters by target type (reflect.Type equality) and source kind (string).
+func RegisterUserDecodeHook(typ reflect.Type, decode DecodeHookFunc) {
+	annName := fmt.Sprintf("RegisterTypeTo%sHookFunc", sanitizeTypeName(typ.String()))
 
 	hook := func(from reflect.Type, to reflect.Type, data any) (any, error) {
-		if to.String() != typeName {
+		if to != typ {
 			return data, nil
 		}
 		if from.Kind() != reflect.String {
@@ -184,7 +178,7 @@ func RegisterUserDecodeHook(typeName string, decode DecodeHookFunc) {
 		return decode(data)
 	}
 
-	RegisterDecodeHook(typeName, annName, mapstructure.DecodeHookFunc(hook))
+	RegisterDecodeHook(typ, annName, mapstructure.DecodeHookFunc(hook))
 }
 
 func sanitizeTypeName(typeName string) string {
@@ -782,7 +776,8 @@ func StringToRawBytesHookFunc() mapstructure.DecodeHookFunc {
 }
 
 // StringToNamedBytesHookFunc converts encoded textual input into a named []byte type.
-func StringToNamedBytesHookFunc(typeName string, decode func(string) ([]byte, error)) mapstructure.DecodeHookFunc {
+// Matches by reflect.Type equality for collision safety.
+func StringToNamedBytesHookFunc(targetType reflect.Type, decode func(string) ([]byte, error)) mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
@@ -791,25 +786,27 @@ func StringToNamedBytesHookFunc(typeName string, decode func(string) ([]byte, er
 		if f.Kind() != reflect.String {
 			return data, nil
 		}
-		if t.String() != typeName {
+		if t != targetType {
 			return data, nil
 		}
 
 		raw := data.(string)
 		decoded, err := decode(raw)
 		if err != nil {
-			return nil, fmt.Errorf("invalid string for %s '%s': %w", typeName, raw, err)
+			return nil, fmt.Errorf("invalid string for %s '%s': %w", targetType, raw, err)
 		}
 
 		return reflect.ValueOf(decoded).Convert(t).Interface(), nil
 	}
 }
 
-func decodeHexBytes(raw string) ([]byte, error) {
+// DecodeHexBytes decodes a hex-encoded string into bytes.
+func DecodeHexBytes(raw string) ([]byte, error) {
 	return hex.DecodeString(strings.TrimSpace(raw))
 }
 
-func decodeBase64Bytes(raw string) ([]byte, error) {
+// DecodeBase64Bytes decodes a base64-encoded string into bytes.
+func DecodeBase64Bytes(raw string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(strings.TrimSpace(raw))
 }
 

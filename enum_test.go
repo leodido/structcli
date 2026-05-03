@@ -2,6 +2,7 @@ package structcli
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	internalhooks "github.com/leodido/structcli/internal/hooks"
@@ -73,7 +74,7 @@ func resetEnumTestState() {
 func saveAndRestoreRegistries(t *testing.T) {
 	t.Helper()
 
-	origDefine := make(map[string]internalhooks.DefineHookFunc)
+	origDefine := make(map[reflect.Type]internalhooks.DefineHookFunc)
 	for k, v := range internalhooks.DefineHookRegistry {
 		origDefine[k] = v
 	}

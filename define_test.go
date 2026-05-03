@@ -3544,3 +3544,20 @@ func (suite *structcliSuite) TestDefine_FieldHookProvider_RejectsDecodeWithoutDe
 	assert.Contains(suite.T(), err.Error(), "Decode without Define")
 }
 
+// flagcustomOptions uses the removed flagcustom tag.
+type flagcustomOptions struct {
+	Token string `flag:"token" flagdescr:"API token" flagcustom:"true"`
+}
+
+func (o *flagcustomOptions) Attach(c *cobra.Command) error { return nil }
+
+func (suite *structcliSuite) TestDefine_RejectsFlagcustomTag() {
+	opts := &flagcustomOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	err := Define(cmd, opts)
+	require.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "flagcustom tag is no longer supported")
+	assert.Contains(suite.T(), err.Error(), "RegisterType")
+	assert.Contains(suite.T(), err.Error(), "FieldHookProvider")
+}
+
