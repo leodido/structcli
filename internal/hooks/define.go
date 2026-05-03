@@ -25,8 +25,7 @@ import (
 // The caller registers the returned pflag.Value with the appropriate short name via VarP.
 type DefineHookFunc func(name, descr string, structField reflect.StructField, fieldValue reflect.Value) (pflag.Value, string)
 
-// DefineHookRegistry keeps track of the built-in flag definition functions.
-// Keyed by reflect.Type for collision-safe lookups.
+// DefineHookRegistry maps types to their flag definition functions.
 var DefineHookRegistry = map[reflect.Type]DefineHookFunc{
 	reflect.TypeFor[time.Duration]():     DefineTimeDurationHookFunc(),
 	reflect.TypeFor[[]time.Duration]():   DefineDurationSliceHookFunc(),
@@ -43,10 +42,8 @@ var DefineHookRegistry = map[reflect.Type]DefineHookFunc{
 	reflect.TypeFor[[]uint8]():           DefineRawBytesHookFunc(),
 }
 
-// defineHookRegistryByName holds entries registered by type name string.
-// Used only for types that cannot use reflect.TypeFor at init time from
-// this package (e.g., types from the parent structcli package).
-// InferDefineHooks checks DefineHookRegistry first, then falls back here.
+// defineHookRegistryByName is a string-keyed fallback for types whose
+// reflect.Type is not available in this package (circular import).
 var defineHookRegistryByName = map[string]DefineHookFunc{}
 
 var byteSliceType = reflect.TypeOf([]byte(nil))
@@ -237,9 +234,9 @@ func DefineStringEnumHookFunc[E ~string](values map[E][]string) DefineHookFunc {
 	}
 }
 
-// InferDefineHooks checks if there's a predefined flag definition function for the given type.
-// Checks the reflect.Type-keyed registry first, then falls back to the string-keyed
-// registry for types that cannot be referenced by reflect.TypeFor from this package.
+// InferDefineHooks looks up a define hook for the field's type and registers
+// the flag if found. Falls back to the string-keyed registry for types whose
+// reflect.Type is unavailable in this package.
 func InferDefineHooks(c *cobra.Command, name, short, descr string, structField reflect.StructField, fieldValue reflect.Value) bool {
 	if defineFunc, ok := DefineHookRegistry[structField.Type]; ok {
 		value, usage := defineFunc(name, descr, structField, fieldValue)

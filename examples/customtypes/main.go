@@ -3,9 +3,9 @@
 // Demonstrates the three mechanisms for handling custom types in structcli,
 // listed here in precedence order (highest first):
 //
-//  1. FieldHookProvider — per-field Define/Decode on the options struct
-//  2. RegisterType[T]  — per-type hooks registered once in init()
-//  3. Built-in registry — time.Duration, zapcore.Level, etc.
+//  1. FieldHookProvider: per-field Define/Decode on the options struct
+//  2. RegisterType[T]:  per-type hooks registered once in init()
+//  3. Built-in registry: time.Duration, zapcore.Level, etc.
 //
 // Run:
 //
@@ -31,7 +31,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// 1. RegisterType[T] — per-type hooks
+// 1. RegisterType[T]: per-type hooks
 // ---------------------------------------------------------------------------
 
 // HostPort is a custom type: "host:port" string with validation.
@@ -84,21 +84,21 @@ func init() {
 			return &hostPortValue{ref: ref}, descr + " (host:port)"
 		},
 		Decode: func(input any) (any, error) {
-			// Safe: structcli always passes the raw flag string here.
+			// input is always a string from the flag value.
 			return ParseHostPort(input.(string))
 		},
 	})
 }
 
 // ---------------------------------------------------------------------------
-// 2. FieldHookProvider + FieldCompleter — per-field hooks
+// 2. FieldHookProvider + FieldCompleter: per-field hooks
 // ---------------------------------------------------------------------------
 
 // ServerOptions uses FieldHookProvider for the Mode field.
 // Mode is a plain string, but we want custom define/decode/completion behavior
 // for this specific field without affecting other string fields.
 type ServerOptions struct {
-	// HostPort is handled by RegisterType — no special tags needed.
+	// HostPort is handled by RegisterType; no special tags needed.
 	Listen HostPort `flag:"listen" flagdescr:"Bind address" flagenv:"true"`
 
 	// Mode uses FieldHookProvider for custom define/decode.
@@ -106,10 +106,10 @@ type ServerOptions struct {
 	// the Define hook sets the Go value used when no flag is provided.
 	Mode string `flag:"mode" flagdescr:"Server mode" default:"development"`
 
-	// Timeout is a time.Duration — handled by the built-in registry.
+	// Timeout is a time.Duration, handled by the built-in registry.
 	Timeout time.Duration `flag:"timeout" flagdescr:"Request timeout" default:"10s" flagenv:"true"`
 
-	// Workers is a standard int — handled natively by pflag.
+	// Workers is a standard int, handled natively by pflag.
 	Workers int `flag:"workers" flagdescr:"Worker goroutines" default:"4"`
 }
 
@@ -128,7 +128,7 @@ func (o *ServerOptions) FieldHooks() map[string]structcli.FieldHook {
 				return values.NewString(ref), descr + " {" + strings.Join(validModes, ",") + "}"
 			},
 			Decode: func(input any) (any, error) {
-				// Safe: structcli always passes the raw flag string here.
+				// input is always a string from the flag value.
 				s := strings.ToLower(strings.TrimSpace(input.(string)))
 				// Accept short aliases.
 				switch s {
