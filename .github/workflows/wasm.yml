@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  wasm-test:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the source code
@@ -42,7 +42,7 @@ jobs:
           (cd examples/loginsvc && go test ./...)
           (cd examples/customtypes && go test ./...)
 
-  wasm-parity:
+  parity:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
