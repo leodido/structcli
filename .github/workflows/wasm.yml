@@ -35,6 +35,7 @@ jobs:
           GONOSUMDB: github.com/leodido/structcli
           GONOSUMCHECK: github.com/leodido/structcli
         run: |
+          export PATH="$(go env GOROOT)/lib/wasm:$PATH"
           go test ./...
           (cd examples/collections && go test ./...)
           (cd examples/full && go test ./...)
@@ -81,7 +82,7 @@ jobs:
       - name: 'Parity: ${{ matrix.name }} ${{ matrix.args }}'
         run: |
           ./${{ matrix.name }} ${{ matrix.args }} > native.out 2>&1 || true
-          wasmtime ./${{ matrix.name }}.wasm -- ${{ matrix.args }} > wasm.out 2>&1 || true
+          wasmtime run --dir=/ --env PWD="$PWD" --env PATH="$PATH" ./${{ matrix.name }}.wasm -- ${{ matrix.args }} > wasm.out 2>&1 || true
           if [ -n "${{ matrix.filter }}" ]; then
             sed -i '${{ matrix.filter }}' native.out wasm.out
           fi
