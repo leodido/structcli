@@ -3,7 +3,7 @@
 # Release a new version.
 #
 # Usage:
-#   make release VERSION=0.17.0
+#   make release VERSION=0.18.0
 #
 # Before running:
 #   1. Fill in the CHANGELOG.md [Unreleased] section
@@ -11,13 +11,13 @@
 #
 # This target then:
 #   1. Bumps the Version constant in version.go
-#   2. Bumps the mcp-command-factory example go.mod require
-#   3. Regenerates files that depend on the version (SKILL.md, etc.)
+#   2. Regenerates files that depend on the version (SKILL.md, etc.)
+#   3. Bumps all example go.mod files that depend on structcli
 #   4. Commits, tags, and pushes
 #
 release:
 ifndef VERSION
-	$(error VERSION is required. Usage: make release VERSION=0.17.0)
+	$(error VERSION is required. Usage: make release VERSION=0.18.0)
 endif
 	@# Guard: clean working tree
 	@git diff --quiet && git diff --cached --quiet || (echo "error: working tree is dirty" && exit 1)
@@ -29,13 +29,14 @@ endif
 	@# 2. Regenerate (before bumping the example go.mod, so the workspace
 	@#    doesn't try to resolve a version that doesn't exist on the proxy yet)
 	@(cd examples/full && go generate ./...)
-	@# 3. Bump mcp-command-factory example
-	@sed -i 's|github.com/leodido/structcli v[0-9.]*|github.com/leodido/structcli v$(VERSION)|' examples/mcp-command-factory/go.mod
+	@# 3. Bump all example go.mod files that depend on structcli
+	@find examples -name go.mod -exec grep -l 'github.com/leodido/structcli' {} \; \
+		| xargs -I{} sed -i 's|github.com/leodido/structcli v[0-9.]*|github.com/leodido/structcli v$(VERSION)|' {}
 	@# 4. Commit, tag, push
-	@git add version.go examples/mcp-command-factory/go.mod examples/full/ go.work.sum
-	@git diff --quiet || (echo "error: unstaged changes remain after regeneration — stage them and retry" && git diff --stat && exit 1)
+	@git add version.go examples/ go.work.sum
+	@git diff --quiet || (echo "error: unstaged changes remain after regeneration -- stage them and retry" && git diff --stat && exit 1)
 	@git commit -m "chore: bump Version constant to $(VERSION)" \
-		-m "Also bump the mcp-command-factory example go.mod require to v$(VERSION)." \
+		-m "Also bump structcli version in all example go.mod files to v$(VERSION)." \
 		--trailer "Co-authored-by: Ona <no-reply@ona.com>"
 	@git tag v$(VERSION)
 	@git push origin main
