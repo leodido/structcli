@@ -1,0 +1,199 @@
+/* Layout: sidebar + terminal */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: #0d1117;
+  color: #c9d1d9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+    sans-serif;
+}
+
+#app {
+  display: flex;
+  height: 100%;
+  position: relative;
+}
+
+/* --- Sidebar --- */
+
+#sidebar {
+  width: 280px;
+  min-width: 280px;
+  background: #161b22;
+  border-right: 1px solid #30363d;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 20px 16px;
+  gap: 20px;
+}
+
+.sidebar-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #58a6ff;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-header .subtitle {
+  font-size: 13px;
+  color: #8b949e;
+  margin-top: 2px;
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-section label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8b949e;
+}
+
+.sidebar-section select {
+  background: #0d1117;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+}
+
+.sidebar-section select:focus {
+  border-color: #58a6ff;
+}
+
+.description {
+  font-size: 13px;
+  color: #8b949e;
+  line-height: 1.4;
+}
+
+/* --- Suggestion buttons --- */
+
+#suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.suggestion {
+  background: #0d1117;
+  color: #7ee787;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion:hover {
+  border-color: #58a6ff;
+  background: #161b22;
+}
+
+.suggestion:active {
+  background: #1f2937;
+}
+
+/* --- Sidebar footer --- */
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #30363d;
+  font-size: 13px;
+  color: #8b949e;
+}
+
+.sidebar-footer a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+.sidebar-footer a:hover {
+  text-decoration: underline;
+}
+
+.sidebar-footer .sep {
+  margin: 0 6px;
+  color: #30363d;
+}
+
+/* --- Terminal --- */
+
+#terminal-container {
+  flex: 1;
+  min-width: 0;
+  padding: 8px;
+  background: #0d1117;
+}
+
+#terminal-container .xterm {
+  height: 100%;
+}
+
+/* --- Mobile sidebar toggle --- */
+
+#sidebar-toggle {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  background: #161b22;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* --- Responsive: < 768px --- */
+
+@media (max-width: 767px) {
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    width: 280px;
+  }
+
+  #sidebar.open {
+    transform: translateX(0);
+  }
+
+  #sidebar-toggle {
+    display: block;
+  }
+
+  #terminal-container {
+    padding-top: 44px; /* space for toggle button */
+  }
+}
