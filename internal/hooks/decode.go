@@ -286,7 +286,7 @@ func StringToIntSliceHookFunc(sep string) mapstructure.DecodeHookFunc {
 		if f.Kind() != reflect.String {
 			return data, nil
 		}
-		if t != reflect.SliceOf(reflect.TypeOf(int(0))) {
+		if t != reflect.TypeFor[[]int]() {
 			return data, nil
 		}
 
