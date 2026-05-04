@@ -8,7 +8,7 @@ description: Release a new version of structcli. Use when asked to release, cut 
 ## Prerequisites
 
 - You are on `main` with a clean working tree.
-- Git user email is set to `120051+leodido@users.noreply.github.com` (GitHub blocks pushes with the real email due to email privacy settings).
+- Verify you can push to `origin main` (check `git config user.email` against GitHub email privacy settings if pushes are rejected).
 - All CI workflows (`testing`, `wasm`) are green on `main`.
 
 ## Steps
