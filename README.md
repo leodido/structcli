@@ -7,6 +7,7 @@ Declare your CLI contract once in Go structs. `structcli` turns it into flags, e
 - Less Cobra/Viper boilerplate
 - Better CLIs for humans
 - Better contracts for automation and LLMs
+- Compiles to WASM out of the box
 
 Stop writing plumbing. Start shipping commands.
 
@@ -931,6 +932,19 @@ Organize your `--help` output into logical groups for better readability.
 #
 # Use "full srv [command] --help" for more information about a command.
 ```
+
+### 🌐 WebAssembly (WASM)
+
+structcli avoids `reflect.Value.MethodByName` and `reflect.Value.Call`, so the Go compiler's dead-code elimination (DCE) works correctly and WASM binaries stay lean. All features work under `GOOS=wasip1 GOARCH=wasm` with the standard Go compiler, including custom type hooks (`RegisterType[T]`, `FieldHookProvider`), JSON Schema generation, structured errors, and debug output.
+
+Build and run any structcli program as WASM:
+
+```bash
+GOOS=wasip1 GOARCH=wasm go build -o myapp.wasm .
+wasmtime run --dir=/ myapp.wasm serve --port 8080
+```
+
+This means structcli CLIs can run in sandboxed WASM runtimes, edge functions, and browser-based environments. Combined with `--jsonschema` and `--mcp`, an agent can discover the CLI contract, call it in a sandboxed WASM runtime, and handle structured failures without ever touching the host OS.
 
 ## 🏷️ Available Struct Tags
 
