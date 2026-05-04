@@ -52,9 +52,9 @@ func defineByteSliceValueHookFunc(newValue func(val []byte, ref *[]byte) pflag.V
 	return func(name, descr string, _ reflect.StructField, fieldValue reflect.Value) (pflag.Value, string) {
 		val := fieldValue.Convert(byteSliceType).Interface().([]byte)
 		// The field may be a named type (e.g. structcli.Hex) so Addr().Interface()
-		// would yield *Hex, not *[]byte. Use reflect.NewAt to reinterpret the
-		// pointer as *[]byte, which is safe because the underlying type is []byte.
-		ref := reflect.NewAt(byteSliceType, fieldValue.Addr().UnsafePointer()).Interface().(*[]byte)
+		// would yield *Hex, not *[]byte. Cast via unsafe pointer instead, which
+		// is valid because the underlying type is []byte.
+		ref := (*[]byte)(fieldValue.Addr().UnsafePointer())
 
 		return newValue(val, ref), descr
 	}
