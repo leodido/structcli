@@ -1,0 +1,36 @@
+name: wasm
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '~1.24.0'
+
+      - name: probe wasmtime
+        run: |
+          echo "=== wasmtime ==="
+          which wasmtime && wasmtime --version || echo "wasmtime not found"
+          echo ""
+          echo "=== GOROOT wasm support ==="
+          ls -la "$(go env GOROOT)/lib/wasm/" 2>/dev/null || echo "no lib/wasm"
+          echo ""
+          echo "=== Go version ==="
+          go version
+          echo "GOROOT=$(go env GOROOT)"
+          echo ""
+          echo "=== WASM build smoke test ==="
+          GOOS=wasip1 GOARCH=wasm go build -o /dev/null ./examples/minimal/
+          echo "examples/minimal: WASM build OK"
