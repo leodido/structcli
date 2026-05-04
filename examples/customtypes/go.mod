@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.12
 
 require (
-	github.com/leodido/structcli v0.17.0
+	github.com/leodido/structcli v0.18.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 )

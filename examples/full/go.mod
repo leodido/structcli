@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/go-playground/mold/v4 v4.5.1
 	github.com/go-playground/validator/v10 v10.26.0
-	github.com/leodido/structcli v0.9.2
+	github.com/leodido/structcli v0.18.0
 	github.com/spf13/afero v1.15.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.10
