@@ -48,27 +48,57 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # examples/minimal: root command with --loglevel and --port flags
+          # examples/minimal: root command with --loglevel (zapcore.Level enum) and --port flags
           - dir: examples/minimal
             name: minimal
             args: '--help'
           - dir: examples/minimal
             name: minimal
             args: '--port 8080'
-          # examples/simple: root command with flags, --jsonschema, --mcp
+          - dir: examples/minimal
+            name: minimal
+            args: '--loglevel debug --port 443'
+          - dir: examples/minimal
+            name: minimal
+            args: '--loglevel bogus'
+          # examples/simple: flags, --jsonschema, --mcp
           - dir: examples/simple
             name: simple
             args: '--help'
           - dir: examples/simple
             name: simple
             args: '-p 9090'
-          # examples/customtypes: root + serve subcommand, custom type hooks
+          - dir: examples/simple
+            name: simple
+            args: '--jsonschema'
+          - dir: examples/simple
+            name: simple
+            args: '--jsonschema=tree'
+          # examples/customtypes: RegisterType[T], FieldHookProvider, built-in registry
           - dir: examples/customtypes
             name: customtypes
             args: 'serve --help'
           - dir: examples/customtypes
             name: customtypes
-            args: 'serve --listen 0.0.0.0:9090 --mode prod'
+            args: 'serve'
+          - dir: examples/customtypes
+            name: customtypes
+            args: 'serve --listen 10.0.0.1:443 --mode prod --timeout 5m --workers 16'
+          - dir: examples/customtypes
+            name: customtypes
+            args: 'serve --mode dev'
+          - dir: examples/customtypes
+            name: customtypes
+            args: 'serve --mode stg'
+          - dir: examples/customtypes
+            name: customtypes
+            args: 'serve --timeout 30s'
+          - dir: examples/customtypes
+            name: customtypes
+            args: 'serve --mode invalid'
+          - dir: examples/customtypes
+            name: customtypes
+            args: 'serve --listen notahost'
           # examples/collections: slices, maps, viper config
           - dir: examples/collections
             name: collections
@@ -76,7 +106,7 @@ jobs:
           - dir: examples/collections
             name: collections
             args: '--retries 1,2,3 --backoffs 1s,5s --feature-on true,false --labels env=prod --limits cpu=8 --counts ok=10'
-          # examples/structerr: structured errors, subcommands
+          # examples/structerr: structured errors, validation
           - dir: examples/structerr
             name: structerr
             args: '--help'
@@ -86,6 +116,15 @@ jobs:
           - dir: examples/structerr
             name: structerr
             args: 'usr add --help'
+          - dir: examples/structerr
+            name: structerr
+            args: 'srv --port 8080'
+          - dir: examples/structerr
+            name: structerr
+            args: 'srv --port -1'
+          - dir: examples/structerr
+            name: structerr
+            args: 'usr add'
           # examples/loginsvc: nested subcommands, viper config
           - dir: examples/loginsvc
             name: loginsvc
@@ -96,7 +135,13 @@ jobs:
           - dir: examples/loginsvc
             name: loginsvc
             args: 'user add --help'
-          # examples/full: all features, many subcommands
+          - dir: examples/loginsvc
+            name: loginsvc
+            args: 'user add -u testuser'
+          - dir: examples/loginsvc
+            name: loginsvc
+            args: 'user delete --help'
+          # examples/full: all features, debug options, jsonschema, validation
           - dir: examples/full
             name: full
             args: '--help'
@@ -109,6 +154,24 @@ jobs:
           - dir: examples/full
             name: full
             args: 'preset --help'
+          - dir: examples/full
+            name: full
+            args: '--debug-options'
+          - dir: examples/full
+            name: full
+            args: '--debug-options=json'
+          - dir: examples/full
+            name: full
+            args: '--jsonschema'
+          - dir: examples/full
+            name: full
+            args: 'srv --port 9090 --loglevel debug'
+          - dir: examples/full
+            name: full
+            args: 'usr add'
+          - dir: examples/full
+            name: full
+            args: '--nonexistent'
           # examples/mcp-command-factory: MCP + greet subcommand
           - dir: examples/mcp-command-factory
             name: mcp-command-factory
