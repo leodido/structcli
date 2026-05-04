@@ -10,27 +10,33 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  wasm-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the source code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-go@v5
+      - name: Set up Go
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
         with:
           go-version: '~1.24.0'
+          check-latest: true
 
-      - name: probe wasmtime
+      - name: Set up wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@9152e710e9f7182e4c29ad218e4f335a7b203613 # v1
+        with:
+          version: '29.0.1'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests under WASM
+        env:
+          GOOS: wasip1
+          GOARCH: wasm
+          GONOSUMDB: github.com/leodido/structcli
+          GONOSUMCHECK: github.com/leodido/structcli
         run: |
-          echo "=== wasmtime ==="
-          which wasmtime && wasmtime --version || echo "wasmtime not found"
-          echo ""
-          echo "=== GOROOT wasm support ==="
-          ls -la "$(go env GOROOT)/lib/wasm/" 2>/dev/null || echo "no lib/wasm"
-          echo ""
-          echo "=== Go version ==="
-          go version
-          echo "GOROOT=$(go env GOROOT)"
-          echo ""
-          echo "=== WASM build smoke test ==="
-          GOOS=wasip1 GOARCH=wasm go build -o /dev/null ./examples/minimal/
-          echo "examples/minimal: WASM build OK"
+          go test ./...
+          (cd examples/collections && go test ./...)
+          (cd examples/full && go test ./...)
+          (cd examples/loginsvc && go test ./...)
+          (cd examples/customtypes && go test ./...)
