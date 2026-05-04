@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>structcli — WASM Demo</title>
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <div class="sidebar-header">
+          <h1>structcli</h1>
+          <p class="subtitle">WASM Playground</p>
+        </div>
+        <div class="sidebar-section">
+          <label for="example-select">Example</label>
+          <select id="example-select"></select>
+          <p id="example-description" class="description"></p>
+        </div>
+        <div class="sidebar-section">
+          <label>Try these commands</label>
+          <div id="suggestions"></div>
+        </div>
+        <div class="sidebar-footer">
+          <a href="https://github.com/leodido/structcli" target="_blank" rel="noopener">GitHub</a>
+          <span class="sep">·</span>
+          <a href="https://pkg.go.dev/github.com/leodido/structcli" target="_blank" rel="noopener">Docs</a>
+        </div>
+      </aside>
+      <main id="terminal-container"></main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
