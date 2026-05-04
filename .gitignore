@@ -1,4 +1,8 @@
 *.test
 *.out
+*.wasm
 main
 examples/structerr/structerr
+examples/wasm-demo/public/wasm/
+examples/wasm-demo/node_modules/
+examples/wasm-demo/dist/
