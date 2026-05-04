@@ -55,6 +55,67 @@ jobs:
           - dir: examples/minimal
             name: minimal
             args: '--port 8080'
+          # examples/simple: root command with flags, --jsonschema, --mcp
+          - dir: examples/simple
+            name: simple
+            args: '--help'
+          - dir: examples/simple
+            name: simple
+            args: '-p 9090'
+          # examples/customtypes: root + serve subcommand, custom type hooks
+          - dir: examples/customtypes
+            name: customtypes
+            args: 'serve --help'
+          - dir: examples/customtypes
+            name: customtypes
+            args: 'serve --listen 0.0.0.0:9090 --mode prod'
+          # examples/collections: slices, maps, viper config
+          - dir: examples/collections
+            name: collections
+            args: '--help'
+          - dir: examples/collections
+            name: collections
+            args: '--retries 1,2,3 --backoffs 1s,5s --feature-on true,false --labels env=prod --limits cpu=8 --counts ok=10'
+          # examples/structerr: structured errors, subcommands
+          - dir: examples/structerr
+            name: structerr
+            args: '--help'
+          - dir: examples/structerr
+            name: structerr
+            args: 'srv --help'
+          - dir: examples/structerr
+            name: structerr
+            args: 'usr add --help'
+          # examples/loginsvc: nested subcommands, viper config
+          - dir: examples/loginsvc
+            name: loginsvc
+            args: '--help'
+          - dir: examples/loginsvc
+            name: loginsvc
+            args: 'user --help'
+          - dir: examples/loginsvc
+            name: loginsvc
+            args: 'user add --help'
+          # examples/full: all features, many subcommands
+          - dir: examples/full
+            name: full
+            args: '--help'
+          - dir: examples/full
+            name: full
+            args: 'srv --help'
+          - dir: examples/full
+            name: full
+            args: 'usr add --help'
+          - dir: examples/full
+            name: full
+            args: 'preset --help'
+          # examples/mcp-command-factory: MCP + greet subcommand
+          - dir: examples/mcp-command-factory
+            name: mcp-command-factory
+            args: '--help'
+          - dir: examples/mcp-command-factory
+            name: mcp-command-factory
+            args: 'greet --help'
     steps:
       - name: Check out the source code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
