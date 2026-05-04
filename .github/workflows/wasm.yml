@@ -137,13 +137,14 @@ jobs:
           GONOSUMDB: github.com/leodido/structcli
           GONOSUMCHECK: github.com/leodido/structcli
         run: |
-          go build -o ${{ matrix.name }} ./${{ matrix.dir }}/
-          GOOS=wasip1 GOARCH=wasm go build -o ${{ matrix.name }}.wasm ./${{ matrix.dir }}/
+          mkdir -p bin
+          go build -o bin/${{ matrix.name }} ./${{ matrix.dir }}/
+          GOOS=wasip1 GOARCH=wasm go build -o bin/${{ matrix.name }}.wasm ./${{ matrix.dir }}/
 
       - name: 'Parity: ${{ matrix.name }} ${{ matrix.args }}'
         run: |
-          ./${{ matrix.name }} ${{ matrix.args }} > native.out 2>&1 || true
-          wasmtime run --dir=/ --env PWD="$PWD" --env PATH="$PATH" ./${{ matrix.name }}.wasm ${{ matrix.args }} > wasm.out 2>&1 || true
+          bin/${{ matrix.name }} ${{ matrix.args }} > native.out 2>&1 || true
+          wasmtime run --dir=/ --env PWD="$PWD" --env PATH="$PATH" bin/${{ matrix.name }}.wasm ${{ matrix.args }} > wasm.out 2>&1 || true
           if [ -n "${{ matrix.filter }}" ]; then
             sed -i '${{ matrix.filter }}' native.out wasm.out
           fi
