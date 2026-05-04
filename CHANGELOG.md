@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-05-04
+
+### Added
+- `RegisterType[T](TypeHooks[T])` for per-type Define/Decode hook registration in `init()`, replacing the `Define<Field>`/`Decode<Field>` convention method pattern.
+- `FieldHookProvider` interface for per-field Define/Decode hooks via `FieldHooks() map[string]FieldHook`.
+- `FieldCompleter` interface for per-field completion hooks via `CompletionHooks() map[string]CompleteHookFunc`.
+- `DefineHookFunc`, `DecodeHookFunc`, `CompleteHookFunc` type aliases re-exported from `contract.go`.
+- Hook resolution precedence: `FieldHookProvider` (per-field) > `RegisterType`/`RegisterEnum` (per-type) > built-in registry (`time.Duration`, `zapcore.Level`, `slog.Level`, etc.).
+- Validation: unknown `FieldHookProvider`/`FieldCompleter` keys that don't match any struct field produce an error. `FieldHook{Decode: fn}` without `Define` is rejected.
+- `FieldCompleter` hooks are skipped for `flagenv:"only"` fields.
+- CI workflow for WASM (`wasip1/wasm`): full test suite under wasmtime and behavioral parity matrix comparing native vs WASM output across all 8 examples (41 invocations).
+- `examples/customtypes` demonstrating `RegisterType[T]`, `FieldHookProvider`, `FieldCompleter`, and built-in registry side by side.
+
+### Changed
+- **Breaking:** `flagcustom:"true"` struct tag removed. Detected at define time with a migration error pointing to `RegisterType`/`FieldHookProvider`.
+- **Breaking:** `Define<Field>`/`Decode<Field>`/`Complete<Field>` convention methods removed. Use `FieldHookProvider.FieldHooks()` and `FieldCompleter.CompletionHooks()` instead.
+- **Breaking:** `StoreDecodeHookFunc` and `StoreCompletionHookFunc` removed (`reflect.Value` versions). Replaced by `StoreDecodeHookFuncDirect` and `StoreCompletionHookFuncDirect`.
+- **Breaking:** `DefineHookFunc` signature: removed redundant `short` parameter. Callers already have `short` and pass it to `pflag.FlagSet.VarP`.
+- **Breaking:** 6 error types removed: `MissingDefineHookError`, `MissingDecodeHookError`, `InvalidDefineHookSignatureError`, `InvalidDecodeHookSignatureError`, `InvalidCompleteHookSignatureError`, `ConflictingTypeError`.
+- **Breaking:** 3 error sentinels removed: `ErrMissingDefineHook`, `ErrMissingDecodeHook`, `ErrConflictingType`.
+- `DefineHookRegistry` and `DecodeHookRegistry` now use `reflect.Type` keys instead of `reflect.Type.String()` to prevent type name collisions across packages.
+- Decode hook wrappers (`RegisterUserDecodeHook`, `StringToNamedBytesHookFunc`) match by `reflect.Type` equality instead of string comparison.
+- Zero `MethodByName` and zero `reflect.Value.Call` in production code, enabling dead code elimination and WASM/TinyGo compatibility.
+- README updated for the new custom type hook APIs and WASM support.
+
+### Removed
+- All `reflect.MethodByName`/`reflect.Value.Call` dispatch from production code (net -1640 lines in #157).
+- `flagcustom` struct tag and associated code paths.
+
 ## [0.17.0] - 2026-04-30
 
 ### Added
@@ -199,7 +228,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `ResetGlobals()` to `Reset()`.
 
-[Unreleased]: https://github.com/leodido/structcli/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/leodido/structcli/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/leodido/structcli/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/leodido/structcli/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/leodido/structcli/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/leodido/structcli/compare/v0.15.0...v0.16.0
