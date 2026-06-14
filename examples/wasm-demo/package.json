@@ -15,6 +15,6 @@
     "@xterm/addon-web-links": "^0.11.0"
   },
   "devDependencies": {
-    "vite": "^6.3.0"
+    "vite": "^8.0.16"
   }
 }
