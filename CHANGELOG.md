@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-06
+
+### Added
+- Interactive browser-based WASM playground for all eight example CLIs, with a custom WASI preview1 shim, terminal UI, suggested commands, and GitHub Pages deployment.
+
+### Changed
+- Simplified internal hook reflection for byte-slice definitions and integer-slice decoding without changing behavior.
+- Updated the WASM demo build toolchain to Vite 8.1.0.
+- Updated `golang.org/x/net` to v0.50.0 and aligned compatible `x/crypto`, `x/sys`, `x/text`, and `x/tools` dependencies while preserving Go 1.24 support.
+- CI now validates Go 1.24 on Ubuntu and macOS plus Go 1.25 on Ubuntu; Go 1.24 remains the minimum supported version.
+- Updated the Codecov action to v6 and made coverage upload failures non-blocking after successful tests.
+
 ## [0.18.0] - 2026-05-04
 
 ### Added
@@ -228,7 +240,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `ResetGlobals()` to `Reset()`.
 
-[Unreleased]: https://github.com/leodido/structcli/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/leodido/structcli/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/leodido/structcli/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/leodido/structcli/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/leodido/structcli/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/leodido/structcli/compare/v0.16.0...v0.16.1
