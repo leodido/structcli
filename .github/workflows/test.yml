@@ -12,14 +12,18 @@ permissions:
 jobs:
   test:
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        go: ['1.24']
         include:
-          # Set the minimum Go patch version for the given Go minor
-          - go: '1.24'
+          - os: ubuntu-latest
+            go: '1.24'
             GO_VERSION: '~1.24.0'
+          - os: macos-latest
+            go: '1.24'
+            GO_VERSION: '~1.24.0'
+          - os: ubuntu-latest
+            go: '1.25'
+            GO_VERSION: '~1.25.0'
     runs-on: ${{ matrix.os }}
 
     steps:
